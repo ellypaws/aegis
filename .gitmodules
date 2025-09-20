@@ -1,0 +1,3 @@
+[submodule "src/discordgo"]
+	path = src/discordgo
+	url = https://github.com/Tesohh/discordgo.git

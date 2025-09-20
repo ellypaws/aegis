@@ -8,11 +8,13 @@ import (
 	"os"
 	"os/signal"
 	"slices"
+	"strings"
 	"sync"
 	"time"
 
-	"github.com/bwmarrin/discordgo"
 	"github.com/charmbracelet/log"
+
+	"github.com/bwmarrin/discordgo"
 
 	"drigo/pkg"
 	"drigo/pkg/discord/handlers"
@@ -99,9 +101,11 @@ func (b *botImpl) registerHandlers() {
 	b.session.AddHandler(func(session *discordgo.Session, i *discordgo.InteractionCreate) {
 		var handler pkg.Handler
 		var ok bool
+
+		handleName := getHandleName(i)
 		if i.Type == discordgo.InteractionMessageComponent {
 			log.Printf("Component with customID `%v` was pressed, attempting to respond\n", i.MessageComponentData().CustomID)
-			handler, ok = b.components[i.MessageComponentData().CustomID]
+			handler, ok = b.components[handleName]
 		} else {
 			handles, exist := b.handlers[i.Type]
 			if !exist {
@@ -109,7 +113,13 @@ func (b *botImpl) registerHandlers() {
 				return
 			}
 
-			handler, ok = handles[i.ApplicationCommandData().Name]
+			for name := range handles {
+				if strings.HasPrefix(handleName, name) {
+					handleName = name
+					ok = true
+					break
+				}
+			}
 		}
 
 		if !ok || handler == nil {
@@ -118,10 +128,10 @@ func (b *botImpl) registerHandlers() {
 			switch i.Type {
 			case discordgo.InteractionApplicationCommand:
 				interactionType = "command"
-				interactionName = i.ApplicationCommandData().Name
+				interactionName = handleName
 			case discordgo.InteractionMessageComponent:
 				interactionType = "component"
-				interactionName = i.MessageComponentData().CustomID
+				interactionName = handleName
 			case discordgo.InteractionApplicationCommandAutocomplete:
 				interactionType = "autocomplete"
 
@@ -135,7 +145,7 @@ func (b *botImpl) registerHandlers() {
 				}
 			case discordgo.InteractionModalSubmit:
 				interactionType = "modal"
-				interactionName = i.ModalSubmitData().CustomID
+				interactionName = handleName
 			}
 			log.Printf("WARNING: Cannot find handler for interaction [%v] '%v'", interactionType, interactionName)
 			return
@@ -155,6 +165,19 @@ func (b *botImpl) registerHandlers() {
 			}
 		}
 	})
+}
+
+func getHandleName(i *discordgo.InteractionCreate) string {
+	switch i.Type {
+	case discordgo.InteractionApplicationCommand, discordgo.InteractionApplicationCommandAutocomplete:
+		return i.ApplicationCommandData().Name
+	case discordgo.InteractionMessageComponent:
+		return i.MessageComponentData().CustomID
+	case discordgo.InteractionModalSubmit:
+		return i.ModalSubmitData().CustomID
+	default:
+		return "unknown"
+	}
 }
 
 func (b *botImpl) registerCommands() error {

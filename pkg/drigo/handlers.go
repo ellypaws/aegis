@@ -1,8 +1,13 @@
 package drigo
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
+	"os"
+
+	"github.com/charmbracelet/log"
+	"github.com/segmentio/ksuid"
 
 	"github.com/bwmarrin/discordgo"
 
@@ -19,18 +24,25 @@ func (q *Bot) handlers() map[discordgo.InteractionType]map[string]pkg.Handler {
 		},
 		discordgo.InteractionApplicationCommandAutocomplete: {},
 		discordgo.InteractionModalSubmit: {
-			PostImageCommand: q.handlePostImage,
+			PostImageCommand: q.handleModalSubmit,
 		},
 	}
 }
 
 var lastImage utils.AttachmentImage
 
-func (q *Bot) handlePostImage(s *discordgo.Session, i *discordgo.InteractionCreate) error {
-	if err := handlers.ThinkResponse(s, i); err != nil {
-		return err
+func (q *Bot) handleModalSubmit(s *discordgo.Session, i *discordgo.InteractionCreate) error {
+	enc := json.NewEncoder(os.Stdout)
+	enc.SetIndent("", "  ")
+	err := enc.Encode(i)
+	if err != nil {
+		log.Error("Failed to encode interaction", "error", err)
 	}
 
+	return nil
+}
+
+func (q *Bot) handlePostImage(s *discordgo.Session, i *discordgo.InteractionCreate) error {
 	optionMap := utils.GetOpts(i.ApplicationCommandData())
 
 	attachments, err := utils.GetAttachments(i)
@@ -52,6 +64,40 @@ func (q *Bot) handlePostImage(s *discordgo.Session, i *discordgo.InteractionCrea
 			return handlers.ErrorEdit(s, i.Interaction, "You need to provide a thumbnail image.")
 		}
 		lastImage = image
+	}
+
+	if option, ok := optionMap[roleSelect]; ok {
+		role := option.RoleValue(s, i.GuildID)
+		log.Info(role)
+	} else {
+		err = s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+			Type: discordgo.InteractionResponseModal,
+			Data: &discordgo.InteractionResponseData{
+				CustomID: PostImageCommand + ksuid.New().String(),
+				Title:    "Role selection is required",
+				Components: []discordgo.MessageComponent{
+					discordgo.TextDisplay{
+						Content: "You must select at least one role that can view this image.",
+					},
+					discordgo.Label{
+						Label:       "Select Role",
+						Description: "You can select multiple roles.",
+						Component:   components[roleSelect],
+					},
+				},
+				Flags: discordgo.MessageFlagsIsComponentsV2,
+			},
+		})
+		if err != nil {
+			if err := handlers.ThinkResponse(s, i); err != nil {
+				return err
+			}
+			return handlers.ErrorEdit(s, i.Interaction, "Failed to send response", err)
+		}
+	}
+
+	if err := handlers.ThinkResponse(s, i); err != nil {
+		return err
 	}
 
 	webhookEdit := &discordgo.WebhookEdit{

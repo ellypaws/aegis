@@ -40,12 +40,13 @@ var commandOption = map[string]*discordgo.ApplicationCommandOption{
 		Type:        discordgo.ApplicationCommandOptionAttachment,
 		Name:        thumbnailImage,
 		Description: "Image",
-		Required:    false,
+		Required:    true,
 	},
 	roleSelect: {
 		Type:        discordgo.ApplicationCommandOptionRole,
 		Name:        roleSelect,
-		Description: "Select a role to notify subscribers",
+		Description: "Select roles to notify subscribers",
 		Required:    false,
+		MaxValue:    25,
 	},
 }
