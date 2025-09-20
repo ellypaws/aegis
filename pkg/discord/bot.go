@@ -113,9 +113,9 @@ func (b *botImpl) registerHandlers() {
 				return
 			}
 
-			for name := range handles {
+			for name, h := range handles {
 				if strings.HasPrefix(handleName, name) {
-					handleName = name
+					handler = h
 					ok = true
 					break
 				}

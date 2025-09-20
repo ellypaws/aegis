@@ -19,6 +19,9 @@ type DB interface {
 	AllowedRoles() ([]*discordgo.Role, error)
 	AddRole(role *discordgo.Role) error
 	IsAllowed(role *discordgo.Role) bool
+	// Post operations
+	CreatePost(p *types.Post) error
+	ReadPostByExternalID(ext string) (*types.Post, error)
 }
 
 // sqliteDB is a gorm-backed implementation of DB.
@@ -43,15 +46,22 @@ func Connect(path string, ctx context.Context) (DB, error) {
 		return nil, err
 	}
 
+	// Order matters for constraints/indexes and FKs;
+	// migrate base tables first, then Post, then child tables.
 	err = gdb.AutoMigrate(
-		&types.Allowed{},
 		&types.User{},
+		&types.Allowed{},
+		&types.Post{},
 		&types.Image{},
 		&types.ImageBlob{},
-		&types.Post{},
 	)
 	if err != nil {
 		return nil, err
+	}
+	// Ensure join table exists for many2many relation
+	if err := gdb.SetupJoinTable(&types.Post{}, "AllowedRoles", &struct{}{}); err != nil {
+		// Not strictly necessary; GORM will auto create. Keep for clarity.
+		_ = err
 	}
 
 	return &sqliteDB{db: gdb.WithContext(ctx), ctx: ctx}, nil

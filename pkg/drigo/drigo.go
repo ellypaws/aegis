@@ -18,6 +18,8 @@ type Bot struct {
 	context    context.Context
 	db         sqlite.DB
 	logger     *log.Logger
+	pending    map[string]*PendingPost // ksuid -> pending post info until modal submit
+	msgToPost  map[string]string       // messageID -> postKey
 }
 
 func (q *Bot) Stop() {
@@ -31,7 +33,19 @@ func New(botSession *discordgo.Session, ctx context.Context, db sqlite.DB, logge
 		context:    ctx,
 		db:         db,
 		logger:     logger,
+		pending:    make(map[string]*PendingPost),
+		msgToPost:  make(map[string]string),
 	}
+}
+
+// PendingPost holds data collected from the slash command until the user completes the modal.
+type PendingPost struct {
+	PostKey   string
+	GuildID   string
+	ChannelID string
+	Author    *discordgo.User
+	Thumbnail []byte
+	Full      []byte
 }
 
 func (q *Bot) Commands() []*discordgo.ApplicationCommand { return q.commands() }

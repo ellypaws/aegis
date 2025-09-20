@@ -7,7 +7,8 @@ import "gorm.io/gorm"
 type Image struct {
 	gorm.Model
 
-	PostID    uint   `gorm:"index"`
+	// Enforce one Image per Post via unique index on PostID
+	PostID    uint   `gorm:"uniqueIndex"`
 	Thumbnail []byte `gorm:"type:blob"`
 
 	Blobs []ImageBlob `gorm:"constraint:OnDelete:CASCADE"`
@@ -16,8 +17,9 @@ type Image struct {
 type ImageBlob struct {
 	gorm.Model
 
-	ImageID uint   `gorm:"index"`
-	Index   int    `gorm:"index"` // stable order
+	// Enforce unique order for blobs per image
+	ImageID uint   `gorm:"index;uniqueIndex:idx_image_blob_order"`
+	Index   int    `gorm:"index;uniqueIndex:idx_image_blob_order"` // stable order
 	Data    []byte `gorm:"type:blob"`
 }
 

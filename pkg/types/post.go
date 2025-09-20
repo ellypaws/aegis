@@ -9,7 +9,7 @@ import (
 // Allowed matches your original definition; unchanged, kept here for completeness.
 type Allowed struct {
 	gorm.Model
-	RoleID       string `gorm:"uniqueIndex"`
+	RoleID       string `gorm:"uniqueIndex;size:32"` // Discord snowflake; add size for index efficiency
 	Name         string
 	Managed      bool
 	Mentionable  bool
@@ -26,14 +26,14 @@ type Allowed struct {
 type Post struct {
 	gorm.Model
 
-	PostKey   string    `gorm:"uniqueIndex"` // your external ID (e.g., snowflake); avoid colliding with gorm.Model.ID
-	ChannelID string    `gorm:"index"`
-	GuildID   string    `gorm:"index"`
+	PostKey   string    `gorm:"uniqueIndex;size:32"` // external ID (ksuid)
+	ChannelID string    `gorm:"index;size:32"`
+	GuildID   string    `gorm:"index;size:32"`
 	Content   string    `gorm:"type:text"`
 	Timestamp time.Time `gorm:"index"`
 	IsPremium bool
 
-	AuthorID uint  // FK to User
+	AuthorID uint  `gorm:"index;default:null"` // FK to User (optional)
 	Author   *User `gorm:"constraint:OnUpdate:CASCADE,OnDelete:SET NULL"`
 
 	// Many-to-many; join table: post_allowed_roles

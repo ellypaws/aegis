@@ -1,6 +1,7 @@
 package drigo
 
 import (
+	"bytes"
 	"fmt"
 	"io"
 
@@ -62,20 +63,66 @@ func (q *Bot) showImage(s *discordgo.Session, i *discordgo.InteractionCreate) er
 		return nil
 	}
 
-	webhookEdit := &discordgo.WebhookEdit{
-		Content: utils.Pointer("Thank you for your support! Here's your image:"),
-		Components: &[]discordgo.MessageComponent{
-			handlers.Components[handlers.DeleteButton],
-		},
+	// Find post by message mapping
+	q.mu.Lock()
+	postKey := q.msgToPost[i.Message.ID]
+	q.mu.Unlock()
+	if postKey == "" {
+		return handlers.ErrorFollowupEphemeral(s, i.Interaction, "I couldn't link this button to a post.")
 	}
 
-	err := utils.EmbedImages(webhookEdit, nil, []io.Reader{lastImage.Image}, nil, compositor.Compositor())
-	if err != nil {
+	p, err := q.db.ReadPostByExternalID(postKey)
+	if err != nil || p == nil || p.Image == nil {
+		return handlers.ErrorFollowupEphemeral(s, i.Interaction, "Couldn't load the image for this post.", err)
+	}
+
+	// Authorization: user must have any of the AllowedRoles
+	if len(p.AllowedRoles) > 0 {
+		allowed := false
+		var member *discordgo.Member
+		if i.Member != nil {
+			member = i.Member
+		} else if i.User != nil && i.GuildID != "" {
+			// Try to fetch member from state or API
+			if m, err := s.State.Member(i.GuildID, i.User.ID); err == nil {
+				member = m
+			} else if m, err := s.GuildMember(i.GuildID, i.User.ID); err == nil {
+				member = m
+			}
+		}
+		if member != nil {
+			// Build a set of role IDs on the member
+			roleSet := map[string]struct{}{}
+			for _, r := range member.Roles {
+				roleSet[r] = struct{}{}
+			}
+			for _, ar := range p.AllowedRoles {
+				if _, ok := roleSet[ar.RoleID]; ok {
+					allowed = true
+					break
+				}
+			}
+		}
+		if !allowed {
+			return handlers.ErrorFollowupEphemeral(s, i.Interaction, "You don't have access to view this image.")
+		}
+	}
+
+	webhookEdit := &discordgo.WebhookEdit{
+		Content:    utils.Pointer("Thank you for your support! Here's your image:"),
+		Components: &[]discordgo.MessageComponent{handlers.Components[handlers.DeleteButton]},
+	}
+
+	// Build image readers from DB bytes
+	imgs := []io.Reader{}
+	if len(p.Image.Blobs) > 0 {
+		imgs = append(imgs, bytes.NewReader(p.Image.Blobs[0].Data))
+	}
+	if err := utils.EmbedImages(webhookEdit, nil, imgs, nil, compositor.Compositor()); err != nil {
 		return fmt.Errorf("error creating image embed: %w", err)
 	}
 
-	_, err = s.InteractionResponseEdit(i.Interaction, webhookEdit)
-	if err != nil {
+	if _, err := s.InteractionResponseEdit(i.Interaction, webhookEdit); err != nil {
 		return handlers.ErrorFollowupEphemeral(s, i.Interaction, "Failed to send response", err)
 	}
 
@@ -87,6 +134,49 @@ func (q *Bot) sendDM(s *discordgo.Session, i *discordgo.InteractionCreate) error
 		return nil
 	}
 
+	// Locate post by message
+	q.mu.Lock()
+	postKey := q.msgToPost[i.Message.ID]
+	q.mu.Unlock()
+	if postKey == "" {
+		return handlers.ErrorFollowupEphemeral(s, i.Interaction, "I couldn't link this button to a post.")
+	}
+	p, err := q.db.ReadPostByExternalID(postKey)
+	if err != nil || p == nil || p.Image == nil {
+		return handlers.ErrorFollowupEphemeral(s, i.Interaction, "Couldn't load the image for this post.", err)
+	}
+
+	// Authorization check as in showImage
+	if len(p.AllowedRoles) > 0 {
+		allowed := false
+		var member *discordgo.Member
+		if i.Member != nil {
+			member = i.Member
+		} else if i.User != nil && i.GuildID != "" {
+			if m, err := s.State.Member(i.GuildID, i.User.ID); err == nil {
+				member = m
+			} else if m, err := s.GuildMember(i.GuildID, i.User.ID); err == nil {
+				member = m
+			}
+		}
+		if member != nil {
+			roleSet := map[string]struct{}{}
+			for _, r := range member.Roles {
+				roleSet[r] = struct{}{}
+			}
+			for _, ar := range p.AllowedRoles {
+				if _, ok := roleSet[ar.RoleID]; ok {
+					allowed = true
+					break
+				}
+			}
+		}
+		if !allowed {
+			return handlers.ErrorFollowupEphemeral(s, i.Interaction, "You don't have access to view this image.")
+		}
+	}
+
+	// Determine user ID to DM
 	var userID string
 	if i.User != nil {
 		userID = i.User.ID
@@ -97,29 +187,23 @@ func (q *Bot) sendDM(s *discordgo.Session, i *discordgo.InteractionCreate) error
 		return handlers.ErrorFollowupEphemeral(s, i.Interaction, "I couldn't figure out who to DM.", fmt.Errorf("no user id on interaction"))
 	}
 
-	if lastImage.Image == nil {
-		_, err := s.InteractionResponseEdit(i.Interaction, &discordgo.WebhookEdit{
-			Content:    utils.Pointer("There's no image ready to send. Please make one first."),
-			Components: &[]discordgo.MessageComponent{handlers.Components[handlers.DeleteButton]},
-		})
-		return err
-	}
-
 	ch, err := s.UserChannelCreate(userID)
 	if err != nil {
 		return handlers.ErrorFollowupEphemeral(s, i.Interaction,
 			"I couldn't open your DMs. Please allow DMs from this server and try again.", err)
 	}
 
+	var imgReader io.Reader
+	if len(p.Image.Blobs) > 0 {
+		imgReader = bytes.NewReader(p.Image.Blobs[0].Data)
+	}
+	if imgReader == nil {
+		return handlers.ErrorFollowupEphemeral(s, i.Interaction, "No image data available to DM.")
+	}
+
 	_, err = s.ChannelMessageSendComplex(ch.ID, &discordgo.MessageSend{
 		Content: "📩 Here's your image — thanks for your support!",
-		Files: []*discordgo.File{
-			{
-				Name:        "image.png",
-				ContentType: "image/png",
-				Reader:      lastImage.Image,
-			},
-		},
+		Files:   []*discordgo.File{{Name: "image.png", ContentType: "image/png", Reader: imgReader}},
 	})
 	if err != nil {
 		return handlers.ErrorFollowupEphemeral(s, i.Interaction, "Failed to send you a DM.", err)
