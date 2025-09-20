@@ -1,8 +1,9 @@
 package types
 
 import (
-	"github.com/bwmarrin/discordgo"
 	"gorm.io/gorm"
+
+	"github.com/bwmarrin/discordgo"
 )
 
 // User is a minimal flattening of discordgo.User that can be losslessly

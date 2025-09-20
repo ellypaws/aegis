@@ -56,6 +56,18 @@ var components = map[string]discordgo.MessageComponent{
 			},
 		},
 	},
+	// A small row with only a DM button for ephemeral follow-ups
+	sendDM: discordgo.ActionsRow{
+		Components: []discordgo.MessageComponent{
+			discordgo.Button{
+				Label:    "Send to DMs",
+				Style:    discordgo.SecondaryButton,
+				Disabled: false,
+				Emoji:    &discordgo.ComponentEmoji{Name: "📩"},
+				CustomID: sendDM,
+			},
+		},
+	},
 }
 
 func (q *Bot) showImage(s *discordgo.Session, i *discordgo.InteractionCreate) error {
@@ -110,7 +122,7 @@ func (q *Bot) showImage(s *discordgo.Session, i *discordgo.InteractionCreate) er
 
 	webhookEdit := &discordgo.WebhookEdit{
 		Content:    utils.Pointer("Thank you for your support! Here's your image:"),
-		Components: &[]discordgo.MessageComponent{handlers.Components[handlers.DeleteButton]},
+		Components: &[]discordgo.MessageComponent{components[sendDM]},
 	}
 
 	// Build image readers from DB bytes
@@ -211,7 +223,7 @@ func (q *Bot) sendDM(s *discordgo.Session, i *discordgo.InteractionCreate) error
 
 	_, err = s.InteractionResponseEdit(i.Interaction, &discordgo.WebhookEdit{
 		Content:    utils.Pointer("Sent! Check your DMs 📬"),
-		Components: &[]discordgo.MessageComponent{handlers.Components[handlers.DeleteButton]},
+		Components: &[]discordgo.MessageComponent{components[sendDM]},
 	})
 	if err != nil {
 		return handlers.ErrorFollowupEphemeral(s, i.Interaction, "DM sent, but I couldn't update the response.", err)

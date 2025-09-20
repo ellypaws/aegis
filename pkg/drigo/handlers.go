@@ -30,8 +30,6 @@ func (q *Bot) handlers() map[discordgo.InteractionType]map[string]pkg.Handler {
 	}
 }
 
-var lastImage utils.AttachmentImage
-
 func (q *Bot) handleModalSubmit(s *discordgo.Session, i *discordgo.InteractionCreate) error {
 	// Extract our ksuid-based post key from the modal custom ID
 	cid := i.ModalSubmitData().CustomID
@@ -82,7 +80,6 @@ func (q *Bot) handleModalSubmit(s *discordgo.Session, i *discordgo.InteractionCr
 		},
 	}
 
-	// Allowed roles association (store minimal info: RoleID)
 	post.AllowedRoles = make([]types.Allowed, 0, len(selectedRoles))
 	for _, rid := range selectedRoles {
 		if rid == "" {
@@ -95,17 +92,23 @@ func (q *Bot) handleModalSubmit(s *discordgo.Session, i *discordgo.InteractionCr
 		return handlers.ErrorEdit(s, i.Interaction, "Failed to save post", err)
 	}
 
-	// Build response with thumbnail and buttons
+	var sb strings.Builder
+	sb.WriteString("> Allowed roles:\n")
+	for _, r := range post.AllowedRoles {
+		sb.WriteString("> <@&")
+		sb.WriteString(r.RoleID)
+		sb.WriteString(">\n")
+	}
+
 	webhookEdit := &discordgo.WebhookEdit{
-		Content: nil,
+		Content: utils.Pointer(sb.String()),
 		Components: &[]discordgo.MessageComponent{
 			components[showImage],
 		},
 	}
 
-	// Use stable readers from bytes to avoid draining pending buffers
 	thumbR := bytes.NewReader(pending.Thumbnail)
-	if err := utils.EmbedImages(webhookEdit, nil, nil, []io.Reader{thumbR}, compositor.Compositor()); err != nil {
+	if err := utils.EmbedImages(webhookEdit, nil, []io.Reader{thumbR}, nil, compositor.Compositor()); err != nil {
 		return handlers.ErrorEdit(s, i.Interaction, fmt.Errorf("error creating image embed: %w", err))
 	}
 
@@ -114,7 +117,6 @@ func (q *Bot) handleModalSubmit(s *discordgo.Session, i *discordgo.InteractionCr
 		return handlers.ErrorFollowupEphemeral(s, i.Interaction, "Failed to send response", err)
 	}
 
-	// Map message ID to post key for button interactions
 	q.mu.Lock()
 	q.msgToPost[msg.ID] = postKey
 	delete(q.pending, postKey)
@@ -132,6 +134,7 @@ func (q *Bot) handlePostImage(s *discordgo.Session, i *discordgo.InteractionCrea
 	}
 
 	var thumbnailAttachment utils.AttachmentImage
+	var fullAttachment utils.AttachmentImage
 	if option, ok := optionMap[thumbnailImage]; ok {
 		thumbnailAttachment, ok = attachments[option.Value.(string)]
 		if !ok {
@@ -144,15 +147,12 @@ func (q *Bot) handlePostImage(s *discordgo.Session, i *discordgo.InteractionCrea
 		if !ok {
 			return handlers.ErrorEdit(s, i.Interaction, "You need to provide a full image.")
 		}
-		lastImage = image // legacy fallback; DB will be the source of truth
+		fullAttachment = image
 	}
 
 	// Prepare image bytes up-front to avoid draining streams twice
 	thumbBytes := append([]byte(nil), thumbnailAttachment.Image.Bytes()...)
-	var fullBytes []byte
-	if lastImage.Image != nil {
-		fullBytes = append([]byte(nil), lastImage.Image.Bytes()...)
-	}
+	fullBytes := append([]byte(nil), fullAttachment.Image.Bytes()...)
 
 	// Generate a post key for this submission
 	postKey := ksuid.New().String()
@@ -200,7 +200,6 @@ func (q *Bot) handlePostImage(s *discordgo.Session, i *discordgo.InteractionCrea
 		return err
 	}
 
-	// Persist post immediately
 	now := time.Now().UTC()
 	post := &types.Post{
 		PostKey:   postKey,
@@ -234,16 +233,15 @@ func (q *Bot) handlePostImage(s *discordgo.Session, i *discordgo.InteractionCrea
 		return handlers.ErrorEdit(s, i.Interaction, "Failed to save post", err)
 	}
 
-	// Build public message with thumbnail and buttons
 	webhookEdit := &discordgo.WebhookEdit{
 		Content: nil,
 		Components: &[]discordgo.MessageComponent{
 			components[showImage],
 		},
 	}
-	// Use stable readers from bytes
+
 	thumbR := bytes.NewReader(thumbBytes)
-	if err := utils.EmbedImages(webhookEdit, nil, nil, []io.Reader{thumbR}, compositor.Compositor()); err != nil {
+	if err := utils.EmbedImages(webhookEdit, nil, []io.Reader{thumbR}, nil, compositor.Compositor()); err != nil {
 		return handlers.ErrorEdit(s, i.Interaction, fmt.Errorf("error creating image embed: %w", err))
 	}
 
