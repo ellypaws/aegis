@@ -158,7 +158,6 @@ func (q *Bot) sendDM(s *discordgo.Session, i *discordgo.InteractionCreate) error
 		return handlers.ErrorFollowupEphemeral(s, i.Interaction, "Couldn't load the image for this post.", err)
 	}
 
-	// Authorization check as in showImage
 	if len(p.AllowedRoles) > 0 {
 		allowed := false
 		var member *discordgo.Member
@@ -183,12 +182,12 @@ func (q *Bot) sendDM(s *discordgo.Session, i *discordgo.InteractionCreate) error
 				}
 			}
 		}
+
 		if !allowed {
 			return handlers.ErrorFollowupEphemeral(s, i.Interaction, "You don't have access to view this image.")
 		}
 	}
 
-	// Determine user ID to DM
 	var userID string
 	if i.User != nil {
 		userID = i.User.ID
@@ -213,17 +212,36 @@ func (q *Bot) sendDM(s *discordgo.Session, i *discordgo.InteractionCreate) error
 		return handlers.ErrorFollowupEphemeral(s, i.Interaction, "No image data available to DM.")
 	}
 
-	_, err = s.ChannelMessageSendComplex(ch.ID, &discordgo.MessageSend{
+	message, err := s.ChannelMessageSendComplex(ch.ID, &discordgo.MessageSend{
 		Content: "📩 Here's your image — thanks for your support!",
 		Files:   []*discordgo.File{{Name: "image.png", ContentType: "image/png", Reader: imgReader}},
+		Components: []discordgo.MessageComponent{
+			discordgo.MediaGallery{
+				Items: []discordgo.MediaGalleryItem{{Media: discordgo.UnfurledMediaItem{URL: "attachment://image.png"}}},
+			},
+			handlers.Components[handlers.DeleteButton],
+		},
 	})
 	if err != nil {
 		return handlers.ErrorFollowupEphemeral(s, i.Interaction, "Failed to send you a DM.", err)
 	}
 
 	_, err = s.InteractionResponseEdit(i.Interaction, &discordgo.WebhookEdit{
-		Content:    utils.Pointer("Sent! Check your DMs 📬"),
-		Components: &[]discordgo.MessageComponent{components[sendDM]},
+		Content: utils.Pointer("Sent! Check your DMs 📬"),
+		Components: &[]discordgo.MessageComponent{
+			discordgo.ActionsRow{
+				Components: []discordgo.MessageComponent{discordgo.Button{
+					Label:    "Go to DM",
+					Style:    discordgo.LinkButton,
+					Disabled: false,
+					Emoji:    &discordgo.ComponentEmoji{Name: "📩"},
+					URL:      fmt.Sprintf("https://discord.com/channels/@me/%s/%s", s.State.User.ID, message.ID),
+					CustomID: "",
+					SKUID:    "",
+					ID:       0,
+				}},
+				ID: 0,
+			}},
 	})
 	if err != nil {
 		return handlers.ErrorFollowupEphemeral(s, i.Interaction, "DM sent, but I couldn't update the response.", err)
