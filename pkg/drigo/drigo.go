@@ -49,12 +49,14 @@ func New(botSession *discordgo.Session, ctx context.Context, db sqlite.DB, logge
 
 // PendingPost holds data collected from the slash command until the user completes the modal.
 type PendingPost struct {
-	PostKey   string
-	GuildID   string
-	ChannelID string
-	Author    *discordgo.User
-	Thumbnail []byte
-	Full      []byte
+	PostKey     string
+	GuildID     string
+	ChannelID   string
+	Author      *discordgo.User
+	Thumbnail   []byte
+	Full        []byte
+	Title       string
+	Description string
 }
 
 func (q *Bot) Commands() []*discordgo.ApplicationCommand { return q.commands() }

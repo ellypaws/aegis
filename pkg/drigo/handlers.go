@@ -48,10 +48,20 @@ func (q *Bot) handleModalSubmit(s *discordgo.Session, i *discordgo.InteractionCr
 	// Parse selected roles from modal components (RoleSelectMenu returns values = role IDs)
 	data := i.ModalSubmitData()
 	var selectedRoles []string
+	var title, description string
 	for _, c := range data.Components {
 		if lbl, ok := c.(*discordgo.Label); ok {
 			if sm, ok := lbl.Component.(*discordgo.SelectMenu); ok {
 				selectedRoles = append(selectedRoles, sm.Values...)
+				continue
+			}
+			if ti, ok := lbl.Component.(*discordgo.TextInput); ok {
+				switch ti.CustomID {
+				case postTitle:
+					title = ti.Value
+				case postDescription:
+					description = ti.Value
+				}
 			}
 		}
 	}
@@ -66,18 +76,27 @@ func (q *Bot) handleModalSubmit(s *discordgo.Session, i *discordgo.InteractionCr
 	// Build post record
 	now := time.Now().UTC()
 	post := &types.Post{
-		PostKey:   postKey,
-		ChannelID: pending.ChannelID,
-		GuildID:   pending.GuildID,
-		Content:   "",
-		Timestamp: now,
-		IsPremium: true,
+		PostKey:     postKey,
+		ChannelID:   pending.ChannelID,
+		GuildID:     pending.GuildID,
+		Title:       pending.Title,
+		Description: pending.Description,
+		Timestamp:   now,
+		IsPremium:   true,
 		Image: &types.Image{
 			Thumbnail: append([]byte(nil), pending.Thumbnail...),
 			Blobs: []types.ImageBlob{
 				{Index: 0, Data: append([]byte(nil), pending.Full...)},
 			},
 		},
+	}
+
+	// If modal provided text values, they override pending defaults
+	if title != "" {
+		post.Title = title
+	}
+	if description != "" {
+		post.Description = description
 	}
 
 	post.AllowedRoles = make([]types.Allowed, 0, len(selectedRoles))
@@ -107,8 +126,20 @@ func (q *Bot) handleModalSubmit(s *discordgo.Session, i *discordgo.InteractionCr
 		},
 	}
 
+	// Always include an embed that carries title/description; fall back description for UX only
+	embed := &discordgo.MessageEmbed{
+		Title:     post.Title,
+		Type:      discordgo.EmbedTypeImage,
+		Timestamp: time.Now().Format(time.RFC3339),
+		Description: func() string {
+			if post.Description != "" {
+				return post.Description
+			}
+			return "New Image posted!"
+		}(),
+	}
 	thumbR := bytes.NewReader(pending.Thumbnail)
-	if err := utils.EmbedImages(webhookEdit, nil, []io.Reader{thumbR}, nil, compositor.Compositor()); err != nil {
+	if err := utils.EmbedImages(webhookEdit, embed, []io.Reader{thumbR}, nil, compositor.Compositor()); err != nil {
 		return handlers.ErrorEdit(s, i.Interaction, fmt.Errorf("error creating image embed: %w", err))
 	}
 
@@ -133,6 +164,26 @@ func (q *Bot) handlePostImage(s *discordgo.Session, i *discordgo.InteractionCrea
 		return handlers.ErrorEdit(s, i.Interaction, "Error getting attachments.", err)
 	}
 
+	embed := &discordgo.MessageEmbed{
+		Title:       "",
+		Type:        discordgo.EmbedTypeImage,
+		Timestamp:   time.Now().Format(time.RFC3339),
+		Description: "New Image posted!",
+	}
+	var titleVal, descVal string
+	if titleOpt, ok := optionMap[postTitle]; ok && titleOpt.Value != nil {
+		if s, ok := titleOpt.Value.(string); ok {
+			titleVal = s
+			embed.Title = s
+		}
+	}
+	if descOpt, ok := optionMap[postDescription]; ok && descOpt.Value != nil {
+		if s, ok := descOpt.Value.(string); ok {
+			descVal = s
+			embed.Description = s
+		}
+	}
+
 	var thumbnailAttachment utils.AttachmentImage
 	var fullAttachment utils.AttachmentImage
 	if option, ok := optionMap[thumbnailImage]; ok {
@@ -150,27 +201,11 @@ func (q *Bot) handlePostImage(s *discordgo.Session, i *discordgo.InteractionCrea
 		fullAttachment = image
 	}
 
-	// Prepare image bytes up-front to avoid draining streams twice
 	thumbBytes := append([]byte(nil), thumbnailAttachment.Image.Bytes()...)
 	fullBytes := append([]byte(nil), fullAttachment.Image.Bytes()...)
 
-	// Generate a post key for this submission
 	postKey := ksuid.New().String()
-
-	// If no role provided in slash command, open modal to select multiple
 	if _, ok := optionMap[roleSelect]; !ok {
-		// Track pending post until modal submit
-		q.mu.Lock()
-		q.pending[postKey] = &PendingPost{
-			PostKey:   postKey,
-			GuildID:   i.GuildID,
-			ChannelID: i.ChannelID,
-			Author:    utils.GetUser(i.Interaction),
-			Thumbnail: thumbBytes,
-			Full:      fullBytes,
-		}
-		q.mu.Unlock()
-
 		err = s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 			Type: discordgo.InteractionResponseModal,
 			Data: &discordgo.InteractionResponseData{
@@ -178,6 +213,34 @@ func (q *Bot) handlePostImage(s *discordgo.Session, i *discordgo.InteractionCrea
 				Title:    "Role selection is required",
 				Components: []discordgo.MessageComponent{
 					discordgo.TextDisplay{Content: "You must select at least one role that can view this image."},
+					// Optional title input
+					discordgo.Label{
+						Label:       "Post title (optional)",
+						Description: "Shown above the image.",
+						Component: discordgo.TextInput{
+							CustomID:    postTitle,
+							Label:       "Title",
+							Style:       discordgo.TextInputShort,
+							Placeholder: "New Image posted!",
+							Required:    false,
+							MaxLength:   256,
+							Value:       titleVal,
+						},
+					},
+					// Optional description input
+					discordgo.Label{
+						Label:       "Post description (optional)",
+						Description: "Shown under the title.",
+						Component: discordgo.TextInput{
+							CustomID:    postDescription,
+							Label:       "Description",
+							Style:       discordgo.TextInputParagraph,
+							Placeholder: "Add a short caption…",
+							Required:    false,
+							MaxLength:   2000,
+							Value:       descVal,
+						},
+					},
 					discordgo.Label{
 						Label:       "Select Role",
 						Description: "You can select multiple roles.",
@@ -190,6 +253,20 @@ func (q *Bot) handlePostImage(s *discordgo.Session, i *discordgo.InteractionCrea
 		if err != nil {
 			return handlers.ErrorEdit(s, i.Interaction, "Failed to open role selection modal", err)
 		}
+
+		q.mu.Lock()
+		q.pending[postKey] = &PendingPost{
+			PostKey:     postKey,
+			GuildID:     i.GuildID,
+			ChannelID:   i.ChannelID,
+			Author:      utils.GetUser(i.Interaction),
+			Thumbnail:   thumbBytes,
+			Full:        fullBytes,
+			Title:       titleVal,
+			Description: descVal,
+		}
+		q.mu.Unlock()
+
 		return nil
 	}
 
@@ -202,12 +279,13 @@ func (q *Bot) handlePostImage(s *discordgo.Session, i *discordgo.InteractionCrea
 
 	now := time.Now().UTC()
 	post := &types.Post{
-		PostKey:   postKey,
-		ChannelID: i.ChannelID,
-		GuildID:   i.GuildID,
-		Content:   "",
-		Timestamp: now,
-		IsPremium: true,
+		PostKey:     postKey,
+		ChannelID:   i.ChannelID,
+		GuildID:     i.GuildID,
+		Title:       titleVal,
+		Description: descVal,
+		Timestamp:   now,
+		IsPremium:   true,
 		Image: &types.Image{
 			Thumbnail: append([]byte(nil), thumbBytes...),
 			Blobs:     []types.ImageBlob{{Index: 0, Data: append([]byte(nil), fullBytes...)}},
@@ -241,7 +319,7 @@ func (q *Bot) handlePostImage(s *discordgo.Session, i *discordgo.InteractionCrea
 	}
 
 	thumbR := bytes.NewReader(thumbBytes)
-	if err := utils.EmbedImages(webhookEdit, nil, []io.Reader{thumbR}, nil, compositor.Compositor()); err != nil {
+	if err := utils.EmbedImages(webhookEdit, embed, []io.Reader{thumbR}, nil, compositor.Compositor()); err != nil {
 		return handlers.ErrorEdit(s, i.Interaction, fmt.Errorf("error creating image embed: %w", err))
 	}
 

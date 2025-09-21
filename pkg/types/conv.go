@@ -25,7 +25,6 @@ func (p *Post) ToDomain() *DomainPost {
 		ID:        p.PostKey,
 		ChannelID: p.ChannelID,
 		GuildID:   p.GuildID,
-		Content:   p.Content,
 		Timestamp: p.Timestamp.Unix(),
 		IsPremium: p.IsPremium,
 	}
@@ -64,7 +63,6 @@ func (p *Post) FromDomain(dp *DomainPost) {
 	p.PostKey = dp.ID
 	p.ChannelID = dp.ChannelID
 	p.GuildID = dp.GuildID
-	p.Content = dp.Content
 	p.Timestamp = timeFromUnix(dp.Timestamp)
 	p.IsPremium = dp.IsPremium
 

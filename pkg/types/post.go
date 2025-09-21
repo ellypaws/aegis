@@ -26,12 +26,14 @@ type Allowed struct {
 type Post struct {
 	gorm.Model
 
-	PostKey   string    `gorm:"uniqueIndex;size:32"` // external ID (ksuid)
-	ChannelID string    `gorm:"index;size:32"`
-	GuildID   string    `gorm:"index;size:32"`
-	Content   string    `gorm:"type:text"`
-	Timestamp time.Time `gorm:"index"`
-	IsPremium bool
+	PostKey   string `gorm:"uniqueIndex;size:32"` // external ID (ksuid)
+	ChannelID string `gorm:"index;size:32"`
+	GuildID   string `gorm:"index;size:32"`
+	// Optional title and description shown in embeds
+	Title       string    `gorm:"type:text"`
+	Description string    `gorm:"type:text"`
+	Timestamp   time.Time `gorm:"index"`
+	IsPremium   bool
 
 	AuthorID uint  `gorm:"index;default:null"` // FK to User (optional)
 	Author   *User `gorm:"constraint:OnUpdate:CASCADE,OnDelete:SET NULL"`
