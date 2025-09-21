@@ -1,0 +1,52 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Build Daemon
+        run: |
+          cp cmd/src/rsrc_windows_amd64.syso cmd || copy cmd\src\rsrc_windows_amd64.syso cmd
+          export CGO_ENABLED=0 || set CGO_ENABLED=0
+          go build -o bot-${{ github.ref_name }}.exe ./cmd/daemon
+        shell: bash
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: bot-${{ github.ref_name }}.exe
+          path: bot-${{ github.ref_name }}.exe
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download artifact
+        uses: actions/download-artifact@v4
+        with:
+          pattern: bot-*
+          merge-multiple: true
+          path: .
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: bot-*.exe
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
