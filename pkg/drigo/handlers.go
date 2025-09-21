@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/charmbracelet/log"
 	"github.com/segmentio/ksuid"
 
 	"github.com/bwmarrin/discordgo"
@@ -126,7 +127,6 @@ func (q *Bot) handleModalSubmit(s *discordgo.Session, i *discordgo.InteractionCr
 		},
 	}
 
-	// Always include an embed that carries title/description; fall back description for UX only
 	embed := &discordgo.MessageEmbed{
 		Title:     post.Title,
 		Type:      discordgo.EmbedTypeImage,
@@ -157,6 +157,10 @@ func (q *Bot) handleModalSubmit(s *discordgo.Session, i *discordgo.InteractionCr
 }
 
 func (q *Bot) handlePostImage(s *discordgo.Session, i *discordgo.InteractionCreate) error {
+	user := utils.GetUser(i.Interaction)
+	if user != nil {
+		log.Info("Handling post image command", "user", user.DisplayName())
+	}
 	optionMap := utils.GetOpts(i.ApplicationCommandData())
 
 	attachments, err := utils.GetAttachments(i)
@@ -201,9 +205,6 @@ func (q *Bot) handlePostImage(s *discordgo.Session, i *discordgo.InteractionCrea
 		fullAttachment = image
 	}
 
-	thumbBytes := append([]byte(nil), thumbnailAttachment.Image.Bytes()...)
-	fullBytes := append([]byte(nil), fullAttachment.Image.Bytes()...)
-
 	postKey := ksuid.New().String()
 	if _, ok := optionMap[roleSelect]; !ok {
 		err = s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
@@ -213,38 +214,34 @@ func (q *Bot) handlePostImage(s *discordgo.Session, i *discordgo.InteractionCrea
 				Title:    "Role selection is required",
 				Components: []discordgo.MessageComponent{
 					discordgo.TextDisplay{Content: "You must select at least one role that can view this image."},
-					// Optional title input
+					discordgo.Label{
+						Label:       "Select Role",
+						Description: "You can select multiple roles.",
+						Component:   components[roleSelect],
+					},
 					discordgo.Label{
 						Label:       "Post title (optional)",
 						Description: "Shown above the image.",
 						Component: discordgo.TextInput{
 							CustomID:    postTitle,
-							Label:       "Title",
 							Style:       discordgo.TextInputShort,
 							Placeholder: "New Image posted!",
 							Required:    false,
-							MaxLength:   256,
+							MaxLength:   45,
 							Value:       titleVal,
 						},
 					},
-					// Optional description input
 					discordgo.Label{
 						Label:       "Post description (optional)",
 						Description: "Shown under the title.",
 						Component: discordgo.TextInput{
 							CustomID:    postDescription,
-							Label:       "Description",
 							Style:       discordgo.TextInputParagraph,
 							Placeholder: "Add a short caption…",
 							Required:    false,
 							MaxLength:   2000,
 							Value:       descVal,
 						},
-					},
-					discordgo.Label{
-						Label:       "Select Role",
-						Description: "You can select multiple roles.",
-						Component:   components[roleSelect],
 					},
 				},
 				Flags: discordgo.MessageFlagsIsComponentsV2,
@@ -253,6 +250,9 @@ func (q *Bot) handlePostImage(s *discordgo.Session, i *discordgo.InteractionCrea
 		if err != nil {
 			return handlers.ErrorEdit(s, i.Interaction, "Failed to open role selection modal", err)
 		}
+
+		thumbBytes := append([]byte(nil), thumbnailAttachment.Image.Bytes()...)
+		fullBytes := append([]byte(nil), fullAttachment.Image.Bytes()...)
 
 		q.mu.Lock()
 		q.pending[postKey] = &PendingPost{
@@ -270,12 +270,14 @@ func (q *Bot) handlePostImage(s *discordgo.Session, i *discordgo.InteractionCrea
 		return nil
 	}
 
-	// Role provided directly in slash command (single role)
 	role := optionMap[roleSelect].RoleValue(s, i.GuildID)
 
 	if err := handlers.ThinkResponse(s, i); err != nil {
 		return err
 	}
+
+	thumbBytes := append([]byte(nil), thumbnailAttachment.Image.Bytes()...)
+	fullBytes := append([]byte(nil), fullAttachment.Image.Bytes()...)
 
 	now := time.Now().UTC()
 	post := &types.Post{

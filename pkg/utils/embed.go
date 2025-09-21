@@ -25,7 +25,7 @@ func EmbedImages(webhook *discordgo.WebhookEdit, embed *discordgo.MessageEmbed, 
 		embed = &discordgo.MessageEmbed{
 			Type:        discordgo.EmbedTypeImage,
 			Timestamp:   now.Format(time.RFC3339),
-			Description: "Title here if present",
+			Description: "Title",
 		}
 	}
 

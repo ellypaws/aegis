@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"strings"
+	"time"
 
 	"github.com/bwmarrin/discordgo"
 
@@ -136,12 +137,18 @@ func (q *Bot) showImage(s *discordgo.Session, i *discordgo.InteractionCreate) er
 		Components: &[]discordgo.MessageComponent{buildDMOnlyRow(postKey)},
 	}
 
-	// Build image readers from DB bytes
+	embed := &discordgo.MessageEmbed{
+		Title:       p.Title,
+		Type:        discordgo.EmbedTypeImage,
+		Timestamp:   p.Timestamp.Format(time.RFC3339),
+		Description: p.Description,
+	}
+
 	var images []io.Reader
 	if len(p.Image.Blobs) > 0 {
 		images = append(images, bytes.NewReader(p.Image.Blobs[0].Data))
 	}
-	if err := utils.EmbedImages(webhookEdit, nil, images, nil, compositor.Compositor()); err != nil {
+	if err := utils.EmbedImages(webhookEdit, embed, images, nil, compositor.Compositor()); err != nil {
 		return fmt.Errorf("error creating image embed: %w", err)
 	}
 
