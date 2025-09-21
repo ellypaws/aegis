@@ -6,7 +6,7 @@ version: "3.9"
 # - app: runs the bot inside a Linux container (useful for local dev). This does not use the .syso.
 
 x-builder: &builder
-  image: golang:1.22-alpine
+  image: golang:1.25-alpine
   working_dir: /src
   volumes:
     - .:/src
