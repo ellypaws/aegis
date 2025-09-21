@@ -90,7 +90,7 @@ func EmbedImages(webhook *discordgo.WebhookEdit, embed *discordgo.MessageEmbed, 
 
 		embeds = append(embeds, &discordgo.MessageEmbed{
 			Type: discordgo.EmbedTypeImage,
-			URL:  "https://github.com/ellypaws/sd-discord-bot",
+			URL:  "https://github.com/ellypaws",
 			Image: &discordgo.MessageEmbedImage{
 				URL: fmt.Sprintf("attachment://%s", imgName),
 			},

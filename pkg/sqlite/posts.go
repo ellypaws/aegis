@@ -17,20 +17,44 @@ func (s *sqliteDB) CreatePost(p *types.Post) error {
 		return errors.New("nil post")
 	}
 	return s.db.Transaction(func(tx *gorm.DB) error {
-		// Author (optional, upsert by internal ID if provided)
-		if p.Author != nil && p.Author.ID != 0 {
-			if err := tx.Clauses(
-				clause.OnConflict{
-					Columns:   []clause.Column{{Name: "id"}},
-					DoUpdates: clause.AssignmentColumns([]string{"username", "global_name", "discriminator", "avatar", "bot", "system", "public_flags"}),
-				},
-			).Create(p.Author).Error; err != nil {
-				return err
+		if p.Author != nil {
+
+			var dbUser types.User
+			q := tx.Where("user_id = ?", p.Author.UserID).First(&dbUser)
+			if q.Error != nil {
+				if errors.Is(q.Error, gorm.ErrRecordNotFound) {
+					dbUser = types.User{}
+				} else {
+					return q.Error
+				}
 			}
-			p.AuthorID = p.Author.ID
+
+			if dbUser.UserID == "" {
+				dbUser.UserID = p.Author.UserID
+			}
+			dbUser.Username = p.Author.Username
+			dbUser.GlobalName = p.Author.GlobalName
+			dbUser.Discriminator = p.Author.Discriminator
+			dbUser.Avatar = p.Author.Avatar
+			dbUser.Banner = p.Author.Banner
+			dbUser.AccentColor = p.Author.AccentColor
+			dbUser.Bot = p.Author.Bot
+			dbUser.System = p.Author.System
+			dbUser.PublicFlags = p.Author.PublicFlags
+
+			if dbUser.ID == 0 {
+				if err := tx.Create(&dbUser).Error; err != nil {
+					return err
+				}
+			} else {
+				if err := tx.Save(&dbUser).Error; err != nil {
+					return err
+				}
+			}
+			p.AuthorID = dbUser.ID
+			p.Author = &dbUser
 		}
 
-		// Create post row first (needed for Image.PostID). Omit associations to avoid double-insert.
 		if err := tx.Omit("Author", "Image", "AllowedRoles").Create(p).Error; err != nil {
 			return err
 		}
@@ -119,17 +143,40 @@ func (s *sqliteDB) UpdatePost(p *types.Post) error {
 		return errors.New("invalid post (nil or no ID)")
 	}
 	return s.db.Transaction(func(tx *gorm.DB) error {
-		// Author (optional, upsert)
-		if p.Author != nil && p.Author.ID != 0 {
-			if err := tx.Clauses(
-				clause.OnConflict{
-					Columns:   []clause.Column{{Name: "id"}},
-					DoUpdates: clause.AssignmentColumns([]string{"username", "global_name", "discriminator", "avatar", "bot", "system", "public_flags"}),
-				},
-			).Create(p.Author).Error; err != nil {
-				return err
+		if p.Author != nil {
+			var dbUser types.User
+			q := tx.Where("user_id = ?", p.Author.UserID).First(&dbUser)
+			if q.Error != nil {
+				if errors.Is(q.Error, gorm.ErrRecordNotFound) {
+					dbUser = types.User{}
+				} else {
+					return q.Error
+				}
 			}
-			p.AuthorID = p.Author.ID
+			if dbUser.UserID == "" {
+				dbUser.UserID = p.Author.UserID
+			}
+			dbUser.Username = p.Author.Username
+			dbUser.GlobalName = p.Author.GlobalName
+			dbUser.Discriminator = p.Author.Discriminator
+			dbUser.Avatar = p.Author.Avatar
+			dbUser.Banner = p.Author.Banner
+			dbUser.AccentColor = p.Author.AccentColor
+			dbUser.Bot = p.Author.Bot
+			dbUser.System = p.Author.System
+			dbUser.PublicFlags = p.Author.PublicFlags
+
+			if dbUser.ID == 0 {
+				if err := tx.Create(&dbUser).Error; err != nil {
+					return err
+				}
+			} else {
+				if err := tx.Save(&dbUser).Error; err != nil {
+					return err
+				}
+			}
+			p.AuthorID = dbUser.ID
+			p.Author = &dbUser
 		}
 
 		// Image (optional) — ensure the image row belongs to this post and replace blobs

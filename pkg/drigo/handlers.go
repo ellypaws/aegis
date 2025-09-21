@@ -92,6 +92,12 @@ func (q *Bot) handleModalSubmit(s *discordgo.Session, i *discordgo.InteractionCr
 		},
 	}
 
+	if pending.Author != nil {
+		author := &types.User{}
+		author.FromDiscord(pending.Author)
+		post.Author = author
+	}
+
 	// If modal provided text values, they override pending defaults
 	if title != "" {
 		post.Title = title
@@ -128,15 +134,21 @@ func (q *Bot) handleModalSubmit(s *discordgo.Session, i *discordgo.InteractionCr
 	}
 
 	embed := &discordgo.MessageEmbed{
-		Title:     post.Title,
-		Type:      discordgo.EmbedTypeImage,
-		Timestamp: time.Now().Format(time.RFC3339),
-		Description: func() string {
-			if post.Description != "" {
-				return post.Description
-			}
-			return "New Image posted!"
-		}(),
+		Title:       post.Title,
+		Type:        discordgo.EmbedTypeImage,
+		Timestamp:   time.Now().Format(time.RFC3339),
+		Description: post.Description,
+	}
+	if embed.Description == "" {
+		embed.Description = "New image posted!"
+	}
+
+	if pending.Author != nil {
+		embed.Author = &discordgo.MessageEmbedAuthor{
+			Name:    pending.Author.DisplayName(),
+			IconURL: pending.Author.AvatarURL("64"),
+			URL:     "https://discord.com/users/" + pending.Author.ID,
+		}
 	}
 	thumbR := bytes.NewReader(pending.Thumbnail)
 	if err := utils.EmbedImages(webhookEdit, embed, []io.Reader{thumbR}, nil, compositor.Compositor()); err != nil {
@@ -173,6 +185,13 @@ func (q *Bot) handlePostImage(s *discordgo.Session, i *discordgo.InteractionCrea
 		Type:        discordgo.EmbedTypeImage,
 		Timestamp:   time.Now().Format(time.RFC3339),
 		Description: "New Image posted!",
+	}
+	if user != nil {
+		embed.Author = &discordgo.MessageEmbedAuthor{
+			Name:    user.DisplayName(),
+			IconURL: user.AvatarURL("64"),
+			URL:     "https://discord.com/users/" + user.ID,
+		}
 	}
 	var titleVal, descVal string
 	if titleOpt, ok := optionMap[postTitle]; ok && titleOpt.Value != nil {
@@ -292,6 +311,11 @@ func (q *Bot) handlePostImage(s *discordgo.Session, i *discordgo.InteractionCrea
 			Thumbnail: append([]byte(nil), thumbBytes...),
 			Blobs:     []types.ImageBlob{{Index: 0, Data: append([]byte(nil), fullBytes...)}},
 		},
+	}
+	if user != nil {
+		author := &types.User{}
+		author.FromDiscord(user)
+		post.Author = author
 	}
 	if role != nil {
 		post.AllowedRoles = []types.Allowed{{

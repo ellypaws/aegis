@@ -143,6 +143,20 @@ func (q *Bot) showImage(s *discordgo.Session, i *discordgo.InteractionCreate) er
 		Timestamp:   p.Timestamp.Format(time.RFC3339),
 		Description: p.Description,
 	}
+	if embed.Description == "" {
+		embed.Description = "New image posted!"
+	}
+
+	// Show the original author on the embed if available
+	if p.Author != nil {
+		if du := p.Author.ToDiscord(); du != nil {
+			embed.Author = &discordgo.MessageEmbedAuthor{
+				Name:    du.DisplayName(),
+				IconURL: du.AvatarURL("64"),
+				URL:     "https://discord.com/users/" + du.ID,
+			}
+		}
+	}
 
 	var images []io.Reader
 	if len(p.Image.Blobs) > 0 {
@@ -239,15 +253,36 @@ func (q *Bot) sendDM(s *discordgo.Session, i *discordgo.InteractionCreate) error
 		return handlers.ErrorFollowupEphemeral(s, i.Interaction, "No image data available to DM.")
 	}
 
+	dmEmbed := &discordgo.MessageEmbed{
+		Type:        discordgo.EmbedTypeImage,
+		Description: p.Description,
+		Timestamp:   p.Timestamp.Format(time.RFC3339),
+		Title:       p.Title,
+	}
+	if dmEmbed.Description == "" {
+		dmEmbed.Description = "New image posted!"
+	}
+	if p.Author != nil {
+		if du := p.Author.ToDiscord(); du != nil {
+			dmEmbed.Author = &discordgo.MessageEmbedAuthor{
+				Name:    du.DisplayName(),
+				IconURL: du.AvatarURL("64"),
+				URL:     "https://discord.com/users/" + du.ID,
+			}
+		}
+	}
+
+	var webhookEdit discordgo.WebhookEdit
+	err = utils.EmbedImages(&webhookEdit, dmEmbed, []io.Reader{imgReader}, nil, compositor.Compositor())
+	if err != nil {
+		return handlers.ErrorFollowupEphemeral(s, i.Interaction, "Failed to prepare embed.", err)
+	}
+
 	message, err := s.ChannelMessageSendComplex(ch.ID, &discordgo.MessageSend{
-		Content: "📩 Here's your image — thanks for your support!",
-		Files:   []*discordgo.File{{Name: "image.png", ContentType: "image/png", Reader: imgReader}},
-		Components: []discordgo.MessageComponent{
-			discordgo.MediaGallery{
-				Items: []discordgo.MediaGalleryItem{{Media: discordgo.UnfurledMediaItem{URL: "attachment://image.png"}}},
-			},
-			handlers.Components[handlers.DeleteButton],
-		},
+		Content:    "📩 Here's your image — thanks for your support!",
+		Files:      webhookEdit.Files,
+		Embeds:     *webhookEdit.Embeds,
+		Components: []discordgo.MessageComponent{handlers.Components[handlers.DeleteButton]},
 	})
 	if err != nil {
 		return handlers.ErrorFollowupEphemeral(s, i.Interaction, "Failed to send you a DM.", err)
