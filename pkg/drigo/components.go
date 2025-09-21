@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"strings"
 
 	"github.com/bwmarrin/discordgo"
 
@@ -34,40 +35,43 @@ var components = map[string]discordgo.MessageComponent{
 		MaxValues:   25,
 		Disabled:    false,
 	},
-	showImage: discordgo.ActionsRow{
+}
+
+// buildShowActionsRow returns the two-button row (Show image + Send to DMs) with embedded postKey.
+func buildShowActionsRow(postKey string) discordgo.ActionsRow {
+	return discordgo.ActionsRow{
 		Components: []discordgo.MessageComponent{
 			discordgo.Button{
 				Label:    "Show me this image",
 				Style:    discordgo.PrimaryButton,
 				Disabled: false,
-				Emoji: &discordgo.ComponentEmoji{
-					Name: "⭐",
-				},
-				CustomID: showImage,
+				Emoji:    &discordgo.ComponentEmoji{Name: "⭐"},
+				CustomID: showImage + ":" + postKey,
 			},
 			discordgo.Button{
-				Label:    "Send to DMS",
+				Label:    "Send to DMs",
 				Style:    discordgo.SecondaryButton,
 				Disabled: false,
-				Emoji: &discordgo.ComponentEmoji{
-					Name: "📩",
-				},
-				CustomID: sendDM,
+				Emoji:    &discordgo.ComponentEmoji{Name: "📩"},
+				CustomID: sendDM + ":" + postKey,
 			},
 		},
-	},
-	// A small row with only a DM button for ephemeral follow-ups
-	sendDM: discordgo.ActionsRow{
+	}
+}
+
+// buildDMOnlyRow returns a single-button row for ephemeral follow-ups.
+func buildDMOnlyRow(postKey string) discordgo.ActionsRow {
+	return discordgo.ActionsRow{
 		Components: []discordgo.MessageComponent{
 			discordgo.Button{
 				Label:    "Send to DMs",
 				Style:    discordgo.SecondaryButton,
 				Disabled: false,
 				Emoji:    &discordgo.ComponentEmoji{Name: "📩"},
-				CustomID: sendDM,
+				CustomID: sendDM + ":" + postKey,
 			},
 		},
-	},
+	}
 }
 
 func (q *Bot) showImage(s *discordgo.Session, i *discordgo.InteractionCreate) error {
@@ -75,10 +79,19 @@ func (q *Bot) showImage(s *discordgo.Session, i *discordgo.InteractionCreate) er
 		return nil
 	}
 
-	// Find post by message mapping
-	q.mu.Lock()
-	postKey := q.msgToPost[i.Message.ID]
-	q.mu.Unlock()
+	// Prefer postKey encoded in the component CustomID; fallback to in-memory map for legacy messages.
+	var postKey string
+	cid := i.MessageComponentData().CustomID
+	if strings.HasPrefix(cid, showImage+":") {
+		postKey = strings.TrimPrefix(cid, showImage+":")
+	} else if strings.HasPrefix(cid, sendDM+":") {
+		postKey = strings.TrimPrefix(cid, sendDM+":")
+	}
+	if postKey == "" {
+		q.mu.Lock()
+		postKey = q.msgToPost[i.Message.ID]
+		q.mu.Unlock()
+	}
 	if postKey == "" {
 		return handlers.ErrorFollowupEphemeral(s, i.Interaction, "I couldn't link this button to a post.")
 	}
@@ -88,7 +101,6 @@ func (q *Bot) showImage(s *discordgo.Session, i *discordgo.InteractionCreate) er
 		return handlers.ErrorFollowupEphemeral(s, i.Interaction, "Couldn't load the image for this post.", err)
 	}
 
-	// Authorization: user must have any of the AllowedRoles
 	if len(p.AllowedRoles) > 0 {
 		allowed := false
 		var member *discordgo.Member
@@ -103,7 +115,6 @@ func (q *Bot) showImage(s *discordgo.Session, i *discordgo.InteractionCreate) er
 			}
 		}
 		if member != nil {
-			// Build a set of role IDs on the member
 			roleSet := map[string]struct{}{}
 			for _, r := range member.Roles {
 				roleSet[r] = struct{}{}
@@ -122,15 +133,15 @@ func (q *Bot) showImage(s *discordgo.Session, i *discordgo.InteractionCreate) er
 
 	webhookEdit := &discordgo.WebhookEdit{
 		Content:    utils.Pointer("Thank you for your support! Here's your image:"),
-		Components: &[]discordgo.MessageComponent{components[sendDM]},
+		Components: &[]discordgo.MessageComponent{buildDMOnlyRow(postKey)},
 	}
 
 	// Build image readers from DB bytes
-	imgs := []io.Reader{}
+	var images []io.Reader
 	if len(p.Image.Blobs) > 0 {
-		imgs = append(imgs, bytes.NewReader(p.Image.Blobs[0].Data))
+		images = append(images, bytes.NewReader(p.Image.Blobs[0].Data))
 	}
-	if err := utils.EmbedImages(webhookEdit, nil, imgs, nil, compositor.Compositor()); err != nil {
+	if err := utils.EmbedImages(webhookEdit, nil, images, nil, compositor.Compositor()); err != nil {
 		return fmt.Errorf("error creating image embed: %w", err)
 	}
 
@@ -146,10 +157,19 @@ func (q *Bot) sendDM(s *discordgo.Session, i *discordgo.InteractionCreate) error
 		return nil
 	}
 
-	// Locate post by message
-	q.mu.Lock()
-	postKey := q.msgToPost[i.Message.ID]
-	q.mu.Unlock()
+	// Locate post by CustomID or fallback to message -> post map (legacy)
+	var postKey string
+	cid := i.MessageComponentData().CustomID
+	if strings.HasPrefix(cid, sendDM+":") {
+		postKey = strings.TrimPrefix(cid, sendDM+":")
+	} else if strings.HasPrefix(cid, showImage+":") { // if coming from show button
+		postKey = strings.TrimPrefix(cid, showImage+":")
+	}
+	if postKey == "" {
+		q.mu.Lock()
+		postKey = q.msgToPost[i.Message.ID]
+		q.mu.Unlock()
+	}
 	if postKey == "" {
 		return handlers.ErrorFollowupEphemeral(s, i.Interaction, "I couldn't link this button to a post.")
 	}
@@ -235,7 +255,7 @@ func (q *Bot) sendDM(s *discordgo.Session, i *discordgo.InteractionCreate) error
 					Style:    discordgo.LinkButton,
 					Disabled: false,
 					Emoji:    &discordgo.ComponentEmoji{Name: "📩"},
-					URL:      fmt.Sprintf("https://discord.com/channels/@me/%s/%s", s.State.User.ID, message.ID),
+					URL:      fmt.Sprintf("https://discord.com/channels/@me/%s/%s", ch.ID, message.ID),
 					CustomID: "",
 					SKUID:    "",
 					ID:       0,

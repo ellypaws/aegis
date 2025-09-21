@@ -103,7 +103,7 @@ func (q *Bot) handleModalSubmit(s *discordgo.Session, i *discordgo.InteractionCr
 	webhookEdit := &discordgo.WebhookEdit{
 		Content: utils.Pointer(sb.String()),
 		Components: &[]discordgo.MessageComponent{
-			components[showImage],
+			buildShowActionsRow(postKey),
 		},
 	}
 
@@ -236,7 +236,7 @@ func (q *Bot) handlePostImage(s *discordgo.Session, i *discordgo.InteractionCrea
 	webhookEdit := &discordgo.WebhookEdit{
 		Content: nil,
 		Components: &[]discordgo.MessageComponent{
-			components[showImage],
+			buildShowActionsRow(postKey),
 		},
 	}
 

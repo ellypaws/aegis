@@ -105,7 +105,14 @@ func (b *botImpl) registerHandlers() {
 		handleName := getHandleName(i)
 		if i.Type == discordgo.InteractionMessageComponent {
 			log.Printf("Component with customID `%v` was pressed, attempting to respond\n", i.MessageComponentData().CustomID)
-			handler, ok = b.components[handleName]
+			// Allow dynamic custom IDs (e.g., "show_image:<postKey>") by prefix matching
+			for name, h := range b.components {
+				if strings.HasPrefix(handleName, name) {
+					handler = h
+					ok = true
+					break
+				}
+			}
 		} else {
 			handles, exist := b.handlers[i.Type]
 			if !exist {

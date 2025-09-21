@@ -5,8 +5,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/bwmarrin/discordgo"
 	"github.com/charmbracelet/log"
+
+	"github.com/bwmarrin/discordgo"
 
 	"drigo/pkg"
 	"drigo/pkg/sqlite"
@@ -23,8 +24,16 @@ type Bot struct {
 }
 
 func (q *Bot) Stop() {
-	// TODO implement me
-	panic("implement me")
+	q.logger.Info("Stopping drigo bot...")
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	for k := range q.pending {
+		delete(q.pending, k)
+	}
+	for k := range q.msgToPost {
+		delete(q.msgToPost, k)
+	}
+	q.logger.Info("Drigo bot stopped.")
 }
 
 func New(botSession *discordgo.Session, ctx context.Context, db sqlite.DB, logger *log.Logger) *Bot {
