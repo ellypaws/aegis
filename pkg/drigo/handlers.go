@@ -46,14 +46,20 @@ func (q *Bot) handleModalSubmit(s *discordgo.Session, i *discordgo.InteractionCr
 		return handlers.ErrorEphemeral(s, i.Interaction, "This post has expired or is invalid. Please try again.")
 	}
 
-	// Parse selected roles from modal components (RoleSelectMenu returns values = role IDs)
+	// Parse selected roles and channels from modal components
 	data := i.ModalSubmitData()
 	var selectedRoles []string
+	var selectedChannels []string
 	var title, description string
 	for _, c := range data.Components {
 		if lbl, ok := c.(*discordgo.Label); ok {
 			if sm, ok := lbl.Component.(*discordgo.SelectMenu); ok {
-				selectedRoles = append(selectedRoles, sm.Values...)
+				switch sm.CustomID {
+				case roleSelect:
+					selectedRoles = append(selectedRoles, sm.Values...)
+				case channelSelect:
+					selectedChannels = append(selectedChannels, sm.Values...)
+				}
 				continue
 			}
 			if ti, ok := lbl.Component.(*discordgo.TextInput); ok {
@@ -150,18 +156,60 @@ func (q *Bot) handleModalSubmit(s *discordgo.Session, i *discordgo.InteractionCr
 			URL:     "https://discord.com/users/" + pending.Author.ID,
 		}
 	}
-	thumbR := bytes.NewReader(pending.Thumbnail)
-	if err := utils.EmbedImages(webhookEdit, embed, []io.Reader{thumbR}, nil, compositor.Compositor()); err != nil {
-		return handlers.ErrorEdit(s, i.Interaction, fmt.Errorf("error creating image embed: %w", err))
+	if len(selectedChannels) == 0 {
+		thumbR := bytes.NewReader(pending.Thumbnail)
+		if err := utils.EmbedImages(webhookEdit, embed, []io.Reader{thumbR}, nil, compositor.Compositor()); err != nil {
+			return handlers.ErrorEdit(s, i.Interaction, fmt.Errorf("error creating image embed: %w", err))
+		}
+
+		msg, err := s.InteractionResponseEdit(i.Interaction, webhookEdit)
+		if err != nil {
+			return handlers.ErrorFollowupEphemeral(s, i.Interaction, "Failed to send response", err)
+		}
+
+		q.mu.Lock()
+		q.msgToPost[msg.ID] = postKey
+		delete(q.pending, postKey)
+		q.mu.Unlock()
+		return nil
 	}
 
-	msg, err := s.InteractionResponseEdit(i.Interaction, webhookEdit)
-	if err != nil {
-		return handlers.ErrorFollowupEphemeral(s, i.Interaction, "Failed to send response", err)
+	var sentCount int
+	for _, chID := range selectedChannels {
+		if chID == "" {
+			continue
+		}
+		perEmbed := *embed
+		var perEdit discordgo.WebhookEdit
+		if err := utils.EmbedImages(&perEdit, &perEmbed, []io.Reader{bytes.NewReader(pending.Thumbnail)}, nil, compositor.Compositor()); err != nil {
+			continue
+		}
+		msg, err := s.ChannelMessageSendComplex(chID, &discordgo.MessageSend{
+			Content:    sb.String(),
+			Files:      perEdit.Files,
+			Embeds:     *perEdit.Embeds,
+			Components: []discordgo.MessageComponent{buildShowActionsRow(postKey)},
+		})
+		if err != nil {
+			log.Error("Failed to post in selected channel", "channel", chID, "error", err)
+			continue
+		}
+		log.Debug("Posted in selected channel", "channel", chID, "msg", msg.ID)
+		q.mu.Lock()
+		q.msgToPost[msg.ID] = postKey
+		q.mu.Unlock()
+		sentCount++
+	}
+	if sentCount == 0 {
+		return handlers.ErrorFollowupEphemeral(s, i.Interaction, "Failed to post in the selected channels.")
+	}
+	log.Debugf("Posted in %d/%d selected channels in %s", sentCount, len(selectedChannels), time.Since(now))
+
+	if _, err := s.InteractionResponseEdit(i.Interaction, webhookEdit); err != nil {
+		return handlers.ErrorFollowupEphemeral(s, i.Interaction, "Posted, but failed to update the response.", err)
 	}
 
 	q.mu.Lock()
-	q.msgToPost[msg.ID] = postKey
 	delete(q.pending, postKey)
 	q.mu.Unlock()
 
@@ -169,7 +217,15 @@ func (q *Bot) handleModalSubmit(s *discordgo.Session, i *discordgo.InteractionCr
 }
 
 func (q *Bot) handlePostImage(s *discordgo.Session, i *discordgo.InteractionCreate) error {
-	user := utils.GetUser(i.Interaction)
+	now := time.Now()
+	user := utils.GetUser(i.Interaction.Member)
+	if user == nil {
+		log.Errorf("Could not identify user for interaction [%s]", i.ID)
+		return handlers.ErrorEphemeral(s, i.Interaction, "Could not identify you. Please try again.")
+	}
+	defer func() {
+		log.Debugf("[%s] Handling /post command took %s", utils.GetDisplayName(user), time.Since(now))
+	}()
 	if user != nil {
 		log.Info("Handling post image command", "user", user.DisplayName())
 	}
@@ -179,6 +235,7 @@ func (q *Bot) handlePostImage(s *discordgo.Session, i *discordgo.InteractionCrea
 	if err != nil {
 		return handlers.ErrorEdit(s, i.Interaction, "Error getting attachments.", err)
 	}
+	log.Debug("Attachments", "count", len(attachments), "took", time.Since(now))
 
 	embed := &discordgo.MessageEmbed{
 		Title:       "",
@@ -226,6 +283,7 @@ func (q *Bot) handlePostImage(s *discordgo.Session, i *discordgo.InteractionCrea
 
 	postKey := ksuid.New().String()
 	if _, ok := optionMap[roleSelect]; !ok {
+		log.Debugf("Responding with a modal in %s", time.Since(now))
 		err = s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 			Type: discordgo.InteractionResponseModal,
 			Data: &discordgo.InteractionResponseData{
@@ -237,6 +295,11 @@ func (q *Bot) handlePostImage(s *discordgo.Session, i *discordgo.InteractionCrea
 						Label:       "Select Role",
 						Description: "You can select multiple roles.",
 						Component:   components[roleSelect],
+					},
+					discordgo.Label{
+						Label:       "Select Channel",
+						Description: "You can select multiple channels to crosspost in.",
+						Component:   components[channelSelect],
 					},
 					discordgo.Label{
 						Label:       "Post title (optional)",
@@ -267,6 +330,7 @@ func (q *Bot) handlePostImage(s *discordgo.Session, i *discordgo.InteractionCrea
 			},
 		})
 		if err != nil {
+			log.Error("Error responding with modal", "error", err)
 			return handlers.ErrorEdit(s, i.Interaction, "Failed to open role selection modal", err)
 		}
 
@@ -294,11 +358,11 @@ func (q *Bot) handlePostImage(s *discordgo.Session, i *discordgo.InteractionCrea
 	if err := handlers.ThinkResponse(s, i); err != nil {
 		return err
 	}
+	log.Debug("First think response in ", time.Since(now))
 
 	thumbBytes := append([]byte(nil), thumbnailAttachment.Image.Bytes()...)
 	fullBytes := append([]byte(nil), fullAttachment.Image.Bytes()...)
 
-	now := time.Now().UTC()
 	post := &types.Post{
 		PostKey:     postKey,
 		ChannelID:   i.ChannelID,

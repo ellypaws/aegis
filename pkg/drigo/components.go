@@ -36,6 +36,21 @@ var components = map[string]discordgo.MessageComponent{
 		MaxValues:   25,
 		Disabled:    false,
 	},
+	channelSelect: discordgo.SelectMenu{
+		MenuType: discordgo.ChannelSelectMenu,
+		CustomID: channelSelect,
+		ChannelTypes: []discordgo.ChannelType{
+			discordgo.ChannelTypeGuildText,
+			discordgo.ChannelTypeGuildVoice,
+			discordgo.ChannelTypeGuildForum,
+			discordgo.ChannelTypeGuildMedia,
+		},
+		Placeholder: "",
+		MinValues:   utils.Pointer(0),
+		MaxValues:   25,
+		Required:    utils.Pointer(false),
+		Disabled:    false,
+	},
 }
 
 // buildShowActionsRow returns the two-button row (Show image + Send to DMs) with embedded postKey.

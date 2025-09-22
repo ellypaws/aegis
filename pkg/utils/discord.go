@@ -7,9 +7,10 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/bwmarrin/discordgo"
 	"github.com/charmbracelet/log"
 	"github.com/lucasb-eyer/go-colorful"
+
+	"github.com/bwmarrin/discordgo"
 )
 
 type HasUser interface {
@@ -28,6 +29,13 @@ type HasUser interface {
 func GetUsername[T HasUser](entities ...T) string {
 	if user := GetUser(ToAny(entities)); user != nil {
 		return user.Username
+	}
+	return "unknown"
+}
+
+func GetDisplayName[T HasUser](entities ...T) string {
+	if user := GetUser(ToAny(entities)); user != nil {
+		return user.DisplayName()
 	}
 	return "unknown"
 }

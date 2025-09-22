@@ -20,6 +20,7 @@ func (q *Bot) commands() []*discordgo.ApplicationCommand {
 				commandOption[postTitle],
 				commandOption[postDescription],
 				commandOption[roleSelect],
+				commandOption[channelSelect],
 			},
 		},
 	}
@@ -27,6 +28,7 @@ func (q *Bot) commands() []*discordgo.ApplicationCommand {
 
 const (
 	roleSelect      = "allowed_roles"
+	channelSelect   = "allowed_channels"
 	thumbnailImage  = "thumbnail"
 	fullImage       = "full"
 	postTitle       = "title"
@@ -49,9 +51,14 @@ var commandOption = map[string]*discordgo.ApplicationCommandOption{
 	roleSelect: {
 		Type:        discordgo.ApplicationCommandOptionRole,
 		Name:        roleSelect,
-		Description: "Select roles to notify subscribers. Do not select anything if you want to select multiple roles.",
+		Description: "Select role to notify subscribers. Do not select anything if you want to select multiple roles.",
 		Required:    false,
-		MaxValue:    25,
+	},
+	channelSelect: {
+		Type:        discordgo.ApplicationCommandOptionChannel,
+		Name:        channelSelect,
+		Description: "Select a channel to notify subscribers. Don't select if you want to include multiple channels.",
+		Required:    false,
 	},
 	postTitle: {
 		Type:        discordgo.ApplicationCommandOptionString,

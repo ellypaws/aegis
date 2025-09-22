@@ -3,10 +3,10 @@ package main
 import (
 	"context"
 	"flag"
-	"log"
 	"os"
 	"os/signal"
 
+	"github.com/charmbracelet/log"
 	"github.com/joho/godotenv"
 
 	"drigo/pkg/discord"
@@ -21,10 +21,11 @@ var (
 )
 
 func init() {
+	log.Default().SetLevel(log.DebugLevel)
 	if err := godotenv.Load(); err != nil {
-		log.Printf("Error loading .env file: %v", err)
+		log.Error("Error loading .env file", "error", err)
 	}
-	log.Println(".env file loaded successfully")
+	log.Info(".env file loaded successfully")
 
 	if botToken == nil || *botToken == "" {
 		tokenEnv := os.Getenv("BOT_TOKEN")
@@ -89,5 +90,5 @@ func main() {
 		panic(err)
 	}
 
-	log.Println("Gracefully shutting down.")
+	log.Info("Gracefully shutting down.")
 }
