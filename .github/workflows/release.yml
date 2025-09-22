@@ -24,14 +24,14 @@ jobs:
         run: |
           cp cmd/src/rsrc_windows_amd64.syso cmd || copy cmd\src\rsrc_windows_amd64.syso cmd
           export CGO_ENABLED=0 || set CGO_ENABLED=0
-          go build -o bot-${{ github.ref_name }}.exe ./cmd/daemon
+          go build -o aegis-${{ github.ref_name }}.exe ./cmd
         shell: bash
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: bot-${{ github.ref_name }}.exe
-          path: bot-${{ github.ref_name }}.exe
+          name: aegis-${{ github.ref_name }}.exe
+          path: aegis-${{ github.ref_name }}.exe
 
   release:
     needs: build
@@ -40,13 +40,13 @@ jobs:
       - name: Download artifact
         uses: actions/download-artifact@v4
         with:
-          pattern: bot-*
+          pattern: aegis-*
           merge-multiple: true
           path: .
 
       - name: Create Release
         uses: softprops/action-gh-release@v1
         with:
-          files: bot-*.exe
+          files: aegis-*.exe
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
