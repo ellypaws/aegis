@@ -24,6 +24,7 @@ jobs:
         run: |
           cp cmd/src/rsrc_windows_amd64.syso cmd || copy cmd\src\rsrc_windows_amd64.syso cmd
           export CGO_ENABLED=0 || set CGO_ENABLED=0
+          git submodule update --init --recursive
           go build -o aegis-${{ github.ref_name }}.exe ./cmd
         shell: bash
 
