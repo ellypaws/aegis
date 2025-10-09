@@ -17,6 +17,7 @@ import (
 	"github.com/bwmarrin/discordgo"
 
 	"drigo/pkg"
+	"drigo/pkg/bucket"
 	"drigo/pkg/discord/handlers"
 	"drigo/pkg/drigo"
 	"drigo/pkg/sqlite"
@@ -42,6 +43,7 @@ type Config struct {
 	DrigoBot       pkg.Queue
 	Database       sqlite.DB
 	RemoveCommands bool
+	Bucket         bucket.Uploader
 }
 
 type Bot interface {
@@ -65,8 +67,7 @@ func New(cfg *Config) (Bot, error) {
 		return nil, err
 	}
 
-	cfg.DrigoBot = drigo.New(botSession, cfg.Context, cfg.Database, log.Default())
-
+	cfg.DrigoBot = drigo.New(botSession, cfg.Context, cfg.Database, log.Default(), cfg.Bucket)
 	queues := []pkg.HandlerStartStopper{
 		cfg.DrigoBot,
 	}

@@ -10,6 +10,7 @@ import (
 	"github.com/bwmarrin/discordgo"
 
 	"drigo/pkg"
+	"drigo/pkg/bucket"
 	"drigo/pkg/sqlite"
 )
 
@@ -21,6 +22,7 @@ type Bot struct {
 	logger     *log.Logger
 	pending    map[string]*PendingPost // ksuid -> pending post info until modal submit
 	msgToPost  map[string]string       // messageID -> postKey
+	bucket     bucket.Uploader         // optional object storage for large payload fallbacks
 }
 
 func (q *Bot) Stop() {
@@ -36,7 +38,7 @@ func (q *Bot) Stop() {
 	q.logger.Info("Drigo bot stopped.")
 }
 
-func New(botSession *discordgo.Session, ctx context.Context, db sqlite.DB, logger *log.Logger) *Bot {
+func New(botSession *discordgo.Session, ctx context.Context, db sqlite.DB, logger *log.Logger, bucket bucket.Uploader) *Bot {
 	return &Bot{
 		botSession: botSession,
 		context:    ctx,
@@ -44,7 +46,14 @@ func New(botSession *discordgo.Session, ctx context.Context, db sqlite.DB, logge
 		logger:     logger,
 		pending:    make(map[string]*PendingPost),
 		msgToPost:  make(map[string]string),
+		bucket:     bucket,
 	}
+}
+
+func (q *Bot) SetBucket(b bucket.Uploader) {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	q.bucket = b
 }
 
 // PendingPost holds data collected from the slash command until the user completes the modal.

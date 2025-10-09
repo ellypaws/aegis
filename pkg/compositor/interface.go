@@ -17,6 +17,6 @@ func New(yonsai bool) Renderer {
 	}
 }
 
-func Compositor() Renderer {
-	return &compositor{}
+func Compositor[T any](data T) Renderer {
+	return &compositor[T]{data: data}
 }

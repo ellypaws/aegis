@@ -2,10 +2,18 @@ package drigo
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"io"
+	"net/http"
 	"strings"
 	"time"
+
+	"github.com/charmbracelet/log"
+
+	"drigo/pkg/exif"
+	"drigo/pkg/types"
+	"drigo/pkg/units"
 
 	"github.com/bwmarrin/discordgo"
 
@@ -90,6 +98,13 @@ func buildDMOnlyRow(postKey string) discordgo.ActionsRow {
 	}
 }
 
+type MemberExif struct {
+	ID          string `json:"id"`
+	Username    string `json:"username"`
+	DisplayName string `json:"display_name,omitempty"`
+	Nitro       bool   `json:"nitro,omitempty"`
+}
+
 func (q *Bot) showImage(s *discordgo.Session, i *discordgo.InteractionCreate) error {
 	if err := handlers.EphemeralThink(s, i); err != nil {
 		return nil
@@ -117,34 +132,9 @@ func (q *Bot) showImage(s *discordgo.Session, i *discordgo.InteractionCreate) er
 		return handlers.ErrorFollowupEphemeral(s, i.Interaction, "Couldn't load the image for this post.", err)
 	}
 
-	if len(p.AllowedRoles) > 0 {
-		allowed := false
-		var member *discordgo.Member
-		if i.Member != nil {
-			member = i.Member
-		} else if i.User != nil && i.GuildID != "" {
-			// Try to fetch member from state or API
-			if m, err := s.State.Member(i.GuildID, i.User.ID); err == nil {
-				member = m
-			} else if m, err := s.GuildMember(i.GuildID, i.User.ID); err == nil {
-				member = m
-			}
-		}
-		if member != nil {
-			roleSet := map[string]struct{}{}
-			for _, r := range member.Roles {
-				roleSet[r] = struct{}{}
-			}
-			for _, ar := range p.AllowedRoles {
-				if _, ok := roleSet[ar.RoleID]; ok {
-					allowed = true
-					break
-				}
-			}
-		}
-		if !allowed {
-			return handlers.ErrorFollowupEphemeral(s, i.Interaction, "You don't have access to view this image.")
-		}
+	member, allowed := q.isAllowedToView(s, i, p)
+	if !allowed {
+		return handlers.ErrorFollowupEphemeral(s, i.Interaction, "You don't have access to view this image.")
 	}
 
 	webhookEdit := &discordgo.WebhookEdit{
@@ -173,19 +163,111 @@ func (q *Bot) showImage(s *discordgo.Session, i *discordgo.InteractionCreate) er
 		}
 	}
 
-	var images []io.Reader
-	if len(p.Image.Blobs) > 0 {
-		images = append(images, bytes.NewReader(p.Image.Blobs[0].Data))
-	}
-	if err := utils.EmbedImages(webhookEdit, embed, images, nil, compositor.Compositor()); err != nil {
-		return fmt.Errorf("error creating image embed: %w", err)
+	err = q.prepareEmbed(member, p, webhookEdit, embed)
+	if err != nil {
+		return handlers.ErrorFollowupEphemeral(s, i.Interaction, "Failed to prepare embed", err)
 	}
 
 	if _, err := s.InteractionResponseEdit(i.Interaction, webhookEdit); err != nil {
+		var restErr *discordgo.RESTError
+		if errors.As(err, &restErr) && restErr.Message != nil && restErr.Message.Code == discordgo.ErrCodeRequestEntityTooLarge {
+			url, fbEmbed, err := q.fallbackToLink(i, p)
+			if err != nil {
+				return handlers.ErrorFollowupEphemeral(s, i.Interaction,
+					"The image was too large to send and no fallback storage is configured.", err)
+			}
+
+			if _, editErr := s.InteractionResponseEdit(i.Interaction, &discordgo.WebhookEdit{
+				Content: utils.Pointer(fmt.Sprintf("📎 This image was too large to send directly. Here's a link: %s", url)),
+				Embeds:  &[]*discordgo.MessageEmbed{fbEmbed},
+				Components: &[]discordgo.MessageComponent{
+					buildDMOnlyRow(postKey),
+				},
+			}); editErr != nil {
+				return handlers.ErrorFollowupEphemeral(s, i.Interaction, "Uploaded, but couldn't update the response.", editErr)
+			}
+			return nil
+		}
 		return handlers.ErrorFollowupEphemeral(s, i.Interaction, "Failed to send response", err)
 	}
 
 	return nil
+}
+
+func (q *Bot) prepareEmbed(member *discordgo.Member, p *types.Post, webhookEdit *discordgo.WebhookEdit, embed *discordgo.MessageEmbed) error {
+	memberExif := q.memberExif(member)
+	encoder := exif.NewEncoder(memberExif)
+	var images []io.Reader
+	if len(p.Image.Blobs) > 0 {
+		var buffer bytes.Buffer
+		err := encoder.EncodeReader(&buffer, bytes.NewReader(p.Image.Blobs[0].Data))
+		if err != nil {
+			return fmt.Errorf("error encoding: %w", err)
+		}
+		images = append(images, &buffer)
+	}
+
+	if err := utils.EmbedImages(webhookEdit, embed, images, nil, compositor.Compositor(memberExif)); err != nil {
+		return fmt.Errorf("error creating image embed: %w", err)
+	}
+	return nil
+}
+
+func (q *Bot) memberExif(member *discordgo.Member) *MemberExif {
+	var memberExif *MemberExif
+	if member != nil && member.User != nil {
+		memberExif = &MemberExif{
+			ID:          member.User.ID,
+			Username:    member.User.Username,
+			DisplayName: member.DisplayName(),
+			Nitro:       member.User.PremiumType != 0,
+		}
+	} else {
+		log.Warn("no member info available for exif")
+	}
+	return memberExif
+}
+
+func (q *Bot) isAllowedToView(s *discordgo.Session, i *discordgo.InteractionCreate, p *types.Post) (*discordgo.Member, bool) {
+	var member *discordgo.Member
+	var allowed bool
+	if len(p.AllowedRoles) > 0 {
+		member = i.Member
+		if member == nil {
+			if i.GuildID == "" {
+				log.Warn("no guild id found in interaction")
+				return nil, false
+			}
+			user := utils.GetUser(i.Member, i.User)
+			if user == nil {
+				log.Warn("Member or User is nil on interaction")
+				return nil, false
+			}
+			if m, err := s.State.Member(i.GuildID, user.ID); err == nil {
+				member = m
+			} else if m, err := s.GuildMember(i.GuildID, user.ID); err == nil {
+				member = m
+			}
+		}
+		if member != nil {
+			roleSet := map[string]struct{}{}
+			for _, r := range member.Roles {
+				roleSet[r] = struct{}{}
+			}
+			for _, ar := range p.AllowedRoles {
+				if _, ok := roleSet[ar.RoleID]; ok {
+					allowed = true
+					break
+				}
+			}
+		}
+		if !allowed {
+			return nil, false
+		}
+	} else {
+		allowed = true
+	}
+	return member, allowed
 }
 
 func (q *Bot) sendDM(s *discordgo.Session, i *discordgo.InteractionCreate) error {
@@ -214,34 +296,9 @@ func (q *Bot) sendDM(s *discordgo.Session, i *discordgo.InteractionCreate) error
 		return handlers.ErrorFollowupEphemeral(s, i.Interaction, "Couldn't load the image for this post.", err)
 	}
 
-	if len(p.AllowedRoles) > 0 {
-		allowed := false
-		var member *discordgo.Member
-		if i.Member != nil {
-			member = i.Member
-		} else if i.User != nil && i.GuildID != "" {
-			if m, err := s.State.Member(i.GuildID, i.User.ID); err == nil {
-				member = m
-			} else if m, err := s.GuildMember(i.GuildID, i.User.ID); err == nil {
-				member = m
-			}
-		}
-		if member != nil {
-			roleSet := map[string]struct{}{}
-			for _, r := range member.Roles {
-				roleSet[r] = struct{}{}
-			}
-			for _, ar := range p.AllowedRoles {
-				if _, ok := roleSet[ar.RoleID]; ok {
-					allowed = true
-					break
-				}
-			}
-		}
-
-		if !allowed {
-			return handlers.ErrorFollowupEphemeral(s, i.Interaction, "You don't have access to view this image.")
-		}
+	member, allowed := q.isAllowedToView(s, i, p)
+	if !allowed {
+		return handlers.ErrorFollowupEphemeral(s, i.Interaction, "You don't have access to view this image.")
 	}
 
 	var userID string
@@ -260,11 +317,7 @@ func (q *Bot) sendDM(s *discordgo.Session, i *discordgo.InteractionCreate) error
 			"I couldn't open your DMs. Please allow DMs from this server and try again.", err)
 	}
 
-	var imgReader io.Reader
-	if len(p.Image.Blobs) > 0 {
-		imgReader = bytes.NewReader(p.Image.Blobs[0].Data)
-	}
-	if imgReader == nil {
+	if len(p.Image.Blobs) == 0 {
 		return handlers.ErrorFollowupEphemeral(s, i.Interaction, "No image data available to DM.")
 	}
 
@@ -287,10 +340,51 @@ func (q *Bot) sendDM(s *discordgo.Session, i *discordgo.InteractionCreate) error
 		}
 	}
 
+	for _, blob := range p.Image.Blobs {
+		if len(blob.Data) > units.DiscordLimit {
+			url, fbEmbed, ferr := q.fallbackToLink(i, p)
+			if ferr != nil {
+				return handlers.ErrorFollowupEphemeral(s, i.Interaction, "Failed to upload image for fallback.", ferr)
+			}
+
+			msg, sendErr := s.ChannelMessageSendComplex(ch.ID, &discordgo.MessageSend{
+				Content: fmt.Sprintf("📎 Your image was too large to send directly. Here's a link: %s", url),
+				Embeds:  []*discordgo.MessageEmbed{fbEmbed},
+				Components: []discordgo.MessageComponent{
+					handlers.Components[handlers.DeleteButton],
+				},
+			})
+			if sendErr != nil {
+				return handlers.ErrorFollowupEphemeral(s, i.Interaction, "Uploaded, but failed to DM you the link.", sendErr)
+			}
+
+			if _, editErr := s.InteractionResponseEdit(i.Interaction, &discordgo.WebhookEdit{
+				Content: utils.Pointer("Sent a link! Check your DMs 📬"),
+				Components: &[]discordgo.MessageComponent{
+					discordgo.ActionsRow{
+						Components: []discordgo.MessageComponent{discordgo.Button{
+							Label:    "Go to DM",
+							Style:    discordgo.LinkButton,
+							Disabled: false,
+							Emoji:    &discordgo.ComponentEmoji{Name: "📩"},
+							URL:      fmt.Sprintf("https://discord.com/channels/@me/%s/%s", ch.ID, msg.ID),
+							CustomID: "",
+							SKUID:    "",
+							ID:       0,
+						}},
+						ID: 0,
+					}},
+			}); editErr != nil {
+				return handlers.ErrorFollowupEphemeral(s, i.Interaction, "DM sent, but I couldn't update the response.", editErr)
+			}
+			return nil
+		}
+	}
+
 	var webhookEdit discordgo.WebhookEdit
-	err = utils.EmbedImages(&webhookEdit, dmEmbed, []io.Reader{imgReader}, nil, compositor.Compositor())
+	err = q.prepareEmbed(member, p, &webhookEdit, dmEmbed)
 	if err != nil {
-		return handlers.ErrorFollowupEphemeral(s, i.Interaction, "Failed to prepare embed.", err)
+		return handlers.ErrorFollowupEphemeral(s, i.Interaction, "Failed to prepare embed", err)
 	}
 
 	message, err := s.ChannelMessageSendComplex(ch.ID, &discordgo.MessageSend{
@@ -300,6 +394,45 @@ func (q *Bot) sendDM(s *discordgo.Session, i *discordgo.InteractionCreate) error
 		Components: []discordgo.MessageComponent{handlers.Components[handlers.DeleteButton]},
 	})
 	if err != nil {
+		var restErr *discordgo.RESTError
+		if errors.As(err, &restErr) && restErr.Message != nil && restErr.Message.Code == discordgo.ErrCodeRequestEntityTooLarge {
+			url, fbEmbed, err := q.fallbackToLink(i, p)
+			if err != nil {
+				return handlers.ErrorFollowupEphemeral(s, i.Interaction, "Failed to upload image for fallback.", err)
+			}
+
+			msg, sendErr := s.ChannelMessageSendComplex(ch.ID, &discordgo.MessageSend{
+				Content: fmt.Sprintf("📎 Your image was too large to send directly. Here's a link: %s", url),
+				Embeds:  []*discordgo.MessageEmbed{fbEmbed},
+				Components: []discordgo.MessageComponent{
+					handlers.Components[handlers.DeleteButton],
+				},
+			})
+			if sendErr != nil {
+				return handlers.ErrorFollowupEphemeral(s, i.Interaction, "Uploaded, but failed to DM you the link.", sendErr)
+			}
+
+			if _, editErr := s.InteractionResponseEdit(i.Interaction, &discordgo.WebhookEdit{
+				Content: utils.Pointer("Sent a link! Check your DMs 📬"),
+				Components: &[]discordgo.MessageComponent{
+					discordgo.ActionsRow{
+						Components: []discordgo.MessageComponent{discordgo.Button{
+							Label:    "Go to DM",
+							Style:    discordgo.LinkButton,
+							Disabled: false,
+							Emoji:    &discordgo.ComponentEmoji{Name: "📩"},
+							URL:      fmt.Sprintf("https://discord.com/channels/@me/%s/%s", ch.ID, msg.ID),
+							CustomID: "",
+							SKUID:    "",
+							ID:       0,
+						}},
+						ID: 0,
+					}},
+			}); editErr != nil {
+				return handlers.ErrorFollowupEphemeral(s, i.Interaction, "DM sent, but I couldn't update the response.", editErr)
+			}
+			return nil
+		}
 		return handlers.ErrorFollowupEphemeral(s, i.Interaction, "Failed to send you a DM.", err)
 	}
 
@@ -325,4 +458,102 @@ func (q *Bot) sendDM(s *discordgo.Session, i *discordgo.InteractionCreate) error
 	}
 
 	return nil
+}
+
+// fallbackToLink performs the upload of the image to the configured bucket and returns a public URL and a basic embed.
+// Message sending/editing is intentionally left to the caller so this can be used by both showImage and sendDM paths.
+func (q *Bot) fallbackToLink(i *discordgo.InteractionCreate, p *types.Post) (url string, embed *discordgo.MessageEmbed, err error) {
+	log.Debug("Falling back to link for post", "postKey", p.PostKey)
+
+	if q.bucket == nil {
+		log.Error("fallbackToLink called but no bucket configured")
+		return "", nil, fmt.Errorf("no bucket configured for fallback")
+	}
+	if p == nil || p.Image == nil {
+		log.Error("fallbackToLink called with nil image")
+		return "", nil, fmt.Errorf("no image found to upload")
+	}
+
+	var data []byte
+	if len(p.Image.Blobs) > 0 && p.Image.Blobs[0].Data != nil {
+		data = p.Image.Blobs[0].Data
+	} else if len(p.Image.Thumbnail) > 0 {
+		data = p.Image.Thumbnail
+	}
+	if len(data) == 0 {
+		return "", nil, fmt.Errorf("no image data available to upload")
+	}
+
+	contentType := http.DetectContentType(func() []byte {
+		if len(data) >= 512 {
+			return data[:512]
+		}
+		return data
+	}())
+	switch contentType {
+	case "image/jpeg", "image/png", "image/webp", "image/gif":
+	default:
+		contentType = "image/png"
+	}
+
+	data, err = q.encodeExif(data, i.Member)
+	if err != nil {
+		log.Error("error encoding exif for fallback upload", "error", err)
+		return "", nil, fmt.Errorf("failed to encode image for upload: %w", err)
+	}
+
+	ts := time.Now().UTC().Format("20060102-150405")
+	ext := map[string]string{
+		"image/jpeg": "jpg",
+		"image/png":  "png",
+		"image/webp": "webp",
+		"image/gif":  "gif",
+	}[contentType]
+	if ext == "" {
+		ext = "png"
+	}
+	key := fmt.Sprintf("%s/%s.%s", p.PostKey, ts, ext)
+
+	url, err = q.bucket.Upload(q.context, key, data, contentType)
+	if err != nil {
+		return "", nil, fmt.Errorf("failed to upload image for fallback: %w", err)
+	}
+
+	embed = &discordgo.MessageEmbed{
+		Type:        discordgo.EmbedTypeImage,
+		Description: p.Description,
+		Timestamp:   p.Timestamp.Format(time.RFC3339),
+		Title:       p.Title,
+	}
+	if embed.Description == "" {
+		embed.Description = "New image posted!"
+	}
+	if p.Author != nil {
+		if du := p.Author.ToDiscord(); du != nil {
+			embed.Author = &discordgo.MessageEmbedAuthor{
+				Name:    du.DisplayName(),
+				IconURL: du.AvatarURL("64"),
+				URL:     "https://discord.com/users/" + du.ID,
+			}
+		}
+	}
+
+	return url, embed, nil
+}
+
+func (q *Bot) encodeExif(data []byte, member *discordgo.Member) ([]byte, error) {
+	memberExif := q.memberExif(member)
+	if memberExif == nil {
+		log.Warn("no member info available for exif")
+		return nil, errors.New("no member info available for exif")
+	}
+	encoder := exif.NewEncoder(memberExif)
+	var buffer bytes.Buffer
+	err := encoder.EncodeReader(&buffer, bytes.NewReader(data))
+	if err != nil {
+		log.Error("error encoding exif", "error", err)
+		return nil, err
+	}
+
+	return buffer.Bytes(), nil
 }

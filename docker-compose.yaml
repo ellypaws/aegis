@@ -50,5 +50,12 @@ services:
       - GUILD_ID=${GUILD_ID:-}
       # Optional cleanup flag — defaults to false
       - REMOVE_COMMANDS=${REMOVE_COMMANDS:-false}
+      # Optional S3 configuration for fallback uploads
+      - ACCESS_KEY=${ACCESS_KEY:-}
+      - SECRET_KEY=${SECRET_KEY:-}
+      - S3_BUCKET=${S3_BUCKET:-}
+      - S3_REGION=${S3_REGION:-us-east-1}
+      - S3_ENDPOINT=${S3_ENDPOINT:-}
+      - S3_PREFIX=${S3_PREFIX:-}
     command: >-
       sh -c "go run ./cmd"

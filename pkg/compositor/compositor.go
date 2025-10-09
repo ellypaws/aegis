@@ -5,21 +5,20 @@ import (
 	"errors"
 	"image"
 	"image/draw"
-	"image/png"
 	"io"
 	"math"
+
+	"drigo/pkg/exif"
 )
 
-type compositor struct{}
+type compositor[T any] struct {
+	data T
+}
 
-func (c *compositor) TileImages(imageBufs []io.Reader) (io.Reader, error) {
+func (c *compositor[T]) TileImages(imageBufs []io.Reader) (io.Reader, error) {
 	numImages := len(imageBufs)
 	if numImages == 0 {
 		return nil, errors.New("no images provided")
-	}
-
-	if numImages == 1 {
-		return imageBufs[0], nil
 	}
 
 	images := make([]image.Image, numImages)
@@ -33,6 +32,15 @@ func (c *compositor) TileImages(imageBufs []io.Reader) (io.Reader, error) {
 		bounds := img.Bounds()
 		totalWidth += bounds.Dx()
 		totalHeight += bounds.Dy()
+	}
+
+	if numImages == 1 {
+		imageBuf := new(bytes.Buffer)
+		err := exif.NewEncoder(c.data).Encode(imageBuf, images[0])
+		if err != nil {
+			return nil, err
+		}
+		return imageBuf, nil
 	}
 
 	rows, cols := determineLayout(numImages, images)
@@ -56,7 +64,7 @@ func (c *compositor) TileImages(imageBufs []io.Reader) (io.Reader, error) {
 	}
 
 	imageBuf := new(bytes.Buffer)
-	err := png.Encode(imageBuf, retImage)
+	err := exif.NewEncoder(c.data).Encode(imageBuf, retImage)
 	if err != nil {
 		return nil, err
 	}

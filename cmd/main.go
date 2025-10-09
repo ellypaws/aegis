@@ -9,6 +9,7 @@ import (
 	"github.com/charmbracelet/log"
 	"github.com/joho/godotenv"
 
+	"drigo/pkg/bucket"
 	"drigo/pkg/discord"
 	"drigo/pkg/sqlite"
 )
@@ -75,12 +76,35 @@ func main() {
 		log.Fatalf("Failed to create sqlite database: %v", err)
 	}
 
+	// Optional S3 configuration
+	accessKey := os.Getenv("ACCESS_KEY")
+	secretKey := os.Getenv("SECRET_KEY")
+	s3Bucket := os.Getenv("S3_BUCKET")
+	s3Region := os.Getenv("S3_REGION")
+	s3Endpoint := os.Getenv("S3_ENDPOINT")
+	s3Prefix := os.Getenv("S3_PREFIX")
+
+	var uploader bucket.Uploader
+	if accessKey != "" && secretKey != "" && s3Bucket != "" {
+		// Construct S3 uploader; errors are non-fatal, we'll log and continue without fallback uploads
+		if s3Region == "" {
+			s3Region = "us-east-1"
+		}
+		s3u, err := bucket.NewS3(ctx, accessKey, secretKey, s3Region, s3Bucket, s3Endpoint, s3Prefix)
+		if err != nil {
+			log.Errorf("Failed to initialize S3 uploader: %v", err)
+		} else {
+			uploader = s3u
+		}
+	}
+
 	bot, err := discord.New(&discord.Config{
 		Context:        ctx,
 		BotToken:       *botToken,
 		GuildID:        *guildID,
 		Database:       sqliteDB,
 		RemoveCommands: removeCommands,
+		Bucket:         uploader,
 	})
 	if err != nil {
 		log.Fatalf("Error creating Discord bot: %v", err)
