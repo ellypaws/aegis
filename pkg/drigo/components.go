@@ -40,8 +40,9 @@ var components = map[string]discordgo.MessageComponent{
 		MenuType:    discordgo.RoleSelectMenu,
 		CustomID:    roleSelect,
 		Placeholder: "",
-		MinValues:   utils.Pointer(1),
+		MinValues:   utils.Pointer(0),
 		MaxValues:   25,
+		Required:    false,
 		Disabled:    false,
 	},
 	channelSelect: discordgo.SelectMenu{
@@ -56,7 +57,7 @@ var components = map[string]discordgo.MessageComponent{
 		Placeholder: "",
 		MinValues:   utils.Pointer(0),
 		MaxValues:   25,
-		Required:    utils.Pointer(false),
+		Required:    false,
 		Disabled:    false,
 	},
 }

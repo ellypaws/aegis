@@ -2,6 +2,8 @@ package drigo
 
 import (
 	"github.com/bwmarrin/discordgo"
+
+	"drigo/pkg/utils"
 )
 
 const (
@@ -59,17 +61,20 @@ var commandOption = map[string]*discordgo.ApplicationCommandOption{
 		Name:        channelSelect,
 		Description: "Select a channel to notify subscribers. Don't select if you want to include multiple channels.",
 		Required:    false,
+		MinValue:    utils.Pointer[float64](0),
 	},
 	postTitle: {
 		Type:        discordgo.ApplicationCommandOptionString,
 		Name:        postTitle,
 		Description: "Optional title for the post",
 		Required:    false,
+		MaxLength:   45,
 	},
 	postDescription: {
 		Type:        discordgo.ApplicationCommandOptionString,
 		Name:        postDescription,
 		Description: "Optional description for the post",
 		Required:    false,
+		MaxLength:   2000,
 	},
 }
