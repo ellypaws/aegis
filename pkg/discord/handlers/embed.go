@@ -1,12 +1,15 @@
-package utils
+package handlers
 
 import (
 	"errors"
 	"fmt"
 	"io"
 	"slices"
+	"strings"
 	"time"
 
+	"drigo/pkg/types"
+	"drigo/pkg/utils"
 	"github.com/bwmarrin/discordgo"
 
 	"drigo/pkg/compositor"
@@ -81,15 +84,35 @@ func EmbedImages(webhook *discordgo.WebhookEdit, embed *discordgo.MessageEmbed, 
 			continue
 		}
 
-		imgName := fmt.Sprintf("%v-%d.png", nowFormatted, i)
+		contentType := "image/png"
+		extension := "png"
+		if contentTypeInterface, ok := imgBuf.(types.ReaderType); ok {
+			contentType = contentTypeInterface.ContentType()
+			extension = utils.GetFileExtension(contentType)
+		}
+
+		imgName := fmt.Sprintf("%v-%d.%s", nowFormatted, i, extension)
 		files = append(files, &discordgo.File{
 			Name:        imgName,
-			ContentType: "image/png",
+			ContentType: contentType,
 			Reader:      imgBuf,
 		})
 
+		var embedType discordgo.EmbedType
+		switch {
+		case strings.HasSuffix(contentType, "gif"):
+			embedType = discordgo.EmbedTypeGifv
+		case strings.HasPrefix(contentType, "image/"):
+			embedType = discordgo.EmbedTypeImage
+		case strings.HasPrefix(contentType, "video/"):
+			embedType = discordgo.EmbedTypeVideo
+			continue
+		default:
+			embedType = discordgo.EmbedTypeImage
+		}
+
 		embeds = append(embeds, &discordgo.MessageEmbed{
-			Type: discordgo.EmbedTypeImage,
+			Type: embedType,
 			URL:  "https://github.com/ellypaws",
 			Image: &discordgo.MessageEmbedImage{
 				URL: fmt.Sprintf("attachment://%s", imgName),

@@ -203,8 +203,8 @@ func GetAttachments(i *discordgo.InteractionCreate) (map[string]AttachmentImage,
 	attachments := make(map[string]AttachmentImage, len(resolved))
 	for snowflake, attachment := range resolved {
 		log.Printf("Attachment[%v]: %#v", snowflake, attachment.URL)
-		if !strings.HasPrefix(attachment.ContentType, "image") {
-			log.Printf("Attachment[%v] is not an image, removing from queue.", snowflake)
+		if !strings.HasPrefix(attachment.ContentType, "image/") && !strings.HasPrefix(attachment.ContentType, "video/") {
+			log.Printf("Attachment[%v] is not an image or video, removing from queue.", snowflake)
 			continue
 		}
 

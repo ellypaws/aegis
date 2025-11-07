@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"net/http"
 	"strings"
 	"time"
 
@@ -196,19 +195,26 @@ func (q *Bot) showImage(s *discordgo.Session, i *discordgo.InteractionCreate) er
 }
 
 func (q *Bot) prepareEmbed(member *discordgo.Member, p *types.Post, webhookEdit *discordgo.WebhookEdit, embed *discordgo.MessageEmbed) error {
+	if p.Image.HasVideo() {
+		if err := handlers.EmbedImages(webhookEdit, embed, p.Image.Readers(), nil, compositor.Passthrough); err != nil {
+			return fmt.Errorf("error creating image embed: %w", err)
+		}
+		return nil
+	}
+
 	memberExif := q.memberExif(member)
 	encoder := exif.NewEncoder(memberExif)
 	var images []io.Reader
-	if len(p.Image.Blobs) > 0 {
+	for _, blob := range p.Image.Blobs {
 		var buffer bytes.Buffer
-		err := encoder.EncodeReader(&buffer, bytes.NewReader(p.Image.Blobs[0].Data))
+		err := encoder.EncodeReader(&buffer, bytes.NewReader(blob.Data))
 		if err != nil {
 			return fmt.Errorf("error encoding: %w", err)
 		}
 		images = append(images, &buffer)
 	}
 
-	if err := utils.EmbedImages(webhookEdit, embed, images, nil, compositor.Compositor(memberExif)); err != nil {
+	if err := handlers.EmbedImages(webhookEdit, embed, images, nil, compositor.Compositor(memberExif)); err != nil {
 		return fmt.Errorf("error creating image embed: %w", err)
 	}
 	return nil
@@ -348,8 +354,12 @@ func (q *Bot) sendDM(s *discordgo.Session, i *discordgo.InteractionCreate) error
 				return handlers.ErrorFollowupEphemeral(s, i.Interaction, "Failed to upload image for fallback.", ferr)
 			}
 
+			content := fmt.Sprintf("📎 Your image was too large to send directly. Here's a link: %s", url)
+			if strings.Contains(utils.ContentType(blob.Data), "video/") {
+				content = fmt.Sprintf("📎 Your video is ready. Here's a link: %s", url)
+			}
 			msg, sendErr := s.ChannelMessageSendComplex(ch.ID, &discordgo.MessageSend{
-				Content: fmt.Sprintf("📎 Your image was too large to send directly. Here's a link: %s", url),
+				Content: content,
 				Embeds:  []*discordgo.MessageEmbed{fbEmbed},
 				Components: []discordgo.MessageComponent{
 					handlers.Components[handlers.DeleteButton],
@@ -464,15 +474,16 @@ func (q *Bot) sendDM(s *discordgo.Session, i *discordgo.InteractionCreate) error
 // fallbackToLink performs the upload of the image to the configured bucket and returns a public URL and a basic embed.
 // Message sending/editing is intentionally left to the caller so this can be used by both showImage and sendDM paths.
 func (q *Bot) fallbackToLink(i *discordgo.InteractionCreate, p *types.Post) (url string, embed *discordgo.MessageEmbed, err error) {
+	if p == nil || p.Image == nil {
+		log.Error("fallbackToLink called with nil image")
+		return "", nil, fmt.Errorf("no image found to upload")
+	}
+
 	log.Debug("Falling back to link for post", "postKey", p.PostKey)
 
 	if q.bucket == nil {
 		log.Error("fallbackToLink called but no bucket configured")
 		return "", nil, fmt.Errorf("no bucket configured for fallback")
-	}
-	if p == nil || p.Image == nil {
-		log.Error("fallbackToLink called with nil image")
-		return "", nil, fmt.Errorf("no image found to upload")
 	}
 
 	var data []byte
@@ -485,30 +496,29 @@ func (q *Bot) fallbackToLink(i *discordgo.InteractionCreate, p *types.Post) (url
 		return "", nil, fmt.Errorf("no image data available to upload")
 	}
 
-	contentType := http.DetectContentType(func() []byte {
-		if len(data) >= 512 {
-			return data[:512]
-		}
-		return data
-	}())
+	contentType := utils.ContentType(data)
 	switch contentType {
 	case "image/jpeg", "image/png", "image/webp", "image/gif":
+		data, err = q.encodeExif(data, i.Member)
+		if err != nil {
+			log.Error("error encoding exif for fallback upload", "error", err)
+			return "", nil, fmt.Errorf("failed to encode image for upload: %w", err)
+		}
+	case "video/mp4", "video/x-m4v", "video/x-msvideo", "video/x-flv":
 	default:
 		contentType = "image/png"
 	}
 
-	data, err = q.encodeExif(data, i.Member)
-	if err != nil {
-		log.Error("error encoding exif for fallback upload", "error", err)
-		return "", nil, fmt.Errorf("failed to encode image for upload: %w", err)
-	}
-
 	ts := time.Now().UTC().Format("20060102-150405")
 	ext := map[string]string{
-		"image/jpeg": "jpg",
-		"image/png":  "png",
-		"image/webp": "webp",
-		"image/gif":  "gif",
+		"image/jpeg":      "jpg",
+		"image/png":       "png",
+		"image/webp":      "webp",
+		"image/gif":       "gif",
+		"video/mp4":       "mp4",
+		"video/x-m4v":     "m4v",
+		"video/x-msvideo": "avi",
+		"video/x-flv":     "flv",
 	}[contentType]
 	if ext == "" {
 		ext = "png"

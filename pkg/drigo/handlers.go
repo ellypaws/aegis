@@ -158,7 +158,7 @@ func (q *Bot) handleModalSubmit(s *discordgo.Session, i *discordgo.InteractionCr
 	}
 	if len(selectedChannels) == 0 {
 		thumbR := bytes.NewReader(pending.Thumbnail)
-		if err := utils.EmbedImages(webhookEdit, embed, []io.Reader{thumbR}, nil, compositor.Compositor[*MemberExif](nil)); err != nil {
+		if err := handlers.EmbedImages(webhookEdit, embed, []io.Reader{thumbR}, nil, compositor.Compositor[*MemberExif](nil)); err != nil {
 			return handlers.ErrorEdit(s, i.Interaction, fmt.Errorf("error creating image embed: %w", err))
 		}
 
@@ -181,7 +181,7 @@ func (q *Bot) handleModalSubmit(s *discordgo.Session, i *discordgo.InteractionCr
 		}
 		perEmbed := *embed
 		var perEdit discordgo.WebhookEdit
-		if err := utils.EmbedImages(&perEdit, &perEmbed, []io.Reader{bytes.NewReader(pending.Thumbnail)}, nil, compositor.Compositor[*MemberExif](nil)); err != nil {
+		if err := handlers.EmbedImages(&perEdit, &perEmbed, []io.Reader{bytes.NewReader(pending.Thumbnail)}, nil, compositor.Compositor[*MemberExif](nil)); err != nil {
 			continue
 		}
 		msg, err := s.ChannelMessageSendComplex(chID, &discordgo.MessageSend{
@@ -270,6 +270,10 @@ func (q *Bot) handlePostImage(s *discordgo.Session, i *discordgo.InteractionCrea
 		thumbnailAttachment, ok = attachments[option.Value.(string)]
 		if !ok {
 			return handlers.ErrorEdit(s, i.Interaction, "You need to provide a thumbnail image.")
+		}
+
+		if !strings.Contains(thumbnailAttachment.Attachment.ContentType, "image/") {
+			return handlers.ErrorEdit(s, i.Interaction, "The thumbnail must be an image.")
 		}
 	}
 
@@ -409,7 +413,7 @@ func (q *Bot) handlePostImage(s *discordgo.Session, i *discordgo.InteractionCrea
 	}
 
 	thumbR := bytes.NewReader(thumbBytes)
-	if err := utils.EmbedImages(webhookEdit, embed, []io.Reader{thumbR}, nil, compositor.Compositor[*MemberExif](nil)); err != nil {
+	if err := handlers.EmbedImages(webhookEdit, embed, []io.Reader{thumbR}, nil, compositor.Compositor[*MemberExif](nil)); err != nil {
 		return handlers.ErrorEdit(s, i.Interaction, fmt.Errorf("error creating image embed: %w", err))
 	}
 

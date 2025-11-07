@@ -1,6 +1,14 @@
 package types
 
-import "gorm.io/gorm"
+import (
+	"bytes"
+	"io"
+	"net/http"
+
+	"gorm.io/gorm"
+
+	"drigo/pkg/utils"
+)
 
 // Image is the parent record; Images are stored as child blobs to avoid JSON.
 // Order is preserved via Index.
@@ -18,9 +26,10 @@ type ImageBlob struct {
 	gorm.Model
 
 	// Enforce unique order for blobs per image
-	ImageID uint   `gorm:"index;uniqueIndex:idx_image_blob_order"`
-	Index   int    `gorm:"index;uniqueIndex:idx_image_blob_order"` // stable order
-	Data    []byte `gorm:"type:blob"`
+	ImageID     uint   `gorm:"index;uniqueIndex:idx_image_blob_order"`
+	Index       int    `gorm:"index;uniqueIndex:idx_image_blob_order"` // stable order
+	Data        []byte `gorm:"type:blob"`
+	ContentType string
 }
 
 func (im *Image) GetImages() (thumb []byte, imgs [][]byte) {
@@ -37,13 +46,78 @@ func (im *Image) GetImages() (thumb []byte, imgs [][]byte) {
 	return
 }
 
+type ImageReader struct {
+	Data        []byte
+	Reader      io.Reader
+	contentType string
+}
+
+type ReaderType interface {
+	io.Reader
+	ContentType() string
+}
+
+func (im *Image) Readers() []io.Reader {
+	readers := make([]io.Reader, len(im.Blobs))
+	for i, blob := range im.Blobs {
+		readers[i] = &ImageReader{
+			Data:        blob.Data,
+			Reader:      bytes.NewReader(blob.Data),
+			contentType: blob.ContentType,
+		}
+	}
+	return readers
+}
+
+func (im *Image) HasVideo() bool {
+	for i := range im.Blobs {
+		if im.Blobs[i].IsVideoType() {
+			return true
+		}
+	}
+	return false
+}
+
+func (ir *ImageReader) Read(p []byte) (n int, err error) {
+	return ir.Reader.Read(p)
+}
+
+func (ir *ImageReader) ContentType() string {
+	if ir.contentType == "" {
+		ir.contentType = utils.ContentType(ir.Data)
+	}
+	return ir.contentType
+}
+
 func (im *Image) SetImages(thumb []byte, imgs [][]byte) {
 	im.Thumbnail = append([]byte(nil), thumb...)
 	im.Blobs = im.Blobs[:0]
 	for i, b := range imgs {
 		im.Blobs = append(im.Blobs, ImageBlob{
-			Index: i,
-			Data:  append([]byte(nil), b...),
+			Index:       i,
+			Data:        append([]byte(nil), b...),
+			ContentType: http.DetectContentType(b),
 		})
 	}
+}
+
+func (ib *ImageBlob) GetContentType() string {
+	if ib.ContentType == "" {
+		ib.ContentType = utils.ContentType(ib.Data)
+	}
+	return ib.ContentType
+}
+
+func (ib *ImageBlob) GetFileExtension() string {
+	if ib.ContentType == "" {
+		ib.ContentType = utils.ContentType(ib.Data)
+	}
+	return utils.GetFileExtension(ib.ContentType)
+}
+
+func (ib *ImageBlob) IsVideoType() bool {
+	if ib.ContentType == "" {
+		ib.ContentType = utils.ContentType(ib.Data)
+	}
+	return utils.IsVideoContentType(ib.ContentType)
 }
