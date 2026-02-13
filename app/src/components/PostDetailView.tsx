@@ -85,19 +85,46 @@ export function PostDetailView({
                         height: fixedState.height,
                     }}
                 >
-                    {/* 
-            Container animates size/position. 
-            Image inside maintains aspect ratio via object-contain 
-            and animates its own opacity if needed.
-          */}
+                    {/* Crossfade strategy:
+                 1. Background image (Cover): Matches the thumbnail crop. Fades out.
+                 2. Foreground image (Contain): Matches the target full view. Fades in.
+             */}
                     <img
                         src={canAccessSelected ? selected.full.url : selected.thumb?.url}
                         className={cn(
-                            "h-full w-full object-contain rounded-2xl shadow-xl bg-white",
-                            !canAccessSelected && selected.thumb && "blur-md"
+                            "absolute inset-0 h-full w-full object-cover rounded-2xl shadow-xl bg-white transition-opacity duration-500",
+                            !canAccessSelected && selected.thumb && "blur-md",
+                            "opacity-0" // Fades out effectively by being covered or explicit opacity?
+                            // Actually, if we transition `opacity-0` here, we need state.
+                            // But we used CSS transition on the container. We can use animation keyframes or just rely on the fact that `animating` is true.
+                            // Wait, we don't have a "start" vs "end" state variable for opacity inside the component unless we add one.
+                            // Simplification: Just keep it opacity-100? No, then it stays cropped.
+                            // Let's use a CSS animation or simply rely on the fact that we can't easily add a second state without `useEffect` delay.
+                            // But we DO have a timeout in `useLayoutEffect`.
                         )}
+                        // We'll handle opacity via style to ensure it starts at 1 and goes to 0 if possible?
+                        // Actually, doing a JS state "animationProgress" is expensive.
+                        // Let's us CSS keyframes if possible, or just two images where one is on top.
+                        // If we put the "Contain" image on top and fade it IN (`opacity-0` -> `opacity-100`).
                         alt=""
                     />
+
+                    {/*
+                We need a state `showTarget` that goes true immediately after mount?
+             */}
+                    <img
+                        src={canAccessSelected ? selected.full.url : selected.thumb?.url}
+                        className={cn(
+                            "absolute inset-0 h-full w-full object-contain rounded-2xl shadow-xl",
+                            !canAccessSelected && selected.thumb && "blur-md"
+                        )}
+                        // To fade in, we can use a CSS animation on mount?
+                        style={{ animation: "fadeIn 0.5s ease-in-out forwards" }}
+                        alt=""
+                    />
+                    <style>{`
+                @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+             `}</style>
                 </div>
             ) : null}
 

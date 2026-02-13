@@ -37,7 +37,7 @@ export function GalleryGridCard({
                 <div className="h-48 w-full border-b-4 border-zinc-100 bg-zinc-50 shrink-0 relative overflow-hidden">
                     {/* Use object-contain to maintain aspect ratio fitting within the box */}
                     {url ? (
-                        <img src={url} alt={post.title ?? ""} className={cn("h-full w-full object-contain bg-zinc-50", !canAccess && "blur-md")} draggable={false} />
+                        <img src={url} alt={post.title ?? ""} className={cn("h-full w-full object-cover", !canAccess && "blur-md")} draggable={false} />
                     ) : (
                         <div className="flex h-full w-full items-center justify-center text-sm font-bold text-zinc-400">No preview</div>
                     )}
@@ -85,7 +85,7 @@ export function GalleryGridCard({
         >
             <div className="aspect-square relative">
                 {url ? (
-                    <img src={url} alt={post.title ?? ""} className={cn("h-full w-full object-contain bg-zinc-50", !canAccess && "blur-md")} draggable={false} />
+                    <img src={url} alt={post.title ?? ""} className={cn("h-full w-full object-cover bg-zinc-50", !canAccess && "blur-md")} draggable={false} />
                 ) : (
                     <div className="flex h-full w-full items-center justify-center text-sm font-bold text-zinc-400">No preview</div>
                 )}

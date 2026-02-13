@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { safeRevoke, intersect, uid } from "./lib/utils";
+import { safeRevoke, intersect, uid, cn } from "./lib/utils";
 import { UI } from "./constants";
 import { MOCK_GUILD, getRoleName } from "./data/mock";
 import type { DiscordUser, Guild, Post, ViewMode, FileRef } from "./types";
@@ -10,6 +10,7 @@ import { TopBar } from "./components/TopBar";
 import { MainGalleryView } from "./components/MainGalleryView";
 import { PostDetailView } from "./components/PostDetailView";
 import { RightSidebar } from "./components/RightSidebar";
+import { ProfileSidebar } from "./components/ProfileSidebar";
 
 function App() {
   const [user, setUser] = useState<DiscordUser | null>(null);
@@ -178,9 +179,9 @@ function App() {
           </div>
         ) : null}
 
-        <div className="mt-6 grid gap-4 lg:grid-cols-12">
+        <div className="mt-6 flex flex-col gap-4 lg:flex-row relative items-start">
           {/* Left: MAIN */}
-          <div className="lg:col-span-8">
+          <div className={cn("transition-all duration-500 w-full lg:w-[calc(100%-22rem)]")}>
             {view === "gallery" ? (
               <MainGalleryView
                 posts={filteredPosts}
@@ -215,22 +216,34 @@ function App() {
           </div>
 
           {/* Right: SIDEBAR */}
-          <div className="lg:col-span-4">
-            <RightSidebar
-              tagFilter={tagFilter}
-              setTagFilter={setTagFilter}
-              q={q}
-              posts={filteredPosts}
-              selectedId={selectedId}
-              canAccessPost={canAccessPost}
-              onSelect={(id) => {
-                setSelectedId(id);
-                setView("post");
-              }}
-              selected={selected}
-              canAccessSelected={canAccessSelected}
-              user={user}
-            />
+          <div
+            className={cn(
+              "fixed inset-y-0 right-0 z-40 w-80 bg-white/95 shadow-2xl backdrop-blur-sm lg:static lg:bg-transparent lg:shadow-none lg:backdrop-blur-none",
+              "transition-all duration-500 ease-in-out transform",
+              "translate-x-0 opacity-100"
+            )}
+          >
+            <div className="h-full overflow-y-auto p-4 lg:h-auto lg:overflow-visible lg:p-0 lg:sticky lg:top-4">
+              {view === "gallery" ? (
+                <ProfileSidebar user={user} onLogin={() => setLoginOpen(true)} />
+              ) : (
+                <RightSidebar
+                  tagFilter={tagFilter}
+                  setTagFilter={setTagFilter}
+                  q={q}
+                  posts={filteredPosts}
+                  selectedId={selectedId}
+                  canAccessPost={canAccessPost}
+                  onSelect={(id) => {
+                    setSelectedId(id);
+                    setView("post");
+                  }}
+                  selected={selected}
+                  canAccessSelected={canAccessSelected}
+                  user={user}
+                />
+              )}
+            </div>
           </div>
         </div>
       </div>
