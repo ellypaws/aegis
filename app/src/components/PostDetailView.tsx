@@ -1,30 +1,20 @@
-import React, { useLayoutEffect, useRef, useState } from "react";
-import { cn } from "../lib/utils";
+import { useLayoutEffect, useRef, useState } from "react";
+import { cn, resolveImageSrc } from "../lib/utils";
 import { UI } from "../constants";
-import { Post } from "../types";
+import type { Post } from "../types";
 import { LockedOverlay } from "./LockedOverlay";
 
 export function PostDetailView({
     selected,
     canAccessSelected,
-    accessLabel,
     onBack,
-    tagFilter,
-    setTagFilter,
-    similarPosts,
-    canAccessPost,
-    onSelectSimilar,
+    accessLabel,
     transitionRect,
 }: {
     selected: Post | null;
     canAccessSelected: boolean;
     accessLabel: string;
     onBack: () => void;
-    tagFilter: string | null;
-    setTagFilter: (t: string | null) => void;
-    similarPosts: Post[];
-    canAccessPost: (p: Post) => boolean;
-    onSelectSimilar: (id: string) => void;
     transitionRect?: DOMRect | null;
 }) {
     const imgRef = useRef<HTMLImageElement>(null);
@@ -72,8 +62,8 @@ export function PostDetailView({
     }, [transitionRect, selected]);
 
     const getUrl = (p: Post, access: boolean) => {
-        const thumbUrl = p.image?.thumbnail;
-        const fullUrl = p.image?.blobs?.[0]?.data;
+        const thumbUrl = resolveImageSrc(p.image?.thumbnail);
+        const fullUrl = resolveImageSrc(p.image?.blobs?.[0]?.data, p.image?.blobs?.[0]?.contentType);
         return access ? (fullUrl || thumbUrl) : thumbUrl;
     };
 

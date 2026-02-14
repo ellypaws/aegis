@@ -16,20 +16,20 @@ type Image struct {
 	gorm.Model
 
 	// Enforce one Image per Post via unique index on PostID
-	PostID    uint   `gorm:"uniqueIndex"`
-	Thumbnail []byte `gorm:"type:blob"`
+	PostID    uint   `gorm:"uniqueIndex" json:"postId"`
+	Thumbnail []byte `gorm:"type:blob" json:"thumbnail"`
 
-	Blobs []ImageBlob `gorm:"constraint:OnDelete:CASCADE"`
+	Blobs []ImageBlob `gorm:"constraint:OnDelete:CASCADE" json:"blobs"`
 }
 
 type ImageBlob struct {
 	gorm.Model
 
 	// Enforce unique order for blobs per image
-	ImageID     uint   `gorm:"index;uniqueIndex:idx_image_blob_order"`
-	Index       int    `gorm:"index;uniqueIndex:idx_image_blob_order"` // stable order
-	Data        []byte `gorm:"type:blob"`
-	ContentType string
+	ImageID     uint   `gorm:"index;uniqueIndex:idx_image_blob_order" json:"imageId"`
+	Index       int    `gorm:"index;uniqueIndex:idx_image_blob_order" json:"index"` // stable order
+	Data        []byte `gorm:"type:blob" json:"data"`
+	ContentType string `json:"contentType"`
 }
 
 func (im *Image) GetImages() (thumb []byte, imgs [][]byte) {

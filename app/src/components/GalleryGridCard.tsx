@@ -1,7 +1,7 @@
 import React from "react";
-import { cn } from "../lib/utils";
-import { UI } from "../constants";
-import { Post } from "../types";
+import { cn, resolveImageSrc } from "../lib/utils";
+
+import type { Post } from "../types";
 // import { getRoleName } from "../data/mock";
 
 export function GalleryGridCard({
@@ -18,8 +18,8 @@ export function GalleryGridCard({
     variant?: "fixed" | "flexible";
 }) {
     // Logic to resolve image URL
-    const thumbUrl = post.image?.thumbnail;
-    const fullUrl = post.image?.blobs?.[0]?.data;
+    const thumbUrl = resolveImageSrc(post.image?.thumbnail);
+    const fullUrl = resolveImageSrc(post.image?.blobs?.[0]?.data, post.image?.blobs?.[0]?.contentType);
     const url = canAccess ? (fullUrl || thumbUrl) : thumbUrl;
 
     const roleNames = post.allowedRoles.map(r => r.name).join(", ");

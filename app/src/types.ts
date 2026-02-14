@@ -39,7 +39,7 @@ export type Guild = {
 
 export type ImageBlob = {
     ID: number;
-    imageIid: number;
+    imageId: number;
     index: number;
     data: string; // Base64
     contentType: string;

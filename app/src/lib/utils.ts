@@ -35,3 +35,19 @@ export function clamp(n: number, a: number, b: number) {
 }
 
 export const uid = () => Math.random().toString(16).slice(2) + "_" + Date.now().toString(16);
+
+export function resolveImageSrc(data: string | undefined, contentType?: string): string | undefined {
+    if (!data) return undefined;
+    if (data.startsWith("http") || data.startsWith("blob:") || data.startsWith("data:")) return data;
+
+    // Guess type if missing
+    let mime = contentType;
+    if (!mime) {
+        if (data.startsWith("iVBORw")) mime = "image/png";
+        else if (data.startsWith("/9j/")) mime = "image/jpeg";
+        else if (data.startsWith("R0lGOD")) mime = "image/gif";
+        else if (data.startsWith("UklGR")) mime = "image/webp";
+        else mime = "image/png"; // Default fallback
+    }
+    return `data:${mime};base64,${data}`;
+}
