@@ -68,7 +68,7 @@ export function DropdownAddToList<T extends { id: string; name: string }>({
             </div>
 
             <div className="relative">
-                <button type="button" onClick={() => setOpen(true)} className={cn(UI.input, "text-left", "flex items-center justify-between")}>
+                <button type="button" onClick={() => setOpen(!open)} className={cn(UI.input, "text-left", "flex items-center justify-between")}>
                     <span className="text-zinc-500 font-bold">{placeholder}</span>
                     <span className="text-zinc-400">▾</span>
                 </button>
@@ -89,18 +89,22 @@ export function DropdownAddToList<T extends { id: string; name: string }>({
                                             key={o.id}
                                             type="button"
                                             onClick={() => {
-                                                if (!selected) onAdd(o.id);
-                                                setQ("");
+                                                if (selected) {
+                                                    onRemove(o.id);
+                                                } else {
+                                                    onAdd(o.id);
+                                                }
+                                                // setQ(""); // Keep search query? Or clear it?
+                                                // decision: keep it to allow multi-select easily
                                             }}
-                                            disabled={selected}
                                             className={cn(
                                                 "w-full rounded-xl px-3 py-2 text-left text-sm font-bold",
-                                                selected ? "text-zinc-300 cursor-not-allowed" : "text-zinc-800 hover:bg-yellow-100",
+                                                selected ? "text-zinc-300 bg-zinc-50 hover:text-red-400 hover:bg-red-50" : "text-zinc-800 hover:bg-yellow-100",
                                                 "active:translate-x-[1px] active:translate-y-[1px]"
                                             )}
-                                            title={selected ? "Already added" : "Click to add"}
+                                            title={selected ? "Click to remove" : "Click to add"}
                                         >
-                                            {o.name}
+                                            {o.name} {selected ? "(Added)" : ""}
                                         </button>
                                     );
                                 })

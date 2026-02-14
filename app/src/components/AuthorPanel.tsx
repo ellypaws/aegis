@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { cn, safeRevoke } from "../lib/utils";
 import { UI } from "../constants";
-import type { DiscordUser, Post, Image } from "../types"; // Removed FileRef
+import type { DiscordUser } from "../types"; // Removed FileRef, Post, Image
 import { MOCK_GUILD } from "../data/mock";
 import { Patterns } from "./Patterns";
 import { DropdownAddToList } from "./DropdownAddToList";
@@ -9,7 +9,17 @@ import { RolePill, ChannelPill } from "./Pills";
 
 const { useRef } = React;
 
-export function AuthorPanel({ user, onCreate }: { user: DiscordUser; onCreate: (post: Omit<Post, "id" | "createdAt">) => void }) {
+export function AuthorPanel({ user, onCreate }: {
+    user: DiscordUser;
+    onCreate: (postInput: {
+        title: string;
+        description: string;
+        allowedRoleIds: string[];
+        channelIds: string[];
+        image: File;
+        thumbnail?: File;
+    }) => void;
+}) {
     const [title, setTitle] = useState("");
     const [desc, setDesc] = useState("");
     const [allowedRoleIds, setAllowedRoleIds] = useState<string[]>(["r_tier1"]);
@@ -24,7 +34,7 @@ export function AuthorPanel({ user, onCreate }: { user: DiscordUser; onCreate: (
     const fullInputRef = useRef<HTMLInputElement>(null);
     const thumbInputRef = useRef<HTMLInputElement>(null);
 
-    const [config, setConfig] = useState<{ roles: any[], channels: any[] } | null>(null);
+    const [config, setConfig] = useState<{ roles: any[], channels: any[], guild_name?: string } | null>(null);
 
     useEffect(() => {
         const token = localStorage.getItem("jwt");
@@ -69,10 +79,10 @@ export function AuthorPanel({ user, onCreate }: { user: DiscordUser; onCreate: (
     const roleOptions = useMemo(() => {
         if (config?.roles) {
             return config.roles
-                .filter((r: any) => r.name !== "@everyone" && !r.managed) // Simple filter
-                .map((r: any) => ({ id: r.id, name: r.name }));
+                .filter((r: any) => r.name !== "@everyone" && !r.managed)
+                .map((r: any) => ({ id: r.id, name: r.name, color: r.color }));
         }
-        return MOCK_GUILD.roles.filter((r) => r.roleId !== "r_author").map(r => ({ id: r.roleId, name: r.name }));
+        return MOCK_GUILD.roles.filter((r) => r.roleId !== "r_author").map(r => ({ id: r.roleId, name: r.name, color: r.color }));
     }, [config]);
 
     const channelOptions = useMemo(() => {
@@ -83,10 +93,12 @@ export function AuthorPanel({ user, onCreate }: { user: DiscordUser; onCreate: (
     }, [config]);
 
     return (
-        <div className={cn("relative overflow-hidden", UI.card)}>
-            <Patterns.Polka color="rgba(255,0,0,0.08)" />
-            <div className="pointer-events-none absolute top-[-16px] left-[-16px] h-24 w-24 rounded-full border-4 border-white bg-red-400 shadow-lg" />
-            <div className="pointer-events-none absolute bottom-[-10px] right-[-10px] h-20 w-20 rotate-12 border-4 border-white bg-blue-400 shadow-lg" />
+        <div className={cn("relative", UI.card)}>
+            <div className="absolute inset-0 overflow-hidden rounded-[20px] pointer-events-none">
+                <Patterns.Polka color="rgba(255,0,0,0.08)" />
+                <div className="absolute top-[-16px] left-[-16px] h-24 w-24 rounded-full border-4 border-white bg-red-400 shadow-lg" />
+                <div className="absolute bottom-[-10px] right-[-10px] h-20 w-20 rotate-12 border-4 border-white bg-blue-400 shadow-lg" />
+            </div>
 
             <div className="relative z-10 p-5">
                 <div className="flex items-start justify-between gap-4">
@@ -158,7 +170,10 @@ export function AuthorPanel({ user, onCreate }: { user: DiscordUser; onCreate: (
                             selectedIds={allowedRoleIds}
                             onAdd={(id) => setAllowedRoleIds((s) => (s.includes(id) ? s : [...s, id]))}
                             onRemove={(id) => setAllowedRoleIds((s) => s.filter((x) => x !== id))}
-                            renderSelected={(id) => <RolePill roleId={id} />}
+                            renderSelected={(id) => {
+                                const r = roleOptions.find(o => o.id === id);
+                                return <RolePill name={r?.name || id} color={r?.color} />;
+                            }}
                         />
 
                         <DropdownAddToList
@@ -168,7 +183,10 @@ export function AuthorPanel({ user, onCreate }: { user: DiscordUser; onCreate: (
                             selectedIds={channelIds}
                             onAdd={(id) => setChannelIds((s) => (s.includes(id) ? s : [...s, id]))}
                             onRemove={(id) => setChannelIds((s) => s.filter((x) => x !== id))}
-                            renderSelected={(id) => <ChannelPill channelId={id} />}
+                            renderSelected={(id) => {
+                                const c = channelOptions.find(o => o.id === id);
+                                return <ChannelPill name={c?.name || id} />;
+                            }}
                         />
 
                         <div className="flex items-center justify-between gap-3 pt-2">
@@ -179,51 +197,20 @@ export function AuthorPanel({ user, onCreate }: { user: DiscordUser; onCreate: (
                                 onClick={() => {
                                     if (!fullFile) return;
 
-                                    const fullUrl = URL.createObjectURL(fullFile);
-                                    const thumbUrl = thumbFile ? URL.createObjectURL(thumbFile) : fullUrl;
-
-                                    const image: Image = {
-                                        ID: 0,
-                                        postId: 0,
-                                        thumbnail: thumbUrl,
-                                        blobs: [
-                                            {
-                                                ID: 0,
-                                                imageIid: 0,
-                                                index: 0,
-                                                data: fullUrl,
-                                                contentType: fullFile.type
-                                            }
-                                        ]
-                                    };
-
-                                    // Map allowed role IDs to actual role objects mocked
-                                    // With real config, we might need a better mapping or just pass IDs to backend logic if backend was doing Discord post.
-                                    // For now, we mimic the mock structure.
-                                    const allowedRoles = allowedRoleIds.map(id => {
-                                        const r = roleOptions.find(ro => ro.id === id);
-                                        return r ? { roleId: r.id, name: r.name, color: 0 } : null; // simplified role
-                                    }).filter(Boolean) as any[];
-
                                     onCreate({
-                                        postKey: "", // Assigned by App or Backend
-                                        timestamp: "", // Assigned by App
-                                        title: title.trim() || "Untitled",
-                                        description: desc.trim() || "",
-                                        guildId: MOCK_GUILD.id,
-                                        allowedRoles: allowedRoles,
-                                        channelId: channelIds[0] || "",
-                                        image: image,
-                                        authorId: Number(user.userId) || 0, // Mock converting string ID to number
-                                        author: user,
-                                        isPremium: true
+                                        title: title.trim(),
+                                        description: desc.trim(),
+                                        allowedRoleIds: allowedRoleIds,
+                                        channelIds: channelIds,
+                                        image: fullFile,
+                                        thumbnail: thumbFile || undefined
                                     });
 
                                     // Clear form. (previews will revoke via effects)
                                     setTitle("");
                                     setDesc("");
-                                    setAllowedRoleIds(["r_tier1"]);
-                                    setChannelIds(["c_art"]);
+                                    setAllowedRoleIds([]); // Clear defaults
+                                    setChannelIds([]);
                                     setFullFile(null);
                                     setThumbFile(null);
                                 }}
@@ -259,18 +246,24 @@ export function AuthorPanel({ user, onCreate }: { user: DiscordUser; onCreate: (
                         </div>
 
                         <div className={cn("p-4", UI.card)}>
-                            <div className={UI.sectionTitle}>What gets posted (mock)</div>
+                            <div className={UI.sectionTitle}>What gets posted</div>
                             <div className="mt-2 space-y-2 text-sm font-bold text-zinc-700">
                                 <div>
-                                    <span className="text-zinc-400">Guild:</span> {MOCK_GUILD.name}
+                                    <span className="text-zinc-400">Guild:</span> {config?.guild_name || MOCK_GUILD.name}
                                 </div>
                                 <div className="flex flex-wrap gap-2">
                                     <span className="text-zinc-400">Channels:</span>
-                                    {channelIds.length ? channelIds.map((c) => <ChannelPill key={c} channelId={c} />) : <span className="text-zinc-400">None</span>}
+                                    {channelIds.length ? channelIds.map((c) => {
+                                        const ch = channelOptions.find(o => o.id === c);
+                                        return <ChannelPill key={c} name={ch?.name || c} />;
+                                    }) : <span className="text-zinc-400">None</span>}
                                 </div>
                                 <div className="flex flex-wrap gap-2">
                                     <span className="text-zinc-400">Allowed roles:</span>
-                                    {allowedRoleIds.length ? allowedRoleIds.map((r) => <RolePill key={r} roleId={r} />) : <span className="text-zinc-400">None</span>}
+                                    {allowedRoleIds.length ? allowedRoleIds.map((r) => {
+                                        const ro = roleOptions.find(o => o.id === r);
+                                        return <RolePill key={r} name={ro?.name || r} color={ro?.color} />;
+                                    }) : <span className="text-zinc-400">None</span>}
                                 </div>
                             </div>
                             <div className="mt-3 text-xs font-bold text-zinc-400">Real app: post embeds + links per channel, and optionally DM purchasers.</div>

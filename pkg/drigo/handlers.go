@@ -135,7 +135,7 @@ func (q *Bot) handleModalSubmit(s *discordgo.Session, i *discordgo.InteractionCr
 	webhookEdit := &discordgo.WebhookEdit{
 		Content: utils.Pointer(sb.String()),
 		Components: &[]discordgo.MessageComponent{
-			buildShowActionsRow(postKey),
+			BuildShowActionsRow(postKey),
 		},
 	}
 
@@ -188,7 +188,7 @@ func (q *Bot) handleModalSubmit(s *discordgo.Session, i *discordgo.InteractionCr
 			Content:    sb.String(),
 			Files:      perEdit.Files,
 			Embeds:     *perEdit.Embeds,
-			Components: []discordgo.MessageComponent{buildShowActionsRow(postKey)},
+			Components: []discordgo.MessageComponent{BuildShowActionsRow(postKey)},
 		})
 		if err != nil {
 			log.Error("Failed to post in selected channel", "channel", chID, "error", err)
@@ -408,7 +408,7 @@ func (q *Bot) handlePostImage(s *discordgo.Session, i *discordgo.InteractionCrea
 	webhookEdit := &discordgo.WebhookEdit{
 		Content: nil,
 		Components: &[]discordgo.MessageComponent{
-			buildShowActionsRow(postKey),
+			BuildShowActionsRow(postKey),
 		},
 	}
 

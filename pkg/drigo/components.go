@@ -59,8 +59,8 @@ var components = map[string]discordgo.MessageComponent{
 	},
 }
 
-// buildShowActionsRow returns the two-button row (Show image + Send to DMs) with embedded postKey.
-func buildShowActionsRow(postKey string) discordgo.ActionsRow {
+// BuildShowActionsRow returns the two-button row (Show image + Send to DMs) with embedded postKey.
+func BuildShowActionsRow(postKey string) discordgo.ActionsRow {
 	return discordgo.ActionsRow{
 		Components: []discordgo.MessageComponent{
 			discordgo.Button{

@@ -91,7 +91,8 @@ func (s *Server) handleGetUploadConfig(c echo.Context) error {
 	}
 
 	return c.JSON(http.StatusOK, map[string]any{
-		"roles":    roles,
-		"channels": channelResps,
+		"roles":      roles,
+		"channels":   channelResps,
+		"guild_name": guild.Name,
 	})
 }

@@ -17,6 +17,7 @@ import (
 
 	"github.com/bwmarrin/discordgo"
 
+	"drigo/pkg/drigo"
 	"drigo/pkg/types"
 )
 
@@ -296,15 +297,17 @@ func (s *Server) handleCreatePost(c echo.Context) error {
 		publicURL = "http://localhost:5173"
 	}
 
+	messageComponents := append([]discordgo.MessageComponent{
+		discordgo.Button{
+			Label: "View in Gallery",
+			Style: discordgo.LinkButton,
+			URL:   fmt.Sprintf("%s?post=%s", publicURL, postKey),
+		},
+	}, drigo.BuildShowActionsRow(postKey).Components...)
+
 	components := []discordgo.MessageComponent{
 		discordgo.ActionsRow{
-			Components: []discordgo.MessageComponent{
-				discordgo.Button{
-					Label: "View in Gallery",
-					Style: discordgo.LinkButton,
-					URL:   fmt.Sprintf("%s?post=%s", publicURL, postKey),
-				},
-			},
+			Components: messageComponents,
 		},
 	}
 
