@@ -11,8 +11,9 @@ func (s *sqliteDB) ListPosts(limit, offset int) ([]*types.Post, error) {
 	var posts []*types.Post
 	err := s.db.
 		Preload("Author").
-		Preload("Image").
-		Preload("Image").
+		Preload("Image", func(db *gorm.DB) *gorm.DB {
+			return db.Select("id", "created_at", "updated_at", "deleted_at", "post_id")
+		}).
 		Preload("Image.Blobs", func(db *gorm.DB) *gorm.DB {
 			return db.Select("id", "created_at", "updated_at", "deleted_at", "image_id", "index", "content_type")
 		}).

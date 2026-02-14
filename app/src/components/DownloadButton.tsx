@@ -1,4 +1,3 @@
-import React from "react";
 import { cn, formatBytes } from "../lib/utils";
 // import { FileRef } from "../types";
 

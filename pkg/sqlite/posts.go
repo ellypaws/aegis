@@ -110,8 +110,9 @@ func (s *sqliteDB) ReadPost(id uint) (*types.Post, error) {
 	var p types.Post
 	err := s.db.
 		Preload("Author").
-		Preload("Image").
-		Preload("Image").
+		Preload("Image", func(db *gorm.DB) *gorm.DB {
+			return db.Select("id", "created_at", "updated_at", "deleted_at", "post_id")
+		}).
 		Preload("Image.Blobs", func(db *gorm.DB) *gorm.DB {
 			return db.Select("id", "created_at", "updated_at", "deleted_at", "image_id", "index", "content_type")
 		}).
@@ -128,8 +129,9 @@ func (s *sqliteDB) ReadPostByExternalID(ext string) (*types.Post, error) {
 	var p types.Post
 	err := s.db.
 		Preload("Author").
-		Preload("Image").
-		Preload("Image").
+		Preload("Image", func(db *gorm.DB) *gorm.DB {
+			return db.Select("id", "created_at", "updated_at", "deleted_at", "post_id")
+		}).
 		Preload("Image.Blobs", func(db *gorm.DB) *gorm.DB {
 			return db.Select("id", "created_at", "updated_at", "deleted_at", "image_id", "index", "content_type")
 		}).
@@ -429,4 +431,21 @@ func (s *sqliteDB) GetImageBlob(id uint) (*types.ImageBlob, error) {
 		return nil, err
 	}
 	return &blob, nil
+}
+
+// GetPostByBlobID finds the post associated with a specific image blob ID.
+// Useful for permission checking before serving a blob.
+func (s *sqliteDB) GetPostByBlobID(blobID uint) (*types.Post, error) {
+	var blob types.ImageBlob
+	// Find blob -> image -> post
+	if err := s.db.Select("image_id").First(&blob, blobID).Error; err != nil {
+		return nil, err
+	}
+
+	var image types.Image
+	if err := s.db.Select("post_id").First(&image, blob.ImageID).Error; err != nil {
+		return nil, err
+	}
+
+	return s.ReadPost(image.PostID)
 }

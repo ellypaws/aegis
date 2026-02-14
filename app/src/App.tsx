@@ -260,15 +260,6 @@ function App() {
                 canAccessSelected={canAccessSelected}
                 accessLabel={accessLabelForSelected}
                 onBack={() => setView("gallery")}
-                tagFilter={tagFilter}
-                setTagFilter={setTagFilter}
-                similarPosts={filteredPosts}
-                canAccessPost={canAccessPost}
-                onSelectSimilar={(id) => {
-                  setSelectedId(id);
-                  setTransitionRect(null);
-                  setView("post");
-                }}
                 transitionRect={transitionRect}
               />
             )}
@@ -277,12 +268,10 @@ function App() {
           {/* Right: SIDEBAR */}
           <div
             className={cn(
-              "fixed inset-y-0 right-0 z-40 w-80 bg-white/95 shadow-2xl backdrop-blur-sm lg:static lg:bg-transparent lg:shadow-none lg:backdrop-blur-none",
-              "transition-all duration-500 ease-in-out transform",
-              "translate-x-0 opacity-100"
+              "hidden w-80 lg:block"
             )}
           >
-            <div className="h-full overflow-y-auto p-4 lg:h-auto lg:overflow-visible lg:p-0 lg:sticky lg:top-4">
+            <div className="sticky top-4">
               {view === "gallery" ? (
                 <ProfileSidebar user={user} onLogin={() => setLoginOpen(true)} />
               ) : (

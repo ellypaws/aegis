@@ -22,14 +22,17 @@ export function GalleryGridCard({
 
     // Effect to fetch image blob if needed
     useEffect(() => {
-        if (!canAccess || !post.image?.blobs?.[0]?.ID) {
+        if (!post.image?.blobs?.[0]?.ID) {
             setBlobUrl(null);
             return;
         }
 
         const blobId = post.image.blobs[0].ID;
-        if (post.image.blobs[0].data) {
-            setBlobUrl(resolveImageSrc(post.image.blobs[0].data, post.image.blobs[0].contentType) || null);
+        // Fallback or public blur URL
+        const blurUrl = `http://localhost:3000/blur/${blobId}`;
+
+        if (!canAccess) {
+            setBlobUrl(blurUrl);
             return;
         }
 
@@ -40,7 +43,10 @@ export function GalleryGridCard({
         let active = true;
         fetch(`http://localhost:3000/images/${blobId}`, { headers })
             .then(async (res) => {
-                if (!res.ok) throw new Error("Failed to fetch image");
+                if (!res.ok) {
+                    if (active) setBlobUrl(blurUrl);
+                    return;
+                }
                 const blob = await res.blob();
                 if (active) {
                     const url = URL.createObjectURL(blob);
@@ -48,16 +54,11 @@ export function GalleryGridCard({
                 }
             })
             .catch(() => {
-                if (active) setBlobUrl(null);
+                if (active) setBlobUrl(blurUrl);
             });
 
         return () => {
             active = false;
-            // potential cleanup of url is tricky here because we might want to keep it while scrolling? 
-            // actually, we should revoke it.
-            // But we can't easily access the current url in cleanup without a ref or state wrapper.
-            // Simplified: we rely on standard garbage collection for now or implement a more robust cache.
-            // For now, let's just revoke if we are replacing it.
         };
     }, [post.image, canAccess]);
 
