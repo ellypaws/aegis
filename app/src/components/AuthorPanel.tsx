@@ -1,16 +1,17 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { cn, safeRevoke } from "../lib/utils";
 import { UI } from "../constants";
-import { DiscordUser, Post, FileRef } from "../types";
+import type { DiscordUser, Post, Image } from "../types"; // Removed FileRef
 import { MOCK_GUILD } from "../data/mock";
 import { Patterns } from "./Patterns";
 import { DropdownAddToList } from "./DropdownAddToList";
 import { RolePill, ChannelPill } from "./Pills";
 
+const { useRef } = React;
+
 export function AuthorPanel({ user, onCreate }: { user: DiscordUser; onCreate: (post: Omit<Post, "id" | "createdAt">) => void }) {
     const [title, setTitle] = useState("");
     const [desc, setDesc] = useState("");
-    const [tagsText, setTagsText] = useState("");
     const [allowedRoleIds, setAllowedRoleIds] = useState<string[]>(["r_tier1"]);
     const [channelIds, setChannelIds] = useState<string[]>(["c_art"]);
 
@@ -19,6 +20,25 @@ export function AuthorPanel({ user, onCreate }: { user: DiscordUser; onCreate: (
 
     const [previewFull, setPreviewFull] = useState<string | null>(null);
     const [previewThumb, setPreviewThumb] = useState<string | null>(null);
+
+    const fullInputRef = useRef<HTMLInputElement>(null);
+    const thumbInputRef = useRef<HTMLInputElement>(null);
+
+    const [config, setConfig] = useState<{ roles: any[], channels: any[] } | null>(null);
+
+    useEffect(() => {
+        const token = localStorage.getItem("jwt");
+        const headers: Record<string, string> = {};
+        if (token) headers["Authorization"] = `Bearer ${token}`;
+
+        fetch("http://localhost:3000/upload", { headers })
+            .then(res => {
+                if (res.ok) return res.json();
+                throw new Error("Unauthorized or failed");
+            })
+            .then(data => setConfig(data))
+            .catch(err => console.error("Failed to load upload config", err));
+    }, []);
 
     useEffect(() => {
         if (previewFull) safeRevoke(previewFull);
@@ -44,15 +64,23 @@ export function AuthorPanel({ user, onCreate }: { user: DiscordUser; onCreate: (
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [thumbFile]);
 
-    const tags = useMemo(() => {
-        return tagsText
-            .split(",")
-            .map((s) => s.trim())
-            .filter(Boolean)
-            .slice(0, 12);
-    }, [tagsText]);
-
     const canSubmit = !!fullFile && allowedRoleIds.length > 0;
+
+    const roleOptions = useMemo(() => {
+        if (config?.roles) {
+            return config.roles
+                .filter((r: any) => r.name !== "@everyone" && !r.managed) // Simple filter
+                .map((r: any) => ({ id: r.id, name: r.name }));
+        }
+        return MOCK_GUILD.roles.filter((r) => r.roleId !== "r_author").map(r => ({ id: r.roleId, name: r.name }));
+    }, [config]);
+
+    const channelOptions = useMemo(() => {
+        if (config?.channels) {
+            return config.channels.map((c: any) => ({ id: c.id, name: c.name }));
+        }
+        return MOCK_GUILD.channels;
+    }, [config]);
 
     return (
         <div className={cn("relative overflow-hidden", UI.card)}>
@@ -80,27 +108,31 @@ export function AuthorPanel({ user, onCreate }: { user: DiscordUser; onCreate: (
                 <div className="mt-5 grid gap-4 lg:grid-cols-2">
                     <div className="space-y-3">
                         <div className="grid gap-3 md:grid-cols-2">
-                            <label className="space-y-1">
+                            <label className="space-y-1 block cursor-pointer group">
                                 <div className={UI.label}>Full image *</div>
                                 <input
+                                    ref={fullInputRef}
                                     type="file"
                                     accept="image/*"
                                     onChange={(e) => setFullFile(e.target.files?.[0] ?? null)}
                                     className={cn(
                                         UI.input,
-                                        "file:mr-3 file:rounded-xl file:border-4 file:border-blue-300 file:bg-blue-200 file:px-3 file:py-1.5 file:text-xs file:font-black file:uppercase file:tracking-wide file:text-blue-900"
+                                        "file:mr-3 file:rounded-xl file:border-4 file:border-blue-300 file:bg-blue-200 file:px-3 file:py-1.5 file:text-xs file:font-black file:uppercase file:tracking-wide file:text-blue-900",
+                                        "cursor-pointer"
                                     )}
                                 />
                             </label>
-                            <label className="space-y-1">
+                            <label className="space-y-1 block cursor-pointer group">
                                 <div className={UI.label}>Thumbnail (optional)</div>
                                 <input
+                                    ref={thumbInputRef}
                                     type="file"
                                     accept="image/*"
                                     onChange={(e) => setThumbFile(e.target.files?.[0] ?? null)}
                                     className={cn(
                                         UI.input,
-                                        "file:mr-3 file:rounded-xl file:border-4 file:border-green-300 file:bg-green-200 file:px-3 file:py-1.5 file:text-xs file:font-black file:uppercase file:tracking-wide file:text-green-900"
+                                        "file:mr-3 file:rounded-xl file:border-4 file:border-green-300 file:bg-green-200 file:px-3 file:py-1.5 file:text-xs file:font-black file:uppercase file:tracking-wide file:text-green-900",
+                                        "cursor-pointer"
                                     )}
                                 />
                             </label>
@@ -111,10 +143,7 @@ export function AuthorPanel({ user, onCreate }: { user: DiscordUser; onCreate: (
                                 <div className={UI.label}>Title (optional)</div>
                                 <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="e.g. Valentines set" className={UI.input} />
                             </label>
-                            <label className="space-y-1">
-                                <div className={UI.label}>Tags (comma-separated)</div>
-                                <input value={tagsText} onChange={(e) => setTagsText(e.target.value)} placeholder="kemono, pink, sketch" className={UI.input} />
-                            </label>
+
                         </div>
 
                         <label className="space-y-1">
@@ -125,7 +154,7 @@ export function AuthorPanel({ user, onCreate }: { user: DiscordUser; onCreate: (
                         <DropdownAddToList
                             label="Allowed roles (tiers) *"
                             placeholder="Click to open role picker"
-                            options={MOCK_GUILD.roles.filter((r) => r.id !== "r_author")}
+                            options={roleOptions}
                             selectedIds={allowedRoleIds}
                             onAdd={(id) => setAllowedRoleIds((s) => (s.includes(id) ? s : [...s, id]))}
                             onRemove={(id) => setAllowedRoleIds((s) => s.filter((x) => x !== id))}
@@ -135,7 +164,7 @@ export function AuthorPanel({ user, onCreate }: { user: DiscordUser; onCreate: (
                         <DropdownAddToList
                             label="Channels to post in"
                             placeholder="Click to open channel picker"
-                            options={MOCK_GUILD.channels}
+                            options={channelOptions}
                             selectedIds={channelIds}
                             onAdd={(id) => setChannelIds((s) => (s.includes(id) ? s : [...s, id]))}
                             onRemove={(id) => setChannelIds((s) => s.filter((x) => x !== id))}
@@ -150,37 +179,49 @@ export function AuthorPanel({ user, onCreate }: { user: DiscordUser; onCreate: (
                                 onClick={() => {
                                     if (!fullFile) return;
 
-                                    // Functional: store object URLs in the post itself.
-                                    const full: FileRef = {
-                                        name: fullFile.name,
-                                        mime: fullFile.type || "image/*",
-                                        url: URL.createObjectURL(fullFile),
-                                        size: fullFile.size,
+                                    const fullUrl = URL.createObjectURL(fullFile);
+                                    const thumbUrl = thumbFile ? URL.createObjectURL(thumbFile) : fullUrl;
+
+                                    const image: Image = {
+                                        ID: 0,
+                                        postId: 0,
+                                        thumbnail: thumbUrl,
+                                        blobs: [
+                                            {
+                                                ID: 0,
+                                                imageIid: 0,
+                                                index: 0,
+                                                data: fullUrl,
+                                                contentType: fullFile.type
+                                            }
+                                        ]
                                     };
-                                    const thumb: FileRef | undefined = thumbFile
-                                        ? {
-                                            name: thumbFile.name,
-                                            mime: thumbFile.type || "image/*",
-                                            url: URL.createObjectURL(thumbFile),
-                                            size: thumbFile.size,
-                                        }
-                                        : undefined;
+
+                                    // Map allowed role IDs to actual role objects mocked
+                                    // With real config, we might need a better mapping or just pass IDs to backend logic if backend was doing Discord post.
+                                    // For now, we mimic the mock structure.
+                                    const allowedRoles = allowedRoleIds.map(id => {
+                                        const r = roleOptions.find(ro => ro.id === id);
+                                        return r ? { roleId: r.id, name: r.name, color: 0 } : null; // simplified role
+                                    }).filter(Boolean) as any[];
 
                                     onCreate({
-                                        title: title.trim() || undefined,
-                                        description: desc.trim() || undefined,
-                                        tags,
-                                        allowedRoleIds,
-                                        channelIds,
-                                        full,
-                                        thumb,
-                                        authorId: user.id,
+                                        postKey: "", // Assigned by App or Backend
+                                        timestamp: "", // Assigned by App
+                                        title: title.trim() || "Untitled",
+                                        description: desc.trim() || "",
+                                        guildId: MOCK_GUILD.id,
+                                        allowedRoles: allowedRoles,
+                                        channelId: channelIds[0] || "",
+                                        image: image,
+                                        authorId: Number(user.userId) || 0, // Mock converting string ID to number
+                                        author: user,
+                                        isPremium: true
                                     });
 
                                     // Clear form. (previews will revoke via effects)
                                     setTitle("");
                                     setDesc("");
-                                    setTagsText("");
                                     setAllowedRoleIds(["r_tier1"]);
                                     setChannelIds(["c_art"]);
                                     setFullFile(null);
@@ -195,14 +236,20 @@ export function AuthorPanel({ user, onCreate }: { user: DiscordUser; onCreate: (
 
                     <div className="space-y-3">
                         <div className="grid gap-3 md:grid-cols-2">
-                            <div className={cn("p-3", UI.cardBlue)}>
+                            <div
+                                className={cn("p-3 cursor-pointer hover:opacity-90 active:scale-95 transition", UI.cardBlue)}
+                                onClick={() => fullInputRef.current?.click()}
+                            >
                                 <div className={UI.label}>Full Preview</div>
                                 <div className="mt-2 aspect-square overflow-hidden rounded-2xl border-4 border-zinc-200 bg-zinc-50">
                                     {previewFull ? <img src={previewFull} className="h-full w-full object-cover" alt="" /> : <div className="flex h-full w-full items-center justify-center text-xs font-bold text-zinc-400">Pick a file</div>}
                                 </div>
                                 {fullFile ? <div className="mt-2 text-xs font-bold text-zinc-500">{fullFile.name}</div> : null}
                             </div>
-                            <div className={cn("p-3", UI.cardGreen)}>
+                            <div
+                                className={cn("p-3 cursor-pointer hover:opacity-90 active:scale-95 transition", UI.cardGreen)}
+                                onClick={() => thumbInputRef.current?.click()}
+                            >
                                 <div className={UI.label}>Thumbnail Preview</div>
                                 <div className="mt-2 aspect-square overflow-hidden rounded-2xl border-4 border-zinc-200 bg-zinc-50">
                                     {previewThumb ? <img src={previewThumb} className="h-full w-full object-cover" alt="" /> : <div className="flex h-full w-full items-center justify-center text-xs font-bold text-zinc-400">Optional</div>}

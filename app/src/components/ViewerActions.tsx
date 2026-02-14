@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import { cn } from "../lib/utils";
 import { UI } from "../constants";
 import { Post } from "../types";
-import { DownloadButton } from "./DownloadButton";
+import { DownloadButton, DownloadFile } from "./DownloadButton";
 
 export function ViewerActions({ post, canAccess }: { post: Post; canAccess: boolean }) {
     const [toast, setToast] = useState<string | null>(null);
@@ -12,13 +12,21 @@ export function ViewerActions({ post, canAccess }: { post: Post; canAccess: bool
         return () => clearTimeout(t);
     }, [toast]);
 
+    const fullUrl = post.image?.blobs?.[0]?.data;
+    const file: DownloadFile = {
+        url: fullUrl || "",
+        name: `${post.title || "image"}.png`, // Mock extension
+        mime: post.image?.blobs?.[0]?.contentType || "image/png",
+        size: 0, // Unknown size from blob base64 without decoding
+    };
+
     return (
         <div className="space-y-3">
-            <DownloadButton file={post.full} enabled={canAccess} />
+            <DownloadButton file={file} enabled={canAccess} />
 
             <div className="grid grid-cols-3 gap-2">
                 <a
-                    href={canAccess ? post.full.url : undefined}
+                    href={canAccess ? fullUrl : undefined}
                     target={canAccess ? "_blank" : undefined}
                     rel="noreferrer"
                     onClick={(e) => {

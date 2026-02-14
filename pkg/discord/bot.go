@@ -34,6 +34,8 @@ type botImpl struct {
 
 	handlers   pkg.CommandHandlers
 	components pkg.Components
+
+	ready chan struct{}
 }
 
 type Config struct {
@@ -48,6 +50,8 @@ type Config struct {
 
 type Bot interface {
 	Start() error
+	Session() *discordgo.Session
+	Ready() <-chan struct{}
 }
 
 func New(cfg *Config) (Bot, error) {
@@ -80,9 +84,23 @@ func New(cfg *Config) (Bot, error) {
 		queues:             queues,
 		handlers:           make(pkg.CommandHandlers),
 		components:         handlers.ComponentHandlers,
+		ready:              make(chan struct{}),
 	}
 
 	return bot, nil
+}
+
+func (b *botImpl) Session() *discordgo.Session {
+	return b.session
+}
+
+func (b *botImpl) Ready() <-chan struct{} {
+	if b.ready == nil {
+		closed := make(chan struct{})
+		close(closed)
+		return closed
+	}
+	return b.ready
 }
 
 func (b *botImpl) registerHandlers() {
@@ -213,6 +231,11 @@ func (b *botImpl) registerCommands() error {
 func (b *botImpl) Start() error {
 	b.session.AddHandler(func(s *discordgo.Session, r *discordgo.Ready) {
 		log.Printf("Logged in as: %v#%v", s.State.User.Username, s.State.User.Discriminator)
+		if b.ready != nil {
+			close(b.ready)
+		} else {
+			log.Print("Warning: ready channel is nil")
+		}
 	})
 
 	err := b.session.Open()

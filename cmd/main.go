@@ -11,6 +11,7 @@ import (
 
 	"drigo/pkg/bucket"
 	"drigo/pkg/discord"
+	"drigo/pkg/server"
 	"drigo/pkg/sqlite"
 )
 
@@ -109,6 +110,20 @@ func main() {
 	if err != nil {
 		log.Fatalf("Error creating Discord bot: %v", err)
 	}
+
+	srv := server.New(&server.Config{
+		Port:         "3000",
+		DiscordToken: *botToken,
+		GuildID:      *guildID,
+		DB:           sqliteDB,
+		Bot:          bot,
+	})
+
+	go func() {
+		if err := srv.Start(); err != nil {
+			log.Errorf("Server failed: %v", err)
+		}
+	}()
 
 	if err := bot.Start(); err != nil {
 		panic(err)

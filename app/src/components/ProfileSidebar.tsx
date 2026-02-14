@@ -28,6 +28,12 @@ export function ProfileSidebar({ user, onLogin }: { user: DiscordUser | null; on
         );
     }
 
+    // Helper to get color string from int
+    const getColor = (c: number) => {
+        if (!c) return "bg-gray-400";
+        return `bg-[#${c.toString(16).padStart(6, '0')}]`;
+    };
+
     return (
         <div className={cn("overflow-hidden rounded-[20px] bg-[#111214] text-gray-100 shadow-xl border border-[#1e1f22]")}>
             {/* Banner */}
@@ -40,8 +46,8 @@ export function ProfileSidebar({ user, onLogin }: { user: DiscordUser | null; on
                 <div className="absolute -top-[50px] left-4">
                     <div className="relative">
                         <div className="h-[92px] w-[92px] rounded-full bg-[#111214] flex items-center justify-center p-[6px]">
-                            {user.avatarUrl ? (
-                                <img src={user.avatarUrl} alt="" className="h-full w-full rounded-full object-cover" />
+                            {user.avatar ? (
+                                <img src={user.avatar} alt="" className="h-full w-full rounded-full object-cover" />
                             ) : (
                                 <div className="h-full w-full rounded-full bg-[#5865F2] flex items-center justify-center text-3xl font-bold text-white">
                                     {user.username.slice(0, 1).toUpperCase()}
@@ -62,13 +68,14 @@ export function ProfileSidebar({ user, onLogin }: { user: DiscordUser | null; on
 
                         <div className="text-xs font-bold uppercase tracking-wide text-gray-300 mb-2">Roles</div>
                         <div className="flex flex-wrap gap-1">
-                            {user.roles.length > 0 ? (
+                            {user.roles && user.roles.length > 0 ? (
                                 user.roles.map((r) => (
                                     <div
-                                        key={r.id}
+                                        key={r.roleId}
                                         className="flex items-center gap-1.5 rounded bg-[#2B2D31] px-2 py-1 text-xs font-medium text-gray-200 hover:bg-[#3f4147] transition-colors cursor-default"
                                     >
-                                        <div className={cn("h-2.5 w-2.5 rounded-full", r.color || "bg-gray-400")} />
+                                        {/* Use inline style for color if it's dynamic, or map known classes */}
+                                        <div className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: r.color ? `#${r.color.toString(16)}` : '#9ca3af' }} />
                                         {r.name}
                                     </div>
                                 ))

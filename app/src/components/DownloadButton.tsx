@@ -1,8 +1,15 @@
 import React from "react";
 import { cn, formatBytes } from "../lib/utils";
-import { FileRef } from "../types";
+// import { FileRef } from "../types";
 
-export function DownloadButton({ file, enabled }: { file: FileRef; enabled: boolean }) {
+export type DownloadFile = {
+    url: string;
+    name: string;
+    size?: number;
+    mime?: string;
+};
+
+export function DownloadButton({ file, enabled }: { file: DownloadFile; enabled: boolean }) {
     return (
         <a
             href={enabled ? file.url : undefined}
@@ -22,7 +29,7 @@ export function DownloadButton({ file, enabled }: { file: FileRef; enabled: bool
             <div className="min-w-0">
                 <div className={cn("truncate text-sm font-black uppercase tracking-wide", enabled ? "text-blue-700" : "text-zinc-400")}>{file.name}</div>
                 <div className={cn("mt-0.5 text-xs font-bold", enabled ? "text-blue-300" : "text-zinc-300")}>
-                    {formatBytes(file.size)} · {file.mime}
+                    {file.size ? formatBytes(file.size) : "Unknown size"} · {file.mime || "bin"}
                 </div>
             </div>
             <div className={cn("shrink-0 text-lg", enabled ? "text-blue-600" : "text-zinc-300")}>⬇</div>

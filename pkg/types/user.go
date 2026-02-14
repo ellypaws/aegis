@@ -11,16 +11,18 @@ import (
 type User struct {
 	gorm.Model
 
-	UserID        string `gorm:"uniqueIndex"` // discord ID
-	Username      string
-	GlobalName    string // new "display" name field in Discord
-	Discriminator string // legacy, may be empty for new accounts
-	Avatar        string
-	Banner        string
-	AccentColor   int
-	Bot           bool
-	System        bool
-	PublicFlags   int // discordgo.UserFlags is an int
+	UserID        string `gorm:"uniqueIndex" json:"userId"` // discord ID
+	Username      string `json:"username"`
+	GlobalName    string `json:"globalName"`    // new "display" name field in Discord
+	Discriminator string `json:"discriminator"` // legacy, may be empty for new accounts
+	Avatar        string `json:"avatar"`
+	Banner        string `json:"banner"`
+	AccentColor   int    `json:"accentColor"`
+	Bot           bool   `json:"bot"`
+	System        bool   `json:"system"`
+	PublicFlags   int    `json:"publicFlags"` // discordgo.UserFlags is an int
+
+	IsAdmin bool `json:"isAdmin"`
 }
 
 func (u *User) ToDiscord() *discordgo.User {

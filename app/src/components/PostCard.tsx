@@ -2,7 +2,7 @@ import React from "react";
 import { cn } from "../lib/utils";
 import { Post } from "../types";
 import { LockedOverlay } from "./LockedOverlay";
-import { getRoleName } from "../data/mock";
+// import { getRoleName } from "../data/mock"; // Removed circular dependency if possible or keep it
 
 export function PostCard({
     post,
@@ -17,8 +17,19 @@ export function PostCard({
     onSelect: () => void;
     size?: "sm" | "md";
 }) {
-    const url = canAccess ? post.full.url : post.thumb?.url;
+    // Logic to resolve image URL
+    // IF canAccess, show full (blob 0), else show thumbnail
+    // If thumbnail is missing/empty, show "No image" or specific UI
+    const thumbUrl = post.image?.thumbnail;
+    const fullUrl = post.image?.blobs?.[0]?.data;
+
+    // Fallback: If no thumb, use full if allowed?
+    // Actually backend `thumbnail` might be empty.
+
+    const url = canAccess ? (fullUrl || thumbUrl) : thumbUrl;
+
     const w = size === "sm" ? "w-24" : "w-28";
+
     return (
         <button
             type="button"
@@ -39,10 +50,10 @@ export function PostCard({
             )}
 
             {!canAccess ? (
-                post.thumb ? (
+                thumbUrl ? (
                     <div className="absolute inset-0 bg-white/10" />
                 ) : (
-                    <LockedOverlay label={`Requires: ${post.allowedRoleIds.map(getRoleName).join(", ") || "(no roles)"}`} />
+                    <LockedOverlay label={`Requires: ${post.allowedRoles.map(r => r.name).join(", ") || "(no roles)"}`} />
                 )
             ) : null}
 

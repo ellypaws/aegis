@@ -4,7 +4,7 @@ import { UI } from "../constants";
 import { Post, DiscordUser } from "../types";
 import { GalleryPanel } from "./GalleryPanel";
 import { ChannelPill, RolePill } from "./Pills";
-import { Tag } from "./Tag";
+// import { Tag } from "./Tag"; // Removing Tag usage
 import { ViewerActions } from "./ViewerActions";
 
 export function RightSidebar({
@@ -35,11 +35,9 @@ export function RightSidebar({
             <GalleryPanel
                 title="Gallery"
                 subtitle={
-                    tagFilter
-                        ? `Filtered by #${tagFilter}`
-                        : q.trim()
-                            ? `Search: “${q.trim()}”`
-                            : "Recent + browse"
+                    q.trim()
+                        ? `Search: “${q.trim()}”`
+                        : "Recent + browse"
                 }
                 posts={posts}
                 selectedId={selectedId}
@@ -52,7 +50,7 @@ export function RightSidebar({
                     <div>
                         <div className={UI.sectionTitle}>Post details</div>
                         <div className="mt-1 text-xs font-bold text-zinc-400">
-                            Title, description, tags, access + downloads
+                            Title, description, access + downloads
                         </div>
                     </div>
                     {selected ? (
@@ -85,35 +83,19 @@ export function RightSidebar({
                             <div>
                                 <div className={UI.label}>Channels</div>
                                 <div className="mt-2 flex flex-wrap gap-2">
-                                    {selected.channelIds.length ? (
-                                        selected.channelIds.map((c) => <ChannelPill key={c} channelId={c} />)
+                                    {selected.channelId ? (
+                                        <ChannelPill channelId={selected.channelId} />
                                     ) : (
                                         <span className="text-sm font-bold text-zinc-400">—</span>
                                     )}
                                 </div>
                             </div>
-                            <div>
-                                <div className={UI.label}>Tags</div>
-                                <div className="mt-2 flex flex-wrap gap-2">
-                                    {selected.tags.length ? (
-                                        selected.tags.map((t) => (
-                                            <Tag
-                                                key={t}
-                                                label={t}
-                                                active={tagFilter === t}
-                                                onClick={() => setTagFilter(tagFilter === t ? null : t)}
-                                            />
-                                        ))
-                                    ) : (
-                                        <span className="text-sm font-bold text-zinc-400">—</span>
-                                    )}
-                                </div>
-                            </div>
+
                             <div>
                                 <div className={UI.label}>Allowed roles</div>
                                 <div className="mt-2 flex flex-wrap gap-2">
-                                    {selected.allowedRoleIds.length ? (
-                                        selected.allowedRoleIds.map((r) => <RolePill key={r} roleId={r} />)
+                                    {selected.allowedRoles.length ? (
+                                        selected.allowedRoles.map((r) => <RolePill key={r.roleId} roleId={r.roleId} />)
                                     ) : (
                                         <span className="text-sm font-bold text-zinc-400">—</span>
                                     )}
@@ -139,7 +121,7 @@ export function RightSidebar({
                     Your roles:
                     <div className="mt-2 flex flex-wrap gap-2">
                         {(user?.roles ?? []).length ? (
-                            (user?.roles ?? []).map((r) => <RolePill key={r.id} roleId={r.id} />)
+                            (user?.roles ?? []).map((r) => <RolePill key={r.roleId} roleId={r.roleId} />)
                         ) : (
                             <span className="text-sm font-bold text-zinc-400">Not logged in</span>
                         )}

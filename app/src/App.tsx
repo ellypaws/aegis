@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
-import { safeRevoke, intersect, uid, cn } from "./lib/utils";
+import { intersect, cn } from "./lib/utils";
 import { UI } from "./constants";
-import { MOCK_GUILD, getRoleName } from "./data/mock";
-import type { DiscordUser, Guild, Post, ViewMode, FileRef } from "./types";
+import { MOCK_GUILD } from "./data/mock";
+import type { DiscordUser, Guild, Post, ViewMode } from "./types";
 import { DiagonalSlitHeader } from "./components/DiagonalSlitHeader";
 import { LoginModal } from "./components/LoginModal";
 import { AuthorPanel } from "./components/AuthorPanel";
@@ -17,94 +17,126 @@ function App() {
   const [guild] = useState<Guild>(MOCK_GUILD);
   const [view, setView] = useState<ViewMode>("gallery");
   const [loginOpen, setLoginOpen] = useState(false);
+  const [posts, setPosts] = useState<Post[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const [posts, setPosts] = useState<Post[]>(() => {
-    const mkPlaceholder = (name: string) => {
-      const svg = encodeURIComponent(
-        `<svg xmlns='http://www.w3.org/2000/svg' width='1024' height='1024'>
-          <defs>
-            <linearGradient id='g' x1='0' y1='0' x2='1' y2='1'>
-              <stop offset='0%' stop-color='${name === "A" ? "#60a5fa" : name === "B" ? "#34d399" : "#f472b6"}'/>
-              <stop offset='100%' stop-color='${name === "A" ? "#a78bfa" : name === "B" ? "#fb7185" : "#fbbf24"}'/>
-            </linearGradient>
-          </defs>
-          <rect width='1024' height='1024' fill='url(#g)'/>
-          <text x='50%' y='52%' dominant-baseline='middle' text-anchor='middle' fill='rgba(255,255,255,0.85)' font-family='ui-sans-serif' font-size='140' font-weight='700'>${name}</text>
-        </svg>`
-      );
-      const url = `data:image/svg+xml;charset=utf-8,${svg}`;
-      return { url, name: `${name}.svg`, mime: "image/svg+xml", size: 1024 * 30 } as FileRef;
-    };
+  // Parse user from URL query param if present
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const tokenParam = params.get("token");
 
-    const now = Date.now();
-    return [
-      {
-        id: "p1",
-        createdAt: now - 1000 * 60 * 60 * 10,
-        title: "VIP Drop A",
-        description: "High-res pack for VIP. Thumbnail shown for non-access.",
-        tags: ["vip", "pack", "cute"],
-        allowedRoleIds: ["r_vip"],
-        channelIds: ["c_vip"],
-        full: mkPlaceholder("A"),
-        thumb: mkPlaceholder("a"),
-        authorId: "u_elly",
-      },
-      {
-        id: "p2",
-        createdAt: now - 1000 * 60 * 60 * 6,
-        title: "Tier 1 Sketches",
-        description: "Tier 1 access. No thumbnail, so locked users see the lock text.",
-        tags: ["sketch", "tier1"],
-        allowedRoleIds: ["r_tier1", "r_tier2", "r_vip"],
-        channelIds: ["c_art"],
-        full: mkPlaceholder("B"),
-        thumb: undefined,
-        authorId: "u_elly",
-      },
-      {
-        id: "p3",
-        createdAt: now - 1000 * 60 * 60 * 2,
-        title: "Tier 2 Color",
-        description: "Tier 2+ full image; everyone sees the blurred thumbnail.",
-        tags: ["color", "tier2"],
-        allowedRoleIds: ["r_tier2", "r_vip"],
-        channelIds: ["c_art", "c_ann"],
-        full: mkPlaceholder("C"),
-        thumb: mkPlaceholder("c"),
-        authorId: "u_elly",
-      },
-    ];
-  });
+    if (tokenParam) {
+      localStorage.setItem("jwt", tokenParam);
+      window.history.replaceState({}, document.title, "/");
+    }
 
-  const [selectedId, setSelectedId] = useState<string | null>(posts[0]?.id ?? null);
+    const token = localStorage.getItem("jwt");
+    if (token) {
+      try {
+        // Simple parse of JWT payload (2nd part)
+        const base64Url = token.split('.')[1];
+        const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+        const jsonPayload = decodeURIComponent(window.atob(base64).split('').map(function (c) {
+          return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+        }).join(''));
+
+        const claims = JSON.parse(jsonPayload);
+        // Construct user from claims
+        // Claims: uid, sub, adm, roles
+        const u: DiscordUser = {
+          userId: claims.uid,
+          username: claims.sub,
+          globalName: claims.sub,
+          discriminator: "0000",
+          avatar: claims.avt || "",
+          banner: "",
+          accentColor: 0,
+          bot: false,
+          system: false,
+          publicFlags: 0,
+          roles: claims.roles ? claims.roles.map((r: string) => ({ roleId: r, name: "Role " + r, color: 0 })) : [], // Partial role info
+          isAdmin: claims.adm,
+          isAuthor: claims.adm
+        };
+        setUser(u);
+      } catch (e) {
+        console.error("Failed to parse JWT", e);
+        localStorage.removeItem("jwt");
+      }
+    }
+  }, []);
+
+  // Fetch posts
+  const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(true);
+  const limit = 50;
+
+  const loadPosts = (pageNum: number, reset: boolean = false) => {
+    setLoading(true);
+    const token = localStorage.getItem("jwt");
+    const headers: Record<string, string> = {};
+    if (token) {
+      headers["Authorization"] = `Bearer ${token}`;
+    }
+
+    fetch(`http://localhost:3000/posts?page=${pageNum}&limit=${limit}`, { headers })
+      .then(res => res.json())
+      .then(data => {
+        setPosts(prev => reset ? data : [...prev, ...data]);
+        setHasMore(data.length === limit);
+        setLoading(false);
+      })
+      .catch(err => {
+        console.error("Failed to fetch posts", err);
+        setLoading(false);
+      });
+  };
+
+  // Initial Fetch
+  useEffect(() => {
+    loadPosts(1, true);
+    setPage(1);
+  }, [user]);
+
+  const handleLoadMore = () => {
+    if (!hasMore || loading) return;
+    const nextPage = page + 1;
+    setPage(nextPage);
+    loadPosts(nextPage);
+  };
+
+  const [selectedId, setSelectedId] = useState<string | null>(null);
   const [tagFilter, setTagFilter] = useState<string | null>(null);
   const [q, setQ] = useState("");
   const [transitionRect, setTransitionRect] = useState<DOMRect | null>(null);
 
-  const selected = useMemo(() => posts.find((p) => p.id === selectedId) ?? posts[0] ?? null, [posts, selectedId]);
-
+  // Reset selectedId when posts load if none selected
   useEffect(() => {
-    if (!selectedId && posts[0]) setSelectedId(posts[0].id);
+    if (!selectedId && posts.length > 0) {
+    }
   }, [posts, selectedId]);
 
-  const viewerRoleIds = useMemo(() => (user?.roles ?? []).map((r) => r.id), [user]);
+  const selected = useMemo(() => posts?.find((p) => p.postKey === selectedId) ?? null, [posts, selectedId]);
+
+  const viewerRoleIds = useMemo(() => (user?.roles ?? []).map((r) => r.roleId), [user]);
 
   const filteredPosts = useMemo(() => {
-    const base = posts.slice().sort((a, b) => b.createdAt - a.createdAt);
-    const byTag = tagFilter ? base.filter((p) => p.tags.includes(tagFilter)) : base;
+    const base = posts.slice().sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+    const byTag = base; // Tag filtering logic if tags field exists in future
     const s = q.trim().toLowerCase();
     if (!s) return byTag;
     return byTag.filter((p) => {
-      const hay = `${p.title ?? ""} ${(p.description ?? "").slice(0, 120)} ${p.tags.join(" ")}`.toLowerCase();
+      const hay = `${p.title ?? ""} ${(p.description ?? "").slice(0, 120)}`.toLowerCase();
       return hay.includes(s);
     });
   }, [posts, tagFilter, q]);
 
   const canAccessPost = useMemo(() => {
     return (p: Post) => {
-      if (user?.isAuthor && user.id === p.authorId) return true;
-      return intersect(p.allowedRoleIds, viewerRoleIds);
+      if (user?.isAdmin) return true; // Admin/Author access
+      const postRoleIds = p.allowedRoles.map(r => r.roleId);
+      if (postRoleIds.length === 0) return true;
+      return intersect(postRoleIds, viewerRoleIds);
     };
   }, [user, viewerRoleIds]);
 
@@ -115,29 +147,51 @@ function App() {
 
   const accessLabelForSelected = useMemo(() => {
     if (!selected) return "";
-    return selected.allowedRoleIds.length ? `Requires: ${selected.allowedRoleIds.map(getRoleName).join(", ")}` : "No roles configured";
+    return selected.allowedRoles.length ? `Requires: ${selected.allowedRoles.map(r => r.name).join(", ")}` : "Public";
   }, [selected]);
 
-  function handleCreate(postInput: Omit<Post, "id" | "createdAt">) {
-    const post: Post = { ...postInput, id: uid(), createdAt: Date.now() };
-    setPosts((p) => [post, ...p]);
-    setSelectedId(post.id);
-    setTagFilter(null);
-    setQ("");
-    setView("post");
-    setTransitionRect(null);
-  }
+  async function handleCreate(postInput: {
+    title: string;
+    description: string;
+    allowedRoleIds: string[];
+    channelIds: string[];
+    image: File;
+    thumbnail?: File;
+  }) {
+    const formData = new FormData();
+    formData.append("title", postInput.title);
+    formData.append("description", postInput.description);
+    formData.append("roles", postInput.allowedRoleIds.join(","));
+    formData.append("channels", postInput.channelIds.join(","));
+    formData.append("image", postInput.image);
 
-  // Cleanup blob URLs on unmount.
-  useEffect(() => {
-    return () => {
-      for (const p of posts) {
-        if (p.full.url.startsWith("blob:")) safeRevoke(p.full.url);
-        if (p.thumb?.url?.startsWith("blob:")) safeRevoke(p.thumb.url);
+    const token = localStorage.getItem("jwt");
+    const headers: Record<string, string> = {};
+    if (token) headers["Authorization"] = `Bearer ${token}`;
+
+    try {
+      const res = await fetch("http://localhost:3000/posts", {
+        method: "POST",
+        headers,
+        body: formData,
+      });
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ error: res.statusText }));
+        alert(`Upload failed: ${err.error || res.statusText}`);
+        return;
       }
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+
+      const created = await res.json();
+      console.log("Post created:", created);
+      // Refresh posts to show the new one
+      loadPosts(1, true);
+      setPage(1);
+    } catch (err) {
+      console.error("Upload error:", err);
+      alert("Upload failed. Check the console for details.");
+    }
+  }
 
   return (
     <div className={UI.page}>
@@ -155,7 +209,7 @@ function App() {
           onClickRandom={() => {
             const pick = filteredPosts[Math.floor(Math.random() * Math.max(1, filteredPosts.length))];
             if (pick) {
-              setSelectedId(pick.id);
+              setSelectedId(pick.postKey);
               setView("post");
             }
           }}
@@ -173,7 +227,7 @@ function App() {
           selectedId={selectedId}
         />
 
-        {user?.isAuthor ? (
+        {user?.isAdmin ? (
           <div className="mt-6">
             <AuthorPanel user={user} onCreate={handleCreate} />
           </div>
@@ -182,7 +236,9 @@ function App() {
         <div className="mt-6 flex flex-col gap-4 lg:flex-row relative items-start">
           {/* Left: MAIN */}
           <div className={cn("transition-all duration-500 w-full lg:w-[calc(100%-22rem)]")}>
-            {view === "gallery" ? (
+            {loading ? (
+              <div className="p-12 text-center font-bold text-zinc-400">Loading posts...</div>
+            ) : view === "gallery" ? (
               <MainGalleryView
                 posts={filteredPosts}
                 selectedId={selectedId}
@@ -194,6 +250,9 @@ function App() {
                 }}
                 q={q}
                 setQ={setQ}
+                onLoadMore={handleLoadMore}
+                hasMore={hasMore}
+                loading={loading}
               />
             ) : (
               <PostDetailView
@@ -203,7 +262,7 @@ function App() {
                 onBack={() => setView("gallery")}
                 tagFilter={tagFilter}
                 setTagFilter={setTagFilter}
-                similarPosts={filteredPosts.filter((p) => tagFilter && p.tags.includes(tagFilter))}
+                similarPosts={filteredPosts}
                 canAccessPost={canAccessPost}
                 onSelectSimilar={(id) => {
                   setSelectedId(id);

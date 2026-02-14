@@ -5,10 +5,11 @@ import (
 	"database/sql"
 	"errors"
 
-	"github.com/bwmarrin/discordgo"
 	gormsqlite "gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 	_ "modernc.org/sqlite"
+
+	"github.com/bwmarrin/discordgo"
 
 	"drigo/pkg/types"
 )
@@ -21,7 +22,16 @@ type DB interface {
 	IsAllowed(role *discordgo.Role) bool
 	// Post operations
 	CreatePost(p *types.Post) error
+	ReadPost(id uint) (*types.Post, error)
 	ReadPostByExternalID(ext string) (*types.Post, error)
+	UpdatePost(p *types.Post) error
+	DeletePost(id uint) error
+	PatchPost(id uint, patch PostPatch) error
+	ListPosts(limit, offset int) ([]*types.Post, error)
+	UserByID(id string) (*types.User, error)
+	UpsertUser(user *types.User) error
+	CountUsers() (int64, error)
+	SetAdmin(id string, isAdmin bool) error
 }
 
 // sqliteDB is a gorm-backed implementation of DB.

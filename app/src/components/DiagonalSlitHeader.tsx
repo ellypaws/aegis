@@ -10,7 +10,7 @@ export function DiagonalSlitHeader({ posts, onClickRandom }: { posts: Post[]; on
             .slice()
             .sort(() => Math.random() - 0.5)
             .slice(0, 10)
-            .map((p) => p.thumb?.url ?? p.full.url);
+            .map((p) => p.image?.thumbnail || p.image?.blobs?.[0]?.data);
         return src;
     }, [posts]);
 
