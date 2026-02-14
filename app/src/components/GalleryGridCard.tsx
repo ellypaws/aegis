@@ -81,11 +81,11 @@ export function GalleryGridCard({
                 onClick={onOpen}
                 className={cn(
                     "relative overflow-hidden rounded-3xl border-4 bg-white text-left",
-                    "h-80 flex flex-col w-full",
+                    "h-60 flex flex-col w-full",
                     selected ? "border-zinc-900" : "border-zinc-200",
                     "shadow-[6px_6px_0px_rgba(0,0,0,0.16)] hover:bg-yellow-50",
                     "transition-[border-color,box-shadow,background-color] duration-500 ease-in-out",
-                    "active:translate-x-[1px] active:translate-y-[1px]"
+                    "active:translate-x-px active:translate-y-px"
                 )}
                 title={post.title ?? "Untitled"}
             >
