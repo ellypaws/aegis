@@ -1,8 +1,7 @@
-import React from "react";
-import { cn, resolveImageSrc } from "../lib/utils";
+import React, { useEffect, useState } from "react";
+import { cn, resolveImageSrc, safeRevoke } from "../lib/utils";
 
 import type { Post } from "../types";
-// import { getRoleName } from "../data/mock";
 
 export function GalleryGridCard({
     post,
@@ -17,12 +16,62 @@ export function GalleryGridCard({
     onOpen: (e: React.MouseEvent) => void;
     variant?: "fixed" | "flexible";
 }) {
-    // Logic to resolve image URL
+    const [blobUrl, setBlobUrl] = useState<string | null>(null);
     const thumbUrl = resolveImageSrc(post.image?.thumbnail);
-    const fullUrl = resolveImageSrc(post.image?.blobs?.[0]?.data, post.image?.blobs?.[0]?.contentType);
-    const url = canAccess ? (fullUrl || thumbUrl) : thumbUrl;
-
     const roleNames = post.allowedRoles.map(r => r.name).join(", ");
+
+    // Effect to fetch image blob if needed
+    useEffect(() => {
+        if (!canAccess || !post.image?.blobs?.[0]?.ID) {
+            setBlobUrl(null);
+            return;
+        }
+
+        const blobId = post.image.blobs[0].ID;
+        if (post.image.blobs[0].data) {
+            setBlobUrl(resolveImageSrc(post.image.blobs[0].data, post.image.blobs[0].contentType) || null);
+            return;
+        }
+
+        const token = localStorage.getItem("jwt");
+        const headers: Record<string, string> = {};
+        if (token) headers["Authorization"] = `Bearer ${token}`;
+
+        let active = true;
+        fetch(`http://localhost:3000/images/${blobId}`, { headers })
+            .then(async (res) => {
+                if (!res.ok) throw new Error("Failed to fetch image");
+                const blob = await res.blob();
+                if (active) {
+                    const url = URL.createObjectURL(blob);
+                    setBlobUrl(url);
+                }
+            })
+            .catch(() => {
+                if (active) setBlobUrl(null);
+            });
+
+        return () => {
+            active = false;
+            // potential cleanup of url is tricky here because we might want to keep it while scrolling? 
+            // actually, we should revoke it.
+            // But we can't easily access the current url in cleanup without a ref or state wrapper.
+            // Simplified: we rely on standard garbage collection for now or implement a more robust cache.
+            // For now, let's just revoke if we are replacing it.
+        };
+    }, [post.image, canAccess]);
+
+    // Cleanup blob url on unmount or change
+    useEffect(() => {
+        return () => {
+            if (blobUrl && blobUrl.startsWith("blob:")) {
+                safeRevoke(blobUrl);
+            }
+        }
+    }, [blobUrl]);
+
+
+    const url = blobUrl || thumbUrl;
 
     if (variant === "flexible") {
         return (
@@ -60,7 +109,6 @@ export function GalleryGridCard({
                 <div className="p-3 min-w-0 flex-1 flex flex-col justify-between whitespace-nowrap overflow-hidden">
                     <div>
                         <div className="truncate text-left text-sm font-black uppercase tracking-wide text-zinc-900">{post.title ?? "Untitled"}</div>
-                        {/* Tags removed from Post struct */}
                     </div>
                 </div>
             </button>

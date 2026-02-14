@@ -79,6 +79,7 @@ func (s *Server) routes() {
 	s.router.GET("/posts/:id", s.handleGetPost) // Get by post-key
 	s.router.GET("/roles", s.handleGetRoles)
 	s.router.GET("/upload", s.handleGetUploadConfig)
+	s.router.GET("/images/:id", s.handleGetImage)
 
 	s.router.GET("/login", s.handleLogin)
 	s.router.GET("/auth/callback", s.handleCallback)

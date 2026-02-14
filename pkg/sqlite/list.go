@@ -1,6 +1,10 @@
 package sqlite
 
-import "drigo/pkg/types"
+import (
+	"drigo/pkg/types"
+
+	"gorm.io/gorm"
+)
 
 // ListPosts returns a list of posts, ordered by timestamp desc.
 func (s *sqliteDB) ListPosts(limit, offset int) ([]*types.Post, error) {
@@ -8,7 +12,10 @@ func (s *sqliteDB) ListPosts(limit, offset int) ([]*types.Post, error) {
 	err := s.db.
 		Preload("Author").
 		Preload("Image").
-		Preload("Image.Blobs").
+		Preload("Image").
+		Preload("Image.Blobs", func(db *gorm.DB) *gorm.DB {
+			return db.Select("id", "created_at", "updated_at", "deleted_at", "image_id", "index", "content_type")
+		}).
 		Preload("AllowedRoles").
 		Order("timestamp desc").
 		Limit(limit).

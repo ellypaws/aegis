@@ -48,10 +48,7 @@ export function RightSidebar({
             <div className={cn("p-4", UI.card)}>
                 <div className="flex items-start justify-between gap-3">
                     <div>
-                        <div className={UI.sectionTitle}>Post details</div>
-                        <div className="mt-1 text-xs font-bold text-zinc-400">
-                            Title, description, access + downloads
-                        </div>
+                        <div className={UI.sectionTitle}>{ selected?.title }</div>
                     </div>
                     {selected ? (
                         <div
@@ -71,11 +68,6 @@ export function RightSidebar({
                     <>
                         <div className="mt-3 space-y-3">
                             <div>
-                                <div className={UI.label}>Title</div>
-                                <div className="mt-1 text-sm font-black text-zinc-900">{selected.title ?? "Untitled"}</div>
-                            </div>
-                            <div>
-                                <div className={UI.label}>Description</div>
                                 <div className="mt-1 whitespace-pre-wrap text-sm font-bold text-zinc-700">
                                     {selected.description?.trim() ? selected.description : "—"}
                                 </div>

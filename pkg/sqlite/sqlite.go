@@ -32,6 +32,7 @@ type DB interface {
 	UpsertUser(user *types.User) error
 	CountUsers() (int64, error)
 	SetAdmin(id string, isAdmin bool) error
+	GetImageBlob(id uint) (*types.ImageBlob, error)
 }
 
 // sqliteDB is a gorm-backed implementation of DB.

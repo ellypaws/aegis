@@ -111,7 +111,10 @@ func (s *sqliteDB) ReadPost(id uint) (*types.Post, error) {
 	err := s.db.
 		Preload("Author").
 		Preload("Image").
-		Preload("Image.Blobs").
+		Preload("Image").
+		Preload("Image.Blobs", func(db *gorm.DB) *gorm.DB {
+			return db.Select("id", "created_at", "updated_at", "deleted_at", "image_id", "index", "content_type")
+		}).
 		Preload("AllowedRoles").
 		First(&p, id).Error
 	if err != nil {
@@ -126,7 +129,10 @@ func (s *sqliteDB) ReadPostByExternalID(ext string) (*types.Post, error) {
 	err := s.db.
 		Preload("Author").
 		Preload("Image").
-		Preload("Image.Blobs").
+		Preload("Image").
+		Preload("Image.Blobs", func(db *gorm.DB) *gorm.DB {
+			return db.Select("id", "created_at", "updated_at", "deleted_at", "image_id", "index", "content_type")
+		}).
 		Preload("AllowedRoles").
 		Where("post_key = ?", ext).
 		First(&p).Error
@@ -413,4 +419,14 @@ func (s *sqliteDB) DeletePost(id uint) error {
 		// Finally delete post
 		return tx.Delete(&types.Post{}, id).Error
 	})
+}
+
+// GetImageBlob fetches a specific image blob by its ID including the data.
+func (s *sqliteDB) GetImageBlob(id uint) (*types.ImageBlob, error) {
+	var blob types.ImageBlob
+	err := s.db.First(&blob, id).Error
+	if err != nil {
+		return nil, err
+	}
+	return &blob, nil
 }
