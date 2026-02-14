@@ -86,21 +86,19 @@ func (s *Server) handleCallback(c echo.Context) error {
 	// Check if user is in the guild and has roles
 	member, err := s.bot.Session().State.Member(s.config.GuildID, discordUser.ID)
 	if err != nil {
-		log.Error("Failed to get guild member", "user", discordUser.ID, "guild", s.config.GuildID, "error", err)
+		member, err = s.bot.Session().GuildMember(s.config.GuildID, discordUser.ID)
+		if err != nil {
+			log.Error("Failed to get guild member", "user", discordUser.ID, "guild", s.config.GuildID, "error", err)
+		}
 	}
 
 	// Map roles
-	var userRoles []types.Allowed
+	var roles []*discordgo.Role
 	var avatarURL string
 	if member != nil {
-		for _, roleID := range member.Roles {
-			role, err := s.bot.Session().State.Role(s.config.GuildID, roleID)
-			if err == nil {
-				userRoles = append(userRoles, types.Allowed{
-					RoleID: role.ID,
-					Name:   role.Name,
-					Color:  role.Color,
-				})
+		for _, rid := range member.Roles {
+			if r, err := s.bot.Session().State.Role(s.config.GuildID, rid); err == nil {
+				roles = append(roles, r)
 			}
 		}
 		avatarURL = member.AvatarURL("")
@@ -124,12 +122,6 @@ func (s *Server) handleCallback(c echo.Context) error {
 		IsAdmin:  isAdmin,
 	}
 
-	// Generate JWT
-	roleIDs := make([]string, len(userRoles))
-	for i, r := range userRoles {
-		roleIDs[i] = r.RoleID
-	}
-
 	if err := s.db.UpsertUser(&user); err != nil {
 		log.Error("Failed to upsert user", "error", err)
 	}
@@ -148,7 +140,7 @@ func (s *Server) handleCallback(c echo.Context) error {
 		}
 	}
 
-	tokenString, err := GenerateToken(&user, roleIDs)
+	tokenString, err := GenerateToken(&user, roles)
 	if err != nil {
 		log.Error("Failed to generate token", "error", err)
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Failed to generate token"})

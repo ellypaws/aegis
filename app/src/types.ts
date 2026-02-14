@@ -1,5 +1,5 @@
 export type DiscordRole = {
-    roleId: string;
+    id: string; // was roleId
     name: string;
     color: number;
     managed: boolean;

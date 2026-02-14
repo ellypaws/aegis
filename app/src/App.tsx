@@ -54,7 +54,19 @@ function App() {
           bot: false,
           system: false,
           publicFlags: 0,
-          roles: claims.roles ? claims.roles.map((r: string) => ({ roleId: r, name: "Role " + r, color: 0 })) : [], // Partial role info
+          roles: claims.roles ? claims.roles.map((r: any) => ({
+            id: r.id,
+            name: r.name,
+            color: r.color,
+            managed: r.managed,
+            mentionable: r.mentionable,
+            hoist: r.hoist,
+            position: r.position,
+            permissions: r.permissions,
+            icon: r.icon,
+            unicodeEmoji: r.unicodeEmoji,
+            flags: r.flags
+          })) : [],
           isAdmin: claims.adm,
           isAuthor: claims.adm
         };
@@ -118,7 +130,7 @@ function App() {
 
   const selected = useMemo(() => posts?.find((p) => p.postKey === selectedId) ?? null, [posts, selectedId]);
 
-  const viewerRoleIds = useMemo(() => (user?.roles ?? []).map((r) => r.roleId), [user]);
+  const viewerRoleIds = useMemo(() => (user?.roles ?? []).map((r) => r.id), [user]);
 
   const filteredPosts = useMemo(() => {
     const base = posts.slice().sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
@@ -134,7 +146,7 @@ function App() {
   const canAccessPost = useMemo(() => {
     return (p: Post) => {
       if (user?.isAdmin) return true; // Admin/Author access
-      const postRoleIds = p.allowedRoles.map(r => r.roleId);
+      const postRoleIds = p.allowedRoles.map(r => r.id);
       if (postRoleIds.length === 0) return true;
       return intersect(postRoleIds, viewerRoleIds);
     };
@@ -276,8 +288,6 @@ function App() {
                 <ProfileSidebar user={user} onLogin={() => setLoginOpen(true)} />
               ) : (
                 <RightSidebar
-                  tagFilter={tagFilter}
-                  setTagFilter={setTagFilter}
                   q={q}
                   posts={filteredPosts}
                   selectedId={selectedId}

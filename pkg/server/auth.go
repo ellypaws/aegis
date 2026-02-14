@@ -4,6 +4,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/bwmarrin/discordgo"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/labstack/echo/v4"
 
@@ -12,10 +13,10 @@ import (
 
 // JwtCustomClaims are custom claims for JWT
 type JwtCustomClaims struct {
-	UserID   string   `json:"uid"`
-	Username string   `json:"sub"`
-	IsAdmin  bool     `json:"adm"`
-	RoleIDs  []string `json:"roles"`
+	UserID   string            `json:"uid"`
+	Username string            `json:"sub"`
+	IsAdmin  bool              `json:"adm"`
+	Roles    []*discordgo.Role `json:"roles"`
 	jwt.RegisteredClaims
 }
 
@@ -27,12 +28,12 @@ func GetJWTSecret() []byte {
 	return []byte(secret)
 }
 
-func GenerateToken(user *types.User, roleIDs []string) (string, error) {
+func GenerateToken(user *types.User, roles []*discordgo.Role) (string, error) {
 	claims := &JwtCustomClaims{
 		UserID:   user.UserID,
 		Username: user.Username,
 		IsAdmin:  user.IsAdmin,
-		RoleIDs:  roleIDs,
+		Roles:    roles,
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(time.Now().Add(time.Hour * 72)), // 3 days
 			IssuedAt:  jwt.NewNumericDate(time.Now()),

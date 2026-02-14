@@ -112,8 +112,10 @@ func canAccessPost(claims *JwtCustomClaims, p *types.Post) bool {
 
 	// Check intersection
 	userRoleMap := make(map[string]bool)
-	for _, rid := range claims.RoleIDs {
-		userRoleMap[rid] = true
+	for _, r := range claims.Roles {
+		if r != nil {
+			userRoleMap[r.ID] = true
+		}
 	}
 
 	for _, ar := range p.AllowedRoles {

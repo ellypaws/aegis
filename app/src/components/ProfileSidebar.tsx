@@ -1,8 +1,8 @@
-import React from "react";
+
 import { cn } from "../lib/utils";
 import { UI } from "../constants";
-import { DiscordUser } from "../types";
-import { RolePill } from "./Pills";
+import type { DiscordUser } from "../types";
+
 
 export function ProfileSidebar({ user, onLogin }: { user: DiscordUser | null; onLogin: () => void }) {
     if (!user) {
@@ -28,11 +28,7 @@ export function ProfileSidebar({ user, onLogin }: { user: DiscordUser | null; on
         );
     }
 
-    // Helper to get color string from int
-    const getColor = (c: number) => {
-        if (!c) return "bg-gray-400";
-        return `bg-[#${c.toString(16).padStart(6, '0')}]`;
-    };
+
 
     return (
         <div className={cn("overflow-hidden rounded-[20px] bg-[#111214] text-gray-100 shadow-xl border border-[#1e1f22]")}>
@@ -61,7 +57,7 @@ export function ProfileSidebar({ user, onLogin }: { user: DiscordUser | null; on
                 {/* Profile Info */}
                 <div className="mt-[50px]">
                     <div className="rounded-lg bg-[#111214] p-3">
-                        <div className="text-xl font-bold text-white max-w-full truncate">{user.username}</div>
+                        <div className="mt-[25px] text-xl font-bold text-white max-w-full truncate">{user.username}</div>
                         <div className="text-sm text-gray-300 font-medium">{user.username.toLowerCase()}</div>
 
                         <div className="my-3 h-[1px] w-full bg-[#2B2D31]" />
@@ -69,12 +65,12 @@ export function ProfileSidebar({ user, onLogin }: { user: DiscordUser | null; on
                         <div className="text-xs font-bold uppercase tracking-wide text-gray-300 mb-2">Roles</div>
                         <div className="flex flex-wrap gap-1">
                             {user.roles && user.roles.length > 0 ? (
+                                // use r.roleId as r
                                 user.roles.map((r) => (
                                     <div
-                                        key={r.roleId}
+                                        key={r.id}
                                         className="flex items-center gap-1.5 rounded bg-[#2B2D31] px-2 py-1 text-xs font-medium text-gray-200 hover:bg-[#3f4147] transition-colors cursor-default"
                                     >
-                                        {/* Use inline style for color if it's dynamic, or map known classes */}
                                         <div className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: r.color ? `#${r.color.toString(16)}` : '#9ca3af' }} />
                                         {r.name}
                                     </div>

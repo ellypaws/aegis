@@ -6,10 +6,9 @@ import (
 	"gorm.io/gorm"
 )
 
-// Allowed matches your original definition; unchanged, kept here for completeness.
 type Allowed struct {
 	gorm.Model
-	RoleID       string `gorm:"uniqueIndex;size:32" json:"roleId"` // Discord snowflake; add size for index efficiency
+	RoleID       string `gorm:"uniqueIndex;size:32" json:"id"` // Discord snowflake; add size for index efficiency
 	Name         string `json:"name"`
 	Managed      bool   `json:"managed"`
 	Mentionable  bool   `json:"mentionable"`

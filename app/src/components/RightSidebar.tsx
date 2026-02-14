@@ -1,15 +1,13 @@
-import React from "react";
+
 import { cn } from "../lib/utils";
 import { UI } from "../constants";
-import { Post, DiscordUser } from "../types";
+import type { Post, DiscordUser } from "../types";
 import { GalleryPanel } from "./GalleryPanel";
 import { ChannelPill, RolePill } from "./Pills";
 // import { Tag } from "./Tag"; // Removing Tag usage
 import { ViewerActions } from "./ViewerActions";
 
 export function RightSidebar({
-    tagFilter,
-    setTagFilter,
     q,
     posts,
     selectedId,
@@ -19,8 +17,7 @@ export function RightSidebar({
     canAccessSelected,
     user,
 }: {
-    tagFilter: string | null;
-    setTagFilter: (t: string | null) => void;
+
     q: string;
     posts: Post[];
     selectedId: string | null;
@@ -37,7 +34,7 @@ export function RightSidebar({
                 subtitle={
                     q.trim()
                         ? `Search: “${q.trim()}”`
-                        : "Recent + browse"
+                        : "Search"
                 }
                 posts={posts}
                 selectedId={selectedId}
@@ -48,7 +45,7 @@ export function RightSidebar({
             <div className={cn("p-4", UI.card)}>
                 <div className="flex items-start justify-between gap-3">
                     <div>
-                        <div className={UI.sectionTitle}>{ selected?.title }</div>
+                        <div className={UI.sectionTitle}>{selected?.title}</div>
                     </div>
                     {selected ? (
                         <div
@@ -76,7 +73,7 @@ export function RightSidebar({
                                 <div className={UI.label}>Channels</div>
                                 <div className="mt-2 flex flex-wrap gap-2">
                                     {selected.channelId ? (
-                                        <ChannelPill channelId={selected.channelId} />
+                                        <ChannelPill name={selected.channelId} />
                                     ) : (
                                         <span className="text-sm font-bold text-zinc-400">—</span>
                                     )}
@@ -87,7 +84,7 @@ export function RightSidebar({
                                 <div className={UI.label}>Allowed roles</div>
                                 <div className="mt-2 flex flex-wrap gap-2">
                                     {selected.allowedRoles.length ? (
-                                        selected.allowedRoles.map((r) => <RolePill key={r.roleId} roleId={r.roleId} />)
+                                        selected.allowedRoles.map((r) => <RolePill key={r.id} name={r.name} color={r.color} />)
                                     ) : (
                                         <span className="text-sm font-bold text-zinc-400">—</span>
                                     )}
@@ -113,7 +110,7 @@ export function RightSidebar({
                     Your roles:
                     <div className="mt-2 flex flex-wrap gap-2">
                         {(user?.roles ?? []).length ? (
-                            (user?.roles ?? []).map((r) => <RolePill key={r.roleId} roleId={r.roleId} />)
+                            (user?.roles ?? []).map((r) => <RolePill key={r.id} name={r.name} color={r.color} />)
                         ) : (
                             <span className="text-sm font-bold text-zinc-400">Not logged in</span>
                         )}

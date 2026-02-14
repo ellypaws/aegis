@@ -1,14 +1,14 @@
-import type { Guild, DiscordUser, DiscordRole } from "../types";
+import type { Guild, DiscordUser } from "../types";
 
 export const MOCK_GUILD: Guild = {
     id: "guild_1",
     name: "Aegis",
     roles: [
-        { roleId: "r_free", name: "Free", color: 0x52525b, managed: false, mentionable: false, hoist: false, position: 0, permissions: 0, icon: "", unicodeEmoji: "", flags: 0 },
-        { roleId: "r_tier1", name: "Tier 1", color: 0x0284c7, managed: false, mentionable: false, hoist: false, position: 1, permissions: 0, icon: "", unicodeEmoji: "", flags: 0 },
-        { roleId: "r_tier2", name: "Tier 2", color: 0x059669, managed: false, mentionable: false, hoist: false, position: 2, permissions: 0, icon: "", unicodeEmoji: "", flags: 0 },
-        { roleId: "r_vip", name: "VIP", color: 0xc026d3, managed: false, mentionable: false, hoist: false, position: 3, permissions: 0, icon: "", unicodeEmoji: "", flags: 0 },
-        { roleId: "r_author", name: "Author", color: 0xf59e0b, managed: false, mentionable: false, hoist: false, position: 4, permissions: 0, icon: "", unicodeEmoji: "", flags: 0 },
+        { id: "r_free", name: "Free", color: 0x52525b, managed: false, mentionable: false, hoist: false, position: 0, permissions: 0, icon: "", unicodeEmoji: "", flags: 0 },
+        { id: "r_tier1", name: "Tier 1", color: 0x0284c7, managed: false, mentionable: false, hoist: false, position: 1, permissions: 0, icon: "", unicodeEmoji: "", flags: 0 },
+        { id: "r_tier2", name: "Tier 2", color: 0x059669, managed: false, mentionable: false, hoist: false, position: 2, permissions: 0, icon: "", unicodeEmoji: "", flags: 0 },
+        { id: "r_vip", name: "VIP", color: 0xc026d3, managed: false, mentionable: false, hoist: false, position: 3, permissions: 0, icon: "", unicodeEmoji: "", flags: 0 },
+        { id: "r_author", name: "Author", color: 0xf59e0b, managed: false, mentionable: false, hoist: false, position: 4, permissions: 0, icon: "", unicodeEmoji: "", flags: 0 },
     ],
     channels: [
         { id: "c_ann", name: "announcements" },
@@ -29,7 +29,7 @@ export const MOCK_USERS: DiscordUser[] = [
         bot: false,
         system: false,
         publicFlags: 0,
-        roles: [MOCK_GUILD.roles.find((r) => r.roleId === "r_author")!, MOCK_GUILD.roles.find((r) => r.roleId === "r_vip")!],
+        roles: [MOCK_GUILD.roles.find((r) => r.id === "r_author")!, MOCK_GUILD.roles.find((r) => r.id === "r_vip")!],
     },
     {
         userId: "u_viewer1",
@@ -42,7 +42,7 @@ export const MOCK_USERS: DiscordUser[] = [
         bot: false,
         system: false,
         publicFlags: 0,
-        roles: [MOCK_GUILD.roles.find((r) => r.roleId === "r_tier1")!],
+        roles: [MOCK_GUILD.roles.find((r) => r.id === "r_tier1")!],
     },
     {
         userId: "u_viewer2",
@@ -55,10 +55,10 @@ export const MOCK_USERS: DiscordUser[] = [
         bot: false,
         system: false,
         publicFlags: 0,
-        roles: [MOCK_GUILD.roles.find((r) => r.roleId === "r_free")!],
+        roles: [MOCK_GUILD.roles.find((r) => r.id === "r_free")!],
     },
 ];
 
 export function getRoleName(roleId: string) {
-    return MOCK_GUILD.roles.find((r) => r.roleId === roleId)?.name ?? roleId;
+    return MOCK_GUILD.roles.find((r) => r.id === roleId)?.name ?? roleId;
 }

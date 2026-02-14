@@ -82,7 +82,7 @@ export function AuthorPanel({ user, onCreate }: {
                 .filter((r: any) => r.name !== "@everyone" && !r.managed)
                 .map((r: any) => ({ id: r.id, name: r.name, color: r.color }));
         }
-        return MOCK_GUILD.roles.filter((r) => r.roleId !== "r_author").map(r => ({ id: r.roleId, name: r.name, color: r.color }));
+        return MOCK_GUILD.roles.filter((r) => r.id !== "r_author").map(r => ({ id: r.id, name: r.name, color: r.color }));
     }, [config]);
 
     const channelOptions = useMemo(() => {

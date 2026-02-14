@@ -24,9 +24,7 @@ export function GalleryPanel({
             <div className="flex items-start justify-between gap-3">
                 <div>
                     <div className={UI.sectionTitle}>{title}</div>
-                    <div className="mt-1 text-xs font-bold text-zinc-400">{subtitle}</div>
                 </div>
-                <div className="text-xs font-bold text-zinc-400">Click a square</div>
             </div>
 
             <div className="mt-3 overflow-x-auto pb-2">
