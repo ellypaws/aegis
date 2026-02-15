@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useCallback } from "react";
 import { cn, safeRevoke } from "../lib/utils";
 import { UI } from "../constants";
-import type { DiscordUser } from "../types";
+import type { DiscordUser, Post } from "../types";
 import { MOCK_GUILD } from "../data/mock";
 import { Patterns } from "./Patterns";
 import { DropdownAddToList } from "./DropdownAddToList";
@@ -27,20 +27,27 @@ function DropOverlay({ visible }: { visible: boolean }) {
     );
 }
 
-export function AuthorPanel({ user, onCreate }: {
+export type AuthorPanelPostInput = {
+    title: string;
+    description: string;
+    allowedRoleIds: string[];
+    channelIds: string[];
+    image: File;
+    thumbnail?: File;
+    postDate: string;
+    focusX?: number;
+    focusY?: number;
+};
+
+export function AuthorPanel({ user, onCreate, editingPost, onUpdate, onCancelEdit }: {
     user: DiscordUser;
-    onCreate: (postInput: {
-        title: string;
-        description: string;
-        allowedRoleIds: string[];
-        channelIds: string[];
-        image: File;
-        thumbnail?: File;
-        postDate: string;
-        focusX?: number;
-        focusY?: number;
-    }) => void;
+    onCreate?: (postInput: AuthorPanelPostInput) => void;
+    editingPost?: Post | null;
+    onUpdate?: (postKey: string, postInput: AuthorPanelPostInput & { image?: File }) => void;
+    onCancelEdit?: () => void;
 }) {
+    const isEditing = !!editingPost;
+
     const [title, setTitle] = useState("");
     const [desc, setDesc] = useState("");
     const [postDate, setPostDate] = useState(() => new Date().toISOString().slice(0, 10));
@@ -67,6 +74,31 @@ export function AuthorPanel({ user, onCreate }: {
     const [focusY, setFocusY] = useState(50);
     const fullPreviewRef = useRef<HTMLDivElement>(null);
 
+    // Seed form fields when editingPost changes
+    useEffect(() => {
+        if (editingPost) {
+            setTitle(editingPost.title || "");
+            setDesc(editingPost.description || "");
+            setPostDate(editingPost.timestamp ? new Date(editingPost.timestamp).toISOString().slice(0, 10) : new Date().toISOString().slice(0, 10));
+            setAllowedRoleIds(editingPost.allowedRoles?.map(r => r.id) || []);
+            setChannelIds(editingPost.channelId ? editingPost.channelId.split(",").map(s => s.trim()).filter(Boolean) : []);
+            setFocusX(editingPost.focusX ?? 50);
+            setFocusY(editingPost.focusY ?? 50);
+            setFullFile(null);
+            setThumbFile(null);
+
+            // Show the current image as preview
+            const blobId = editingPost.image?.blobs?.[0]?.ID;
+            if (blobId) {
+                const token = localStorage.getItem("jwt");
+                setPreviewFull(`/images/${blobId}${token ? `?token=${token}` : ""}`);
+            } else {
+                setPreviewFull(null);
+            }
+            setPreviewThumb(null);
+        }
+    }, [editingPost]);
+
     const handleDrop = useCallback((e: React.DragEvent, setter: (f: File | null) => void) => {
         e.preventDefault();
         e.stopPropagation();
@@ -85,14 +117,18 @@ export function AuthorPanel({ user, onCreate }: {
 
     const [config, setConfig] = useState<{ roles: any[], channels: any[], guild_name?: string } | null>(null);
 
-    // Persist allowedRoleIds and channelIds to localStorage
+    // Persist allowedRoleIds and channelIds to localStorage (only in create mode)
     useEffect(() => {
-        localStorage.setItem("author_allowedRoleIds", JSON.stringify(allowedRoleIds));
-    }, [allowedRoleIds]);
+        if (!isEditing) {
+            localStorage.setItem("author_allowedRoleIds", JSON.stringify(allowedRoleIds));
+        }
+    }, [allowedRoleIds, isEditing]);
 
     useEffect(() => {
-        localStorage.setItem("author_channelIds", JSON.stringify(channelIds));
-    }, [channelIds]);
+        if (!isEditing) {
+            localStorage.setItem("author_channelIds", JSON.stringify(channelIds));
+        }
+    }, [channelIds, isEditing]);
 
     useEffect(() => {
         const token = localStorage.getItem("jwt");
@@ -109,9 +145,11 @@ export function AuthorPanel({ user, onCreate }: {
     }, []);
 
     useEffect(() => {
-        if (previewFull) safeRevoke(previewFull);
+        // Don't revoke remote URLs (edit mode current-image preview)
+        if (previewFull && previewFull.startsWith("blob:")) safeRevoke(previewFull);
         if (!fullFile) {
-            setPreviewFull(null);
+            // In edit mode, keep remote preview; in create mode clear
+            if (!isEditing) setPreviewFull(null);
             return;
         }
         const u = URL.createObjectURL(fullFile);
@@ -132,7 +170,10 @@ export function AuthorPanel({ user, onCreate }: {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [thumbFile]);
 
-    const canSubmit = !!fullFile && allowedRoleIds.length > 0;
+    // In create mode, full image required. In edit mode, image is optional (keep existing).
+    const canSubmit = isEditing
+        ? allowedRoleIds.length > 0
+        : !!fullFile && allowedRoleIds.length > 0;
 
     const roleOptions = useMemo(() => {
         if (config?.roles) {
@@ -150,28 +191,93 @@ export function AuthorPanel({ user, onCreate }: {
         return MOCK_GUILD.channels;
     }, [config]);
 
+    const handleSubmit = () => {
+        if (isEditing && editingPost && onUpdate) {
+            onUpdate(editingPost.postKey, {
+                title: title.trim(),
+                description: desc.trim(),
+                allowedRoleIds,
+                channelIds,
+                image: fullFile!,
+                thumbnail: thumbFile || undefined,
+                postDate,
+                focusX,
+                focusY,
+            });
+        } else if (onCreate && fullFile) {
+            onCreate({
+                title: title.trim(),
+                description: desc.trim(),
+                allowedRoleIds,
+                channelIds,
+                image: fullFile,
+                thumbnail: thumbFile || undefined,
+                postDate,
+                focusX,
+                focusY,
+            });
+
+            // Clear form (keep roles & channels). Previews will revoke via effects.
+            setTitle("");
+            setDesc("");
+            setPostDate(new Date().toISOString().slice(0, 10));
+            setFullFile(null);
+            setThumbFile(null);
+            setFocusX(50);
+            setFocusY(50);
+            // Reset file input elements so displayed text clears
+            if (fullInputRef.current) fullInputRef.current.value = "";
+            if (thumbInputRef.current) thumbInputRef.current.value = "";
+        }
+    };
+
     return (
         <div className={cn("relative", UI.card)}>
             <div className="absolute inset-0 overflow-hidden rounded-[20px] pointer-events-none">
-                <Patterns.Polka color="rgba(255,0,0,0.08)" />
-                <div className="absolute top-[-16px] left-[-16px] h-24 w-24 rounded-full border-4 border-white bg-red-400 shadow-lg" />
-                <div className="absolute bottom-[-10px] right-[-10px] h-20 w-20 rotate-12 border-4 border-white bg-blue-400 shadow-lg" />
+                <Patterns.Polka color={isEditing ? "rgba(59,130,246,0.08)" : "rgba(255,0,0,0.08)"} />
+                <div className={cn("absolute top-[-16px] left-[-16px] h-24 w-24 rounded-full border-4 border-white shadow-lg", isEditing ? "bg-blue-400" : "bg-red-400")} />
+                <div className={cn("absolute bottom-[-10px] right-[-10px] h-20 w-20 rotate-12 border-4 border-white shadow-lg", isEditing ? "bg-purple-400" : "bg-blue-400")} />
             </div>
 
             <div className="relative z-10 p-5">
                 <div className="flex items-start justify-between gap-4">
                     <div>
-                        <div className="inline-block rounded-xl border-4 border-red-400 bg-white px-4 py-2 rotate-[2deg] shadow-[4px_4px_0px_rgba(248,113,113,1)]">
-                            <div className="text-base font-black uppercase tracking-tight text-red-500">Author Upload</div>
+                        <div className={cn(
+                            "inline-block rounded-xl border-4 bg-white px-4 py-2 rotate-[2deg]",
+                            isEditing
+                                ? "border-blue-400 shadow-[4px_4px_0px_rgba(59,130,246,1)]"
+                                : "border-red-400 shadow-[4px_4px_0px_rgba(248,113,113,1)]"
+                        )}>
+                            <div className={cn(
+                                "text-base font-black uppercase tracking-tight",
+                                isEditing ? "text-blue-500" : "text-red-500"
+                            )}>
+                                {isEditing ? "Edit Post" : "Author Upload"}
+                            </div>
                         </div>
                         <div className="mt-3 text-sm font-bold text-zinc-600">
-                            Pick a <span className="text-zinc-900">full image</span> + optional <span className="text-zinc-900">thumbnail</span>.
+                            {isEditing ? (
+                                <>Editing <span className="text-zinc-900">{editingPost?.title || "Untitled"}</span>. Update fields and save.</>
+                            ) : (
+                                <>Pick a <span className="text-zinc-900">full image</span> + optional <span className="text-zinc-900">thumbnail</span>.</>
+                            )}
                         </div>
                     </div>
 
-                    <div className="rounded-2xl border-4 border-green-300 bg-white px-3 py-2 shadow-[4px_4px_0px_rgba(74,222,128,1)]">
-                        <div className="text-[10px] font-black uppercase tracking-wide text-green-300">Logged in</div>
-                        <div className="text-sm font-black text-green-700">{user.username}</div>
+                    <div className="flex items-center gap-2">
+                        {isEditing && onCancelEdit && (
+                            <button
+                                type="button"
+                                onClick={onCancelEdit}
+                                className={cn(UI.button, UI.btnYellow)}
+                            >
+                                Cancel
+                            </button>
+                        )}
+                        <div className="rounded-2xl border-4 border-green-300 bg-white px-3 py-2 shadow-[4px_4px_0px_rgba(74,222,128,1)]">
+                            <div className="text-[10px] font-black uppercase tracking-wide text-green-300">Logged in</div>
+                            <div className="text-sm font-black text-green-700">{user.username}</div>
+                        </div>
                     </div>
                 </div>
 
@@ -186,7 +292,7 @@ export function AuthorPanel({ user, onCreate }: {
                                 onDrop={(e) => handleDrop(e, setFullFile)}
                             >
                                 <DropOverlay visible={dragFull} />
-                                <div className={UI.label}>Full image *</div>
+                                <div className={UI.label}>{isEditing ? "Replace image (optional)" : "Full image *"}</div>
                                 <input
                                     ref={fullInputRef}
                                     type="file"
@@ -272,40 +378,22 @@ export function AuthorPanel({ user, onCreate }: {
                         />
 
                         <div className="flex items-center justify-between gap-3 pt-2">
-                            <div className="text-xs font-bold text-zinc-500">Full image required. Roles required. Thumbnail optional.</div>
+                            <div className="text-xs font-bold text-zinc-500">
+                                {isEditing
+                                    ? "Roles required. New image optional (keeps current)."
+                                    : "Full image required. Roles required. Thumbnail optional."}
+                            </div>
                             <button
                                 type="button"
                                 disabled={!canSubmit}
-                                onClick={() => {
-                                    if (!fullFile) return;
-
-                                    onCreate({
-                                        title: title.trim(),
-                                        description: desc.trim(),
-                                        allowedRoleIds: allowedRoleIds,
-                                        channelIds: channelIds,
-                                        image: fullFile,
-                                        thumbnail: thumbFile || undefined,
-                                        postDate: postDate,
-                                        focusX,
-                                        focusY,
-                                    });
-
-                                    // Clear form (keep roles & channels). Previews will revoke via effects.
-                                    setTitle("");
-                                    setDesc("");
-                                    setPostDate(new Date().toISOString().slice(0, 10));
-                                    setFullFile(null);
-                                    setThumbFile(null);
-                                    setFocusX(50);
-                                    setFocusY(50);
-                                    // Reset file input elements so displayed text clears
-                                    if (fullInputRef.current) fullInputRef.current.value = "";
-                                    if (thumbInputRef.current) thumbInputRef.current.value = "";
-                                }}
-                                className={cn(UI.button, UI.btnRed, !canSubmit && UI.btnDisabled)}
+                                onClick={handleSubmit}
+                                className={cn(
+                                    UI.button,
+                                    isEditing ? UI.btnBlue : UI.btnRed,
+                                    !canSubmit && UI.btnDisabled
+                                )}
                             >
-                                Create Post
+                                {isEditing ? "Save Changes" : "Create Post"}
                             </button>
                         </div>
                     </div>
@@ -367,7 +455,9 @@ export function AuthorPanel({ user, onCreate }: {
                                             </div>
                                         </>
                                     ) : (
-                                        <div className="flex h-full w-full items-center justify-center text-xs font-bold text-zinc-400">Pick a file</div>
+                                        <div className="flex h-full w-full items-center justify-center text-xs font-bold text-zinc-400">
+                                            {isEditing ? "Current image" : "Pick a file"}
+                                        </div>
                                     )}
                                 </div>
                                 {previewFull && (
@@ -395,7 +485,7 @@ export function AuthorPanel({ user, onCreate }: {
                         </div>
 
                         <div className={cn("p-4", UI.card)}>
-                            <div className={UI.sectionTitle}>What gets posted</div>
+                            <div className={UI.sectionTitle}>{isEditing ? "Updated values" : "What gets posted"}</div>
                             <div className="mt-2 space-y-2 text-sm font-bold text-zinc-700">
                                 <div>
                                     <span className="text-zinc-400">Guild:</span> {config?.guild_name || MOCK_GUILD.name}

@@ -6,7 +6,7 @@ import { MOCK_GUILD } from "./data/mock";
 import type { DiscordUser, Guild, Post, ViewMode } from "./types";
 import { DiagonalSlitHeader } from "./components/DiagonalSlitHeader";
 import { LoginModal } from "./components/LoginModal";
-import { AuthorPanel } from "./components/AuthorPanel";
+import { AuthorPanel, type AuthorPanelPostInput } from "./components/AuthorPanel";
 import { TopBar } from "./components/TopBar";
 import { MainGalleryView } from "./components/MainGalleryView";
 import { PostDetailView } from "./components/PostDetailView";
@@ -29,6 +29,7 @@ function App() {
   const [tagFilter, setTagFilter] = useState<string | null>(null);
   const [q, setQ] = useState("");
   const [transitionRect, setTransitionRect] = useState<DOMRect | null>(null);
+  const [editingPost, setEditingPost] = useState<Post | null>(null);
 
   // Derive state from URL
   const postMatch = matchPath("/post/:postId", location.pathname);
@@ -213,6 +214,72 @@ function App() {
     }
   }
 
+  async function handleUpdate(postKey: string, postInput: AuthorPanelPostInput & { image?: File }) {
+    const formData = new FormData();
+    formData.append("title", postInput.title);
+    formData.append("description", postInput.description);
+    formData.append("roles", postInput.allowedRoleIds.join(","));
+    formData.append("channels", postInput.channelIds.join(","));
+    formData.append("focusX", String(postInput.focusX ?? 50));
+    formData.append("focusY", String(postInput.focusY ?? 50));
+    if (postInput.image) {
+      formData.append("image", postInput.image);
+    }
+
+    const token = localStorage.getItem("jwt");
+    const headers: Record<string, string> = {};
+    if (token) headers["Authorization"] = `Bearer ${token}`;
+
+    try {
+      const res = await fetch(`/posts/${postKey}`, {
+        method: "PATCH",
+        headers,
+        body: formData,
+      });
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ error: res.statusText }));
+        alert(`Edit failed: ${err.error || res.statusText}`);
+        return;
+      }
+
+      console.log("Post updated");
+      setEditingPost(null);
+      loadPosts(1, true);
+      setPage(1);
+    } catch (err) {
+      console.error("Edit error:", err);
+      alert("Edit failed. Check the console for details.");
+    }
+  }
+
+  async function handleDelete(postKey: string) {
+    const token = localStorage.getItem("jwt");
+    const headers: Record<string, string> = {};
+    if (token) headers["Authorization"] = `Bearer ${token}`;
+
+    try {
+      const res = await fetch(`/posts/${postKey}`, {
+        method: "DELETE",
+        headers,
+      });
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ error: res.statusText }));
+        alert(`Delete failed: ${err.error || res.statusText}`);
+        return;
+      }
+
+      console.log("Post deleted");
+      navigate("/");
+      loadPosts(1, true);
+      setPage(1);
+    } catch (err) {
+      console.error("Delete error:", err);
+      alert("Delete failed. Check the console for details.");
+    }
+  }
+
   return (
     <div className={UI.page}>
       <LoginModal
@@ -252,7 +319,13 @@ function App() {
 
         {user?.isAdmin ? (
           <div className="mt-6">
-            <AuthorPanel user={user} onCreate={handleCreate} />
+            <AuthorPanel
+              user={user}
+              onCreate={handleCreate}
+              editingPost={editingPost}
+              onUpdate={handleUpdate}
+              onCancelEdit={() => setEditingPost(null)}
+            />
           </div>
         ) : null}
 
@@ -318,6 +391,11 @@ function App() {
                     }}
                     selected={selected}
                     user={user}
+                    onEditPost={(post) => {
+                      setEditingPost(post);
+                      window.scrollTo({ top: 0, behavior: "smooth" });
+                    }}
+                    onDeletePost={handleDelete}
                   />
                 )}
               </div>

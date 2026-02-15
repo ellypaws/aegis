@@ -92,6 +92,7 @@ func (s *Server) routes() {
 
 	s.router.POST("/posts", s.handleCreatePost)
 	s.router.PATCH("/posts/:id", s.handlePatchPost)
+	s.router.DELETE("/posts/:id", s.handleDeletePost)
 
 	// Settings
 	s.router.GET("/settings", s.handleGetSettings)

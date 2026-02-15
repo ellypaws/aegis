@@ -1,10 +1,10 @@
 
+import { useState } from "react";
 import { cn } from "../lib/utils";
 import { UI } from "../constants";
 import type { Post, DiscordUser } from "../types";
 import { GalleryPanel } from "./GalleryPanel";
 import { ChannelPill, RolePill } from "./Pills";
-// import { Tag } from "./Tag"; // Removing Tag usage
 import { ViewerActions } from "./ViewerActions";
 
 export function RightSidebar({
@@ -14,6 +14,8 @@ export function RightSidebar({
     onSelect,
     selected,
     user,
+    onEditPost,
+    onDeletePost,
 }: {
     posts: Post[];
     selectedId: string | null;
@@ -21,8 +23,13 @@ export function RightSidebar({
     onSelect: (id: string) => void;
     selected: Post | null;
     user: DiscordUser | null;
+    onEditPost?: (post: Post) => void;
+    onDeletePost?: (postKey: string) => void;
 }) {
     const canAccessSelected = selected ? canAccessPost(selected) : false;
+    const isAdmin = !!user?.isAdmin;
+    const [confirmDelete, setConfirmDelete] = useState(false);
+
     return (
         <div className="sticky top-4 space-y-4">
             <GalleryPanel
@@ -63,7 +70,7 @@ export function RightSidebar({
                             <div>
                                 <div className={UI.label}>Posted</div>
                                 <div className="mt-1 text-sm font-bold text-zinc-700">
-                                  {new Date(selected.timestamp).toLocaleDateString(undefined, { year: "numeric", month: "long", day: "numeric" })}
+                                    {new Date(selected.timestamp).toLocaleDateString(undefined, { year: "numeric", month: "long", day: "numeric" })}
                                 </div>
                             </div>
                             <div>
@@ -95,6 +102,49 @@ export function RightSidebar({
                                 <ViewerActions post={selected} canAccess={canAccessSelected} />
                             </div>
                         </div>
+
+                        {isAdmin && (
+                            <div className="mt-4 border-t-4 border-zinc-200">
+                                <div className="mt-2 flex gap-2">
+                                    <button
+                                        type="button"
+                                        onClick={() => onEditPost?.(selected)}
+                                        className={cn(UI.button, UI.btnBlue, "flex-1 text-xs py-2")}
+                                    >
+                                        ✏️ Edit
+                                    </button>
+                                    {!confirmDelete ? (
+                                        <button
+                                            type="button"
+                                            onClick={() => setConfirmDelete(true)}
+                                            className={cn(UI.button, UI.btnRed, "flex-1 text-xs py-2")}
+                                        >
+                                            🗑️ Delete
+                                        </button>
+                                    ) : (
+                                        <div className="flex-1 flex gap-1">
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    onDeletePost?.(selected.postKey);
+                                                    setConfirmDelete(false);
+                                                }}
+                                                className={cn(UI.button, "border-red-600 bg-red-500 text-white hover:bg-red-600 flex-1 text-xs py-2")}
+                                            >
+                                                Confirm
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => setConfirmDelete(false)}
+                                                className={cn(UI.button, UI.btnYellow, "flex-1 text-xs py-2")}
+                                            >
+                                                Cancel
+                                            </button>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        )}
                     </>
                 ) : (
                     <div className="mt-3 text-sm font-bold text-zinc-500">No post selected.</div>
@@ -102,7 +152,7 @@ export function RightSidebar({
             </div>
 
             <div className={cn("p-4", UI.card)}>
-            <div className={UI.sectionTitle}>Roles</div>
+                <div className={UI.sectionTitle}>Roles</div>
                 <div className="mt-2 flex flex-wrap gap-2">
                     {(user?.roles ?? []).length ? (
                         (user?.roles ?? []).map((r) => <RolePill key={r.id} name={r.name} color={r.color} />)
