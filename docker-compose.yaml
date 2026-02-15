@@ -1,61 +1,27 @@
 version: "3.9"
 
-# Compose helper to build release-like artifacts and run the app locally in a container.
-# - build-linux: builds a Linux amd64 binary with CGO disabled
-# - build-windows: builds a Windows amd64 .exe with CGO disabled and includes the .syso resource
-# - app: runs the bot inside a Linux container (useful for local dev). This does not use the .syso.
-
-x-builder: &builder
-  image: golang:1.25-alpine
-  working_dir: /src
-  volumes:
-    - .:/src
-
 services:
-  build-linux:
-    <<: *builder
-    profiles: ["release"]
-    environment:
-      - CGO_ENABLED=0
-      - GOOS=linux
-      - GOARCH=amd64
-    # Mirrors the release job behavior but targets Linux; outputs to ./dist
-    command: >-
-      sh -c "mkdir -p dist && 
-      go build -trimpath -ldflags='-s -w' -o dist/bot-linux-amd64 ./cmd"
-
-  build-windows:
-    <<: *builder
-    profiles: ["release"]
-    environment:
-      - CGO_ENABLED=0
-      - GOOS=windows
-      - GOARCH=amd64
-      # VERSION=vv1.2.3 docker compose run build-windows
-      - VERSION
-    command: >-
-      sh -c "mkdir -p dist && 
-      (cp cmd/src/rsrc_windows_amd64.syso cmd || true) && 
-      go build -trimpath -ldflags='-s -w' -o dist/bot-${VERSION:-windows-amd64}.exe ./cmd"
-
-  # Local dev runner (Linux container) — this compiles and runs inside the container each time.
-  # If you prefer a built binary, run build-linux and execute it on your host instead.
   app:
-    <<: *builder
-    # Loads env from your project .env automatically via Compose variable substitution.
-    # You can also create a .env file at repo root with BOT_TOKEN, GUILD_ID, REMOVE_COMMANDS.
+    build:
+      context: .
+      dockerfile: Dockerfile
     environment:
-      - CGO_ENABLED=0
+      # Discord Bot
       - BOT_TOKEN=${BOT_TOKEN:?Set BOT_TOKEN in your environment or .env}
       - GUILD_ID=${GUILD_ID:-}
-      # Optional cleanup flag — defaults to false
       - REMOVE_COMMANDS=${REMOVE_COMMANDS:-false}
-      # Optional S3 configuration for fallback uploads
+      # AWS S3 Bucket
       - ACCESS_KEY=${ACCESS_KEY:-}
       - SECRET_KEY=${SECRET_KEY:-}
       - S3_BUCKET=${S3_BUCKET:-}
       - S3_REGION=${S3_REGION:-us-east-1}
       - S3_ENDPOINT=${S3_ENDPOINT:-}
       - S3_PREFIX=${S3_PREFIX:-}
-    command: >-
-      sh -c "go run ./cmd"
+      # Discord OAuth2.0
+      - CLIENT_ID=${CLIENT_ID:-}
+      - CLIENT_SECRET=${CLIENT_SECRET:-}
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./sqlite.db:/app/sqlite.db
+      - ./.env:/app/.env
