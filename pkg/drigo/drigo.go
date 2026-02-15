@@ -64,6 +64,7 @@ type PendingPost struct {
 	Author      *discordgo.User
 	Thumbnail   []byte
 	Full        []byte
+	Filename    string
 	Title       string
 	Description string
 }

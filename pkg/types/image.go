@@ -33,6 +33,8 @@ type ImageBlob struct {
 	Index       int    `gorm:"index;uniqueIndex:idx_image_blob_order" json:"index"` // stable order
 	Data        []byte `gorm:"type:blob" json:"data"`
 	ContentType string `json:"contentType"`
+	Size        int64  `gorm:"->;column:size" json:"size"`
+	Filename    string `json:"filename"`
 }
 
 func (im *Image) GetImages() (thumb []byte, imgs [][]byte) {

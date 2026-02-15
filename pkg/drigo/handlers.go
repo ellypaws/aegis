@@ -101,7 +101,7 @@ func (q *Bot) handleModalSubmit(s *discordgo.Session, i *discordgo.InteractionCr
 		Image: &types.Image{
 			Thumbnail: append([]byte(nil), pending.Thumbnail...),
 			Blobs: []types.ImageBlob{
-				{Index: 0, Data: append([]byte(nil), pending.Full...)},
+				{Index: 0, Data: append([]byte(nil), pending.Full...), Filename: pending.Filename},
 			},
 		},
 	}
@@ -273,6 +273,7 @@ func (q *Bot) handlePostImage(s *discordgo.Session, i *discordgo.InteractionCrea
 	}
 
 	var thumbBytes, fullBytes []byte
+	var filename string
 
 	// Get Full Image
 	if option, ok := optionMap[fullImage]; ok {
@@ -281,6 +282,7 @@ func (q *Bot) handlePostImage(s *discordgo.Session, i *discordgo.InteractionCrea
 			return handlers.ErrorEdit(s, i.Interaction, "You need to provide a full image.")
 		}
 		fullBytes = append([]byte(nil), att.Image.Bytes()...)
+		filename = att.Attachment.Filename
 	} else {
 		return handlers.ErrorEdit(s, i.Interaction, "Full image is missing.")
 	}
@@ -378,6 +380,7 @@ func (q *Bot) handlePostImage(s *discordgo.Session, i *discordgo.InteractionCrea
 			Author:      utils.GetUser(i.Interaction),
 			Thumbnail:   thumbBytes,
 			Full:        fullBytes,
+			Filename:    filename,
 			Title:       titleVal,
 			Description: descVal,
 		}
@@ -403,7 +406,7 @@ func (q *Bot) handlePostImage(s *discordgo.Session, i *discordgo.InteractionCrea
 		IsPremium:   true,
 		Image: &types.Image{
 			Thumbnail: append([]byte(nil), thumbBytes...),
-			Blobs:     []types.ImageBlob{{Index: 0, Data: append([]byte(nil), fullBytes...)}},
+			Blobs:     []types.ImageBlob{{Index: 0, Data: append([]byte(nil), fullBytes...), Filename: filename}},
 		},
 	}
 	if user != nil {

@@ -223,7 +223,7 @@ func (s *Server) handleCreatePost(c echo.Context) error {
 		IsPremium:   true,
 		Image: &types.Image{
 			Blobs: []types.ImageBlob{
-				{Index: 0, Data: imgBytes, ContentType: fileHeader.Header.Get("Content-Type")},
+				{Index: 0, Data: imgBytes, ContentType: fileHeader.Header.Get("Content-Type"), Filename: fileHeader.Filename},
 			},
 		},
 		AllowedRoles: allowedRoles,

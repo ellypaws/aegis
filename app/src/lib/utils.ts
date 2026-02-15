@@ -61,3 +61,13 @@ export function base64ToBlob(base64: string, type = "application/octet-stream") 
     }
     return new Blob([arr], { type });
 }
+
+export function getExtension(mime?: string): string {
+    if (!mime) return "bin";
+    const parts = mime.split("/");
+    if (parts.length < 2) return "bin";
+    const ext = parts[1].toLowerCase().split("+")[0]; // handle image/svg+xml -> svg
+    if (ext === "jpeg") return "jpg";
+    if (ext === "plain") return "txt";
+    return ext;
+}

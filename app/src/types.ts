@@ -43,6 +43,8 @@ export type ImageBlob = {
     index: number;
     data: string; // Base64
     contentType: string;
+    size: number;
+    filename: string;
 };
 
 export type Image = {

@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { cn } from "../lib/utils";
+import { cn, getExtension } from "../lib/utils";
 import { UI } from "../constants";
 import type { Post } from "../types";
 import { DownloadButton, type DownloadFile } from "./DownloadButton";
@@ -12,12 +12,16 @@ export function ViewerActions({ post, canAccess }: { post: Post; canAccess: bool
         return () => clearTimeout(t);
     }, [toast]);
 
-    const fullUrl = post.image?.blobs?.[0]?.data;
+    const blob = post.image?.blobs?.[0];
+    const token = localStorage.getItem("jwt");
+    const fullUrl = blob ? `/images/${blob.ID}${token ? `?token=${token}` : ""}` : "";
+    const ext = getExtension(blob?.contentType);
+
     const file: DownloadFile = {
-        url: fullUrl || "",
-        name: `${post.title || "image"}.png`, // Mock extension
-        mime: post.image?.blobs?.[0]?.contentType || "image/png",
-        size: 0, // Unknown size from blob base64 without decoding
+        url: fullUrl,
+        name: blob?.filename || `${post.title || "image"}.${ext}`,
+        mime: blob?.contentType || "image/png",
+        size: blob?.size || 0,
     };
 
     return (
