@@ -2,6 +2,7 @@ package server
 
 import (
 	"net/http"
+	"strconv"
 
 	"github.com/charmbracelet/log"
 	"github.com/labstack/echo/v4"
@@ -10,7 +11,17 @@ import (
 )
 
 func (s *Server) handleGetPosts(c echo.Context) error {
-	posts, err := s.db.ListPosts(10, 0)
+	page, _ := strconv.Atoi(c.QueryParam("page"))
+	if page < 1 {
+		page = 1
+	}
+	limit, _ := strconv.Atoi(c.QueryParam("limit"))
+	if limit < 1 || limit > 100 {
+		limit = 10
+	}
+	offset := (page - 1) * limit
+
+	posts, err := s.db.ListPosts(limit, offset)
 	if err != nil {
 		log.Error("Failed to list posts", "error", err)
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Failed to list posts"})

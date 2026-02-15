@@ -3,6 +3,7 @@ import { cn } from "../lib/utils";
 import { UI } from "../constants";
 import type { Post } from "../types";
 import { GalleryGridCard } from "./GalleryGridCard";
+import { SkeletonCard } from "./SkeletonCard";
 
 function useColumns() {
     const [cols, setCols] = useState(3);
@@ -29,6 +30,7 @@ export function MainGalleryView({
     onLoadMore,
     hasMore,
     loading,
+    initialLoading,
 }: {
     posts: Post[];
     selectedId: string | null;
@@ -39,6 +41,7 @@ export function MainGalleryView({
     onLoadMore: () => void;
     hasMore: boolean;
     loading: boolean;
+    initialLoading: boolean;
 }) {
     const cols = useColumns();
     const rows = useMemo(() => {
@@ -70,48 +73,67 @@ export function MainGalleryView({
             </div>
 
             <div className="mt-4 flex flex-col gap-4">
-                {rows.map((rowPosts, i) => (
-                    <div key={i} className="flex w-full gap-2">
-                        {rowPosts.map((p) => (
-                            <div
-                                key={p.postKey}
-                                className={cn(
-                                    "relative transition-[flex-grow] duration-500 ease-in-out overflow-hidden rounded-3xl",
-                                    "flex-1 hover:grow-[2]",
-                                    "min-w-0" // prevent flex overflow
-                                )}
-                            >
-                                <GalleryGridCard
-                                    post={p}
-                                    canAccess={canAccessPost(p)}
-                                    selected={p.postKey === selectedId}
-                                    onOpen={(e) => {
-                                        const img = (e.currentTarget as HTMLElement).querySelector("img");
-                                        const rect = img?.getBoundingClientRect();
-                                        onOpenPost(p.postKey, rect);
-                                    }}
-                                    variant="flexible"
-                                />
-                            </div>
-                        ))}
-                        {/* Fillers for last row to keep alignment */}
-                        {Array.from({ length: cols - rowPosts.length }).map((_, idx) => (
-                            <div key={`filler-${idx}`} className="flex-1 invisible" />
-                        ))}
-                    </div>
-                ))}
+                {initialLoading && posts.length === 0
+                    ? /* Skeleton grid — 6 cards while first page loads */
+                    Array.from({ length: Math.ceil(6 / cols) }).map((_, ri) => (
+                        <div key={`skel-row-${ri}`} className="flex w-full gap-2">
+                            {Array.from({ length: cols }).map((_, ci) => (
+                                <div key={`skel-${ri}-${ci}`} className="flex-1 min-w-0">
+                                    <SkeletonCard />
+                                </div>
+                            ))}
+                        </div>
+                    ))
+                    : rows.map((rowPosts, i) => (
+                        <div key={i} className="flex w-full gap-2">
+                            {rowPosts.map((p) => (
+                                <div
+                                    key={p.postKey}
+                                    className={cn(
+                                        "relative transition-[flex-grow] duration-500 ease-in-out overflow-hidden rounded-3xl",
+                                        "flex-1 hover:grow-[2]",
+                                        "min-w-0"
+                                    )}
+                                >
+                                    <GalleryGridCard
+                                        post={p}
+                                        canAccess={canAccessPost(p)}
+                                        selected={p.postKey === selectedId}
+                                        onOpen={(e) => {
+                                            const img = (e.currentTarget as HTMLElement).querySelector("img");
+                                            const rect = img?.getBoundingClientRect();
+                                            onOpenPost(p.postKey, rect);
+                                        }}
+                                        variant="flexible"
+                                    />
+                                </div>
+                            ))}
+                            {/* Fillers for last row to keep alignment */}
+                            {Array.from({ length: cols - rowPosts.length }).map((_, idx) => (
+                                <div key={`filler-${idx}`} className="flex-1 invisible" />
+                            ))}
+                        </div>
+                    ))}
             </div>
 
-            {posts.length === 0 && !loading ? <div className="mt-6 text-center text-sm font-bold text-zinc-500">No results.</div> : null}
+            {posts.length === 0 && !initialLoading && !loading ? (
+                <div className="mt-6 text-center text-sm font-bold text-zinc-500">No results.</div>
+            ) : null}
 
-            {hasMore ? (
+            {hasMore && !initialLoading ? (
                 <div className="mt-8 flex justify-center">
                     <button
                         onClick={onLoadMore}
                         disabled={loading}
-                        className={cn(UI.button, UI.btnYellow, "px-8 py-3 text-sm", loading && "opacity-50 cursor-not-allowed")}
+                        className={cn(
+                            UI.button,
+                            UI.btnYellow,
+                            "px-8 py-3 text-sm inline-flex items-center gap-2 transition-all duration-300",
+                            loading && "opacity-60 cursor-not-allowed pointer-events-none"
+                        )}
                     >
-                        {loading ? "Loading..." : "Load More"}
+                        {loading && <span className="spinner" />}
+                        {loading ? "Loading" : "Load More"}
                     </button>
                 </div>
             ) : null}

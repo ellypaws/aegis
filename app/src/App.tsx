@@ -20,7 +20,8 @@ function App() {
   const [guild] = useState<Guild>(MOCK_GUILD);
   const [loginOpen, setLoginOpen] = useState(false);
   const [posts, setPosts] = useState<Post[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
+  const [initialLoading, setInitialLoading] = useState(true);
 
   const navigate = useNavigate();
   const location = useLocation();
@@ -112,18 +113,22 @@ function App() {
     fetch(`/posts?page=${pageNum}&limit=${limit}`, { headers })
       .then(res => res.json())
       .then(data => {
-        setPosts(prev => reset ? data : [...prev, ...data]);
-        setHasMore(data.length === limit);
+        const items: Post[] = Array.isArray(data) ? data : [];
+        setPosts(prev => reset ? items : [...prev, ...items]);
+        setHasMore(items.length === limit);
         setLoading(false);
+        setInitialLoading(false);
       })
       .catch(err => {
         console.error("Failed to fetch posts", err);
         setLoading(false);
+        setInitialLoading(false);
       });
   };
 
   // Initial Fetch
   useEffect(() => {
+    setInitialLoading(true);
     loadPosts(1, true);
     setPage(1);
   }, [user]);
@@ -253,24 +258,21 @@ function App() {
               <Route
                 path="/"
                 element={
-                  loading ? (
-                    <div className="p-12 text-center font-bold text-zinc-400">Loading posts...</div>
-                  ) : (
-                    <MainGalleryView
-                      posts={filteredPosts}
-                      selectedId={selectedId}
-                      canAccessPost={canAccessPost}
-                      onOpenPost={(id, rect) => {
-                        setTransitionRect(rect || null);
-                        navigate(`/post/${id}`);
-                      }}
-                      q={q}
-                      setQ={setQ}
-                      onLoadMore={handleLoadMore}
-                      hasMore={hasMore}
-                      loading={loading}
-                    />
-                  )
+                  <MainGalleryView
+                    posts={filteredPosts}
+                    selectedId={selectedId}
+                    canAccessPost={canAccessPost}
+                    onOpenPost={(id, rect) => {
+                      setTransitionRect(rect || null);
+                      navigate(`/post/${id}`);
+                    }}
+                    q={q}
+                    setQ={setQ}
+                    onLoadMore={handleLoadMore}
+                    hasMore={hasMore}
+                    loading={loading}
+                    initialLoading={initialLoading}
+                  />
                 }
               />
               <Route
