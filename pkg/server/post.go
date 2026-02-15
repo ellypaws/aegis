@@ -68,7 +68,6 @@ func (s *Server) handleCallback(c echo.Context) error {
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Failed to exchange token"})
 	}
 
-	// Get User
 	oauthClient := conf.Client(c.Request().Context(), token)
 	resp, err := oauthClient.Get("https://discord.com/api/users/@me")
 	if err != nil {
@@ -83,7 +82,6 @@ func (s *Server) handleCallback(c echo.Context) error {
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Failed to decode user"})
 	}
 
-	// Check if user is in the guild and has roles
 	member, err := s.bot.Session().State.Member(s.config.GuildID, discordUser.ID)
 	if err != nil {
 		member, err = s.bot.Session().GuildMember(s.config.GuildID, discordUser.ID)
@@ -92,7 +90,6 @@ func (s *Server) handleCallback(c echo.Context) error {
 		}
 	}
 
-	// Map roles
 	var roles []*discordgo.Role
 	var avatarURL string
 	if member != nil {
@@ -135,8 +132,6 @@ func (s *Server) handleCallback(c echo.Context) error {
 			} else {
 				log.Error("Failed to set admin", "error", err)
 			}
-		} else if !user.IsAdmin {
-			log.Warn("User is not admin", "user", user.Username, "id", user.UserID)
 		}
 	}
 
@@ -151,15 +146,19 @@ func (s *Server) handleCallback(c echo.Context) error {
 }
 
 func (s *Server) handleCreatePost(c echo.Context) error {
-	// Authorization check
 	user := GetUserFromContext(c)
 	if user == nil || !user.IsAdmin {
 		return c.JSON(http.StatusUnauthorized, map[string]string{"error": "Unauthorized"})
 	}
 
-	// Parse multipart form
-	// Expect fields: title, description, roles (comma separated ids), channels (comma separated ids)
-	// Expect file: image
+	userDB, err := s.db.UserByID(user.UserID)
+	if err != nil {
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Failed to get user"})
+	}
+	if !userDB.IsAdmin {
+		return c.JSON(http.StatusUnauthorized, map[string]string{"error": "Unauthorized"})
+	}
+
 	title := c.FormValue("title")
 	description := c.FormValue("description")
 	rolesStr := c.FormValue("roles")
@@ -209,21 +208,19 @@ func (s *Server) handleCreatePost(c echo.Context) error {
 				Flags:        int(role.Flags),
 			})
 		} else {
-			// Fallback if not found in state
 			allowedRoles = append(allowedRoles, types.Allowed{RoleID: rid})
 		}
 	}
 
 	post := &types.Post{
 		PostKey:     postKey,
-		ChannelID:   channelsStr, // Storing multiple channel IDs? DB schema expects singular probably, or we just use first/origin. Let's assume origin for now is first selected.
+		ChannelID:   channelsStr,
 		GuildID:     s.config.GuildID,
 		Title:       title,
 		Description: description,
 		Timestamp:   now,
 		IsPremium:   true,
 		Image: &types.Image{
-			Thumbnail: imgBytes, // Using full image as thumbnail for simplicity as we don't have resizer here yet
 			Blobs: []types.ImageBlob{
 				{Index: 0, Data: imgBytes, ContentType: fileHeader.Header.Get("Content-Type")},
 			},

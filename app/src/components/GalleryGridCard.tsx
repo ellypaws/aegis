@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from "react";
-import { cn, resolveImageSrc, safeRevoke } from "../lib/utils";
+import React from "react";
+import { cn } from "../lib/utils";
 
 import type { Post } from "../types";
 
@@ -16,63 +16,9 @@ export function GalleryGridCard({
     onOpen: (e: React.MouseEvent) => void;
     variant?: "fixed" | "flexible";
 }) {
-    const [blobUrl, setBlobUrl] = useState<string | null>(null);
-    const thumbUrl = resolveImageSrc(post.image?.thumbnail);
     const roleNames = post.allowedRoles.map(r => r.name).join(", ");
-
-    // Effect to fetch image blob if needed
-    useEffect(() => {
-        if (!post.image?.blobs?.[0]?.ID) {
-            setBlobUrl(null);
-            return;
-        }
-
-        const blobId = post.image.blobs[0].ID;
-        // Fallback or public blur URL
-        const blurUrl = `http://localhost:3000/blur/${blobId}`;
-
-        if (!canAccess) {
-            setBlobUrl(blurUrl);
-            return;
-        }
-
-        const token = localStorage.getItem("jwt");
-        const headers: Record<string, string> = {};
-        if (token) headers["Authorization"] = `Bearer ${token}`;
-
-        let active = true;
-        fetch(`http://localhost:3000/images/${blobId}`, { headers })
-            .then(async (res) => {
-                if (!res.ok) {
-                    if (active) setBlobUrl(blurUrl);
-                    return;
-                }
-                const blob = await res.blob();
-                if (active) {
-                    const url = URL.createObjectURL(blob);
-                    setBlobUrl(url);
-                }
-            })
-            .catch(() => {
-                if (active) setBlobUrl(blurUrl);
-            });
-
-        return () => {
-            active = false;
-        };
-    }, [post.image, canAccess]);
-
-    // Cleanup blob url on unmount or change
-    useEffect(() => {
-        return () => {
-            if (blobUrl && blobUrl.startsWith("blob:")) {
-                safeRevoke(blobUrl);
-            }
-        }
-    }, [blobUrl]);
-
-
-    const url = blobUrl || thumbUrl;
+    const blobId = post.image?.blobs?.[0]?.ID;
+    const url = blobId ? `http://localhost:3000/thumb/${blobId}` : null;
 
     if (variant === "flexible") {
         return (
@@ -91,12 +37,12 @@ export function GalleryGridCard({
             >
                 <div className="h-48 w-full border-b-4 border-zinc-100 bg-zinc-50 shrink-0 relative overflow-hidden">
                     {url ? (
-                        <img src={url} alt={post.title ?? ""} className={cn("h-full w-full object-cover", !canAccess && "blur-md")} draggable={false} />
+                        <img src={url} alt={post.title ?? ""} className={cn("h-full w-full object-cover")} draggable={false} loading="lazy" />
                     ) : (
                         <div className="flex h-full w-full items-center justify-center text-sm font-bold text-zinc-400">No preview</div>
                     )}
                     {!canAccess ? (
-                        thumbUrl ? (
+                        url ? (
                             <div className="absolute inset-0 bg-white/10" />
                         ) : (
                             <div className="flex h-full w-full items-center justify-center absolute top-0 left-0">
@@ -130,12 +76,12 @@ export function GalleryGridCard({
         >
             <div className="aspect-square relative">
                 {url ? (
-                    <img src={url} alt={post.title ?? ""} className={cn("h-full w-full object-cover bg-zinc-50", !canAccess && "blur-md")} draggable={false} />
+                    <img src={url} alt={post.title ?? ""} className={cn("h-full w-full object-cover bg-zinc-50")} draggable={false} loading="lazy" />
                 ) : (
                     <div className="flex h-full w-full items-center justify-center text-sm font-bold text-zinc-400">No preview</div>
                 )}
                 {!canAccess ? (
-                    thumbUrl ? (
+                    url ? (
                         <div className="absolute inset-0 bg-white/10" />
                     ) : (
                         <div className="absolute inset-0 flex items-center justify-center">

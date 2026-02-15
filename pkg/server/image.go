@@ -35,6 +35,23 @@ func (s *Server) handleGetImage(c echo.Context) error {
 	}
 
 	if !canAccessPost(user, post) {
+		log.Warn("Access denied for image", "blobID", id, "postID", post.ID, "user", user != nil)
+		if user != nil {
+			roleIDs := make([]string, 0, len(user.Roles))
+			for _, r := range user.Roles {
+				if r != nil {
+					roleIDs = append(roleIDs, r.ID)
+				}
+			}
+
+			allowedIDs := make([]string, 0, len(post.AllowedRoles))
+			for _, ar := range post.AllowedRoles {
+				allowedIDs = append(allowedIDs, ar.RoleID)
+			}
+			log.Info("Debug Access", "userRoles", roleIDs, "allowedRoles", allowedIDs, "isAdmin", user.IsAdmin)
+		} else {
+			log.Info("Debug Access", "user", "nil", "postAllowedCount", len(post.AllowedRoles))
+		}
 		return c.JSON(http.StatusForbidden, map[string]string{"error": "Access denied"})
 	}
 
@@ -125,4 +142,33 @@ func canAccessPost(claims *JwtCustomClaims, p *types.Post) bool {
 	}
 
 	return false
+}
+
+func (s *Server) handleGetThumb(c echo.Context) error {
+	idStr := c.Param("id")
+	id, err := strconv.ParseUint(idStr, 10, 32)
+	if err != nil {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Invalid image ID"})
+	}
+
+	// Thumbnails are generally considered public if the blur is public,
+	// BUT for stricter security we could check permissions.
+	// The user request says "serve the thumbnail unblurred if it's available for unauthorized/logged out users".
+	// So we should NOT enforce strict auth on the thumbnail, or at least be lenient.
+	// However, usually we might want to check if the user *could* see the post if they were logged in?
+	// But the user explicitly said: "We should always be serving the thumbnail unblurred if it's available for unauthorized/logged out users."
+	// So effectively, thumbnails are public.
+
+	thumb, err := s.db.GetImageThumbnailByBlobID(uint(id))
+	if err != nil || len(thumb) == 0 {
+		// Fallback to blur if no thumbnail
+		return s.handleGetBlur(c)
+	}
+
+	// Detect content type of thumbnail
+	contentType := http.DetectContentType(thumb)
+	c.Response().Header().Set("Cache-Control", "public, max-age=31536000")
+	c.Response().Header().Set("Content-Type", contentType)
+
+	return c.Stream(http.StatusOK, contentType, bytes.NewReader(thumb))
 }

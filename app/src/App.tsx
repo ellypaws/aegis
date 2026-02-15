@@ -152,15 +152,7 @@ function App() {
     };
   }, [user, viewerRoleIds]);
 
-  const canAccessSelected = useMemo(() => {
-    if (!selected) return false;
-    return canAccessPost(selected);
-  }, [selected, canAccessPost]);
 
-  const accessLabelForSelected = useMemo(() => {
-    if (!selected) return "";
-    return selected.allowedRoles.length ? `Requires: ${selected.allowedRoles.map(r => r.name).join(", ")}` : "Public";
-  }, [selected]);
 
   async function handleCreate(postInput: {
     title: string;
@@ -269,10 +261,9 @@ function App() {
             ) : (
               <PostDetailView
                 selected={selected}
-                canAccessSelected={canAccessSelected}
-                accessLabel={accessLabelForSelected}
                 onBack={() => setView("gallery")}
                 transitionRect={transitionRect}
+                user={user}
               />
             )}
           </div>
@@ -297,7 +288,6 @@ function App() {
                     setView("post");
                   }}
                   selected={selected}
-                  canAccessSelected={canAccessSelected}
                   user={user}
                 />
               )}

@@ -3,9 +3,17 @@ package drigo
 import (
 	"bytes"
 	"fmt"
+	"image"
+	_ "image/gif"
+	_ "image/jpeg"
+	_ "image/png"
 	"io"
 	"strings"
 	"time"
+
+	"github.com/gen2brain/webp"
+	"golang.org/x/image/draw"
+	_ "golang.org/x/image/webp"
 
 	"github.com/charmbracelet/log"
 	"github.com/segmentio/ksuid"
@@ -264,25 +272,49 @@ func (q *Bot) handlePostImage(s *discordgo.Session, i *discordgo.InteractionCrea
 		}
 	}
 
-	var thumbnailAttachment utils.AttachmentImage
-	var fullAttachment utils.AttachmentImage
-	if option, ok := optionMap[thumbnailImage]; ok {
-		thumbnailAttachment, ok = attachments[option.Value.(string)]
-		if !ok {
-			return handlers.ErrorEdit(s, i.Interaction, "You need to provide a thumbnail image.")
-		}
+	var thumbBytes, fullBytes []byte
 
-		if !strings.Contains(thumbnailAttachment.Attachment.ContentType, "image/") {
-			return handlers.ErrorEdit(s, i.Interaction, "The thumbnail must be an image.")
-		}
-	}
-
+	// Get Full Image
 	if option, ok := optionMap[fullImage]; ok {
-		image, ok := attachments[option.Value.(string)]
+		att, ok := attachments[option.Value.(string)]
 		if !ok {
 			return handlers.ErrorEdit(s, i.Interaction, "You need to provide a full image.")
 		}
-		fullAttachment = image
+		fullBytes = append([]byte(nil), att.Image.Bytes()...)
+	} else {
+		return handlers.ErrorEdit(s, i.Interaction, "Full image is missing.")
+	}
+
+	if option, ok := optionMap[thumbnailImage]; ok {
+		att, ok := attachments[option.Value.(string)]
+		if !ok {
+			return handlers.ErrorEdit(s, i.Interaction, "Thumbnail attachment invalid.")
+		}
+		if !strings.Contains(att.Attachment.ContentType, "image/") {
+			return handlers.ErrorEdit(s, i.Interaction, "The thumbnail must be an image.")
+		}
+		thumbBytes = append([]byte(nil), att.Image.Bytes()...)
+	} else {
+		img, _, err := image.Decode(bytes.NewReader(fullBytes))
+		if err != nil {
+			return handlers.ErrorEdit(s, i.Interaction, "Failed to decode full image.", err)
+		}
+
+		bounds := img.Bounds()
+		width := 400
+		ratio := float64(bounds.Dx()) / float64(bounds.Dy())
+		height := int(float64(width) / ratio)
+		if height < 1 {
+			height = 1
+		}
+		dst := image.NewRGBA(image.Rect(0, 0, width, height))
+		draw.ApproxBiLinear.Scale(dst, dst.Bounds(), img, bounds, draw.Over, nil)
+		var buf bytes.Buffer
+		if err := webp.Encode(&buf, dst, webp.Options{Quality: 75}); err != nil {
+			return handlers.ErrorEdit(s, i.Interaction, "Failed to generate thumbnail.", err)
+		}
+
+		thumbBytes = buf.Bytes()
 	}
 
 	postKey := ksuid.New().String()
@@ -338,9 +370,6 @@ func (q *Bot) handlePostImage(s *discordgo.Session, i *discordgo.InteractionCrea
 			return handlers.ErrorEdit(s, i.Interaction, "Failed to open role selection modal", err)
 		}
 
-		thumbBytes := append([]byte(nil), thumbnailAttachment.Image.Bytes()...)
-		fullBytes := append([]byte(nil), fullAttachment.Image.Bytes()...)
-
 		q.mu.Lock()
 		q.pending[postKey] = &PendingPost{
 			PostKey:     postKey,
@@ -363,9 +392,6 @@ func (q *Bot) handlePostImage(s *discordgo.Session, i *discordgo.InteractionCrea
 		return err
 	}
 	log.Debug("First think response in ", time.Since(now))
-
-	thumbBytes := append([]byte(nil), thumbnailAttachment.Image.Bytes()...)
-	fullBytes := append([]byte(nil), fullAttachment.Image.Bytes()...)
 
 	post := &types.Post{
 		PostKey:     postKey,

@@ -1,21 +1,18 @@
-import { useLayoutEffect, useRef, useState } from "react";
-import { cn, resolveImageSrc } from "../lib/utils";
+import { useLayoutEffect, useRef, useState, useEffect, useMemo } from "react";
+import { cn } from "../lib/utils";
 import { UI } from "../constants";
-import type { Post } from "../types";
+import type { Post, DiscordUser } from "../types";
 import { LockedOverlay } from "./LockedOverlay";
-
 export function PostDetailView({
     selected,
-    canAccessSelected,
     onBack,
-    accessLabel,
     transitionRect,
+    user,
 }: {
     selected: Post | null;
-    canAccessSelected: boolean;
-    accessLabel: string;
     onBack: () => void;
     transitionRect?: DOMRect | null;
+    user: DiscordUser | null;
 }) {
     const imgRef = useRef<HTMLImageElement>(null);
     const [animating, setAnimating] = useState(false);
@@ -25,6 +22,51 @@ export function PostDetailView({
         width: number;
         height: number;
     } | null>(null);
+
+    const [post, setPost] = useState<Post | null>(selected);
+
+    // Sync selected to post initially
+    useEffect(() => {
+        setPost(selected);
+    }, [selected]);
+
+    // Fetch full post to get fresh roles (image data is now fetched via URL)
+    useEffect(() => {
+        if (!selected?.postKey) return;
+
+        const token = localStorage.getItem("jwt");
+        const headers: Record<string, string> = {};
+        if (token) headers["Authorization"] = `Bearer ${token}`;
+
+        fetch(`http://localhost:3000/posts/${selected.postKey}`, { headers })
+            .then(res => {
+                if (res.ok) return res.json();
+                throw new Error("Failed to fetch post");
+            })
+            .then(data => {
+                setPost(data);
+            })
+            .catch(err => {
+                console.error(err);
+            });
+    }, [selected?.postKey]);
+
+    const activePost = post || selected;
+
+    const canAccess = useMemo(() => {
+        if (!activePost) return false;
+        if (user?.isAdmin) return true;
+        const roleIds = activePost.allowedRoles.map(r => r.id);
+        if (roleIds.length === 0) return true;
+        const userRoleIds = user?.roles?.map(r => r.id) || [];
+        // Check intersection
+        return roleIds.some(id => userRoleIds.includes(id));
+    }, [activePost, user]);
+
+    const currentAccessLabel = useMemo(() => {
+        if (!activePost) return "";
+        return activePost.allowedRoles.length ? `Requires: ${activePost.allowedRoles.map(r => r.name).join(", ")}` : "Public";
+    }, [activePost]);
 
     useLayoutEffect(() => {
         if (!transitionRect || !selected) return;
@@ -61,11 +103,25 @@ export function PostDetailView({
         });
     }, [transitionRect, selected]);
 
-    const getUrl = (p: Post, access: boolean) => {
-        const thumbUrl = resolveImageSrc(p.image?.thumbnail);
-        const fullUrl = resolveImageSrc(p.image?.blobs?.[0]?.data, p.image?.blobs?.[0]?.contentType);
-        return access ? (fullUrl || thumbUrl) : thumbUrl;
+    const getDisplayUrl = (p: Post | null, access: boolean) => {
+        if (!p) return undefined;
+        // Construct endpoint URL
+        const blobId = p.image?.blobs?.[0]?.ID;
+        if (!blobId) return undefined;
+
+        const token = localStorage.getItem("jwt");
+
+        if (access) {
+            // Authorized: Serve full image
+            // We append token for auth
+            return `http://localhost:3000/images/${blobId}${token ? `?token=${token}` : ""}`;
+        }
+
+        // Unauthorized: Serve thumbnail (which handles fallback to blur on backend)
+        return `http://localhost:3000/thumb/${blobId}`;
     };
+
+    const displayUrl = getDisplayUrl(activePost, canAccess);
 
     return (
         <div className={cn("p-4", UI.card)}>
@@ -80,20 +136,18 @@ export function PostDetailView({
                     }}
                 >
                     <img
-                        src={getUrl(selected, canAccessSelected)}
+                        src={displayUrl || ""}
                         className={cn(
                             "absolute inset-0 h-full w-full object-cover rounded-2xl shadow-xl bg-white transition-opacity duration-500",
-                            !canAccessSelected && selected.image?.thumbnail && "blur-md",
                             "opacity-0"
                         )}
                         alt=""
                     />
 
                     <img
-                        src={getUrl(selected, canAccessSelected)}
+                        src={displayUrl || ""}
                         className={cn(
                             "absolute inset-0 h-full w-full object-contain rounded-2xl shadow-xl",
-                            !canAccessSelected && selected.image?.thumbnail && "blur-md"
                         )}
                         style={{ animation: "fadeIn 0.5s ease-in-out forwards" }}
                         alt=""
@@ -107,10 +161,10 @@ export function PostDetailView({
             <div className="flex items-center justify-between gap-3">
                 <div className="min-w-0">
                     <div className="truncate text-lg font-black uppercase tracking-wide text-zinc-900">
-                        {selected?.title ?? "Untitled"}
+                        {activePost?.title ?? "Untitled"}
                     </div>
                     <div className="mt-2 text-xs font-bold text-zinc-400">
-                        {selected ? new Date(selected.timestamp).toLocaleString() : null}
+                        {activePost ? new Date(activePost.timestamp).toLocaleString() : null}
                     </div>
                 </div>
                 <button type="button" onClick={onBack} className={cn(UI.button, UI.btnYellow)}>
@@ -119,60 +173,57 @@ export function PostDetailView({
             </div>
 
             <div className="mt-4 relative overflow-hidden rounded-3xl border-4 border-zinc-200 bg-white shadow-[6px_6px_0px_rgba(0,0,0,0.14)]">
-                <div className="aspect-[4/3] w-full">
-                    {selected ? (
+                <div className="w-full min-h-[50vh] flex items-center justify-center">
+                    {activePost ? (
                         (() => {
-                            const displayUrl = getUrl(selected, canAccessSelected);
                             if (displayUrl) {
                                 return (
                                     <img
                                         ref={imgRef}
                                         src={displayUrl}
-                                        alt={selected.title ?? ""}
+                                        alt={activePost.title ?? ""}
                                         className={cn(
-                                            "h-full w-full object-contain bg-white",
-                                            !canAccessSelected && selected.image?.thumbnail && "blur-md",
+                                            "max-h-[85vh] w-auto h-auto object-contain bg-white mx-auto",
                                             animating ? "opacity-0" : "opacity-100 transition-opacity duration-200"
                                         )}
                                         draggable={false}
                                     />
                                 );
                             }
-                            if (!canAccessSelected) {
+                            if (!canAccess) {
                                 return (
-                                    <div className="flex h-full w-full items-center justify-center">
+                                    <div className="flex h-full w-full items-center justify-center py-20">
                                         <div className="text-center">
                                             <div className="text-sm font-black uppercase text-zinc-500">🔒 Locked</div>
-                                            <div className="mt-1 text-sm font-bold text-zinc-400">{accessLabel}</div>
+                                            <div className="mt-1 text-sm font-bold text-zinc-400">{currentAccessLabel}</div>
                                         </div>
                                     </div>
                                 );
                             }
                             return (
-                                <div className="flex h-full w-full items-center justify-center text-sm font-bold text-zinc-400">
+                                <div className="flex h-full w-full items-center justify-center text-sm font-bold text-zinc-400 py-20">
                                     No image
                                 </div>
                             );
                         })()
                     ) : (
-                        <div className="flex h-full w-full items-center justify-center text-sm font-bold text-zinc-400">
+                        <div className="flex h-full w-full items-center justify-center text-sm font-bold text-zinc-400 py-20">
                             No posts
                         </div>
                     )}
                 </div>
 
-                {!canAccessSelected && selected?.image?.thumbnail ? (
-                    <div className="absolute inset-0">
-                        <LockedOverlay label={accessLabel} />
+                {!canAccess && activePost?.image?.blobs?.[0]?.ID ? (
+                    <div className="absolute inset-0 pointer-events-none">
+                        <LockedOverlay label={currentAccessLabel} />
                     </div>
                 ) : null}
             </div>
 
-            {selected ? (
+            {activePost ? (
                 <div className={cn("mt-4 p-4", UI.card)}>
-                    {/* Tags/Similar posts logic removed as Tags are gone */}
-                    <div className="text-sm text-zinc-600 font-medium">
-                        {selected.description}
+                    <div className="text-sm text-zinc-600 font-medium whitespace-pre-wrap">
+                        {activePost.description}
                     </div>
                 </div>
             ) : null}

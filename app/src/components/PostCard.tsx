@@ -1,6 +1,5 @@
-import React from "react";
 import { cn } from "../lib/utils";
-import { Post } from "../types";
+import type { Post } from "../types";
 import { LockedOverlay } from "./LockedOverlay";
 // import { getRoleName } from "../data/mock"; // Removed circular dependency if possible or keep it
 
@@ -18,15 +17,23 @@ export function PostCard({
     size?: "sm" | "md";
 }) {
     // Logic to resolve image URL
-    // IF canAccess, show full (blob 0), else show thumbnail
-    // If thumbnail is missing/empty, show "No image" or specific UI
-    const thumbUrl = post.image?.thumbnail;
-    const fullUrl = post.image?.blobs?.[0]?.data;
+    // Use /thumb endpoint which automatically handles blur/fallback on backend
+    // Since PostCard is small, thumbnail is appropriate.
+    // /thumb is public/lenient, so no token needed usually.
+    // But if we want to be safe or if permissions change, we could add token.
+    // However, for unauthorized view, we definitely just use the url.
 
-    // Fallback: If no thumb, use full if allowed?
-    // Actually backend `thumbnail` might be empty.
+    const blobId = post.image?.blobs?.[0]?.ID;
 
-    const url = canAccess ? (fullUrl || thumbUrl) : thumbUrl;
+    // Construct URL
+    // Always use thumb for PostCard as it is small
+    let url = blobId ? `http://localhost:3000/thumb/${blobId}` : null;
+
+    // If we wanted full image for authorized users (e.g. if thumb is too small?) we could use:
+    // if (canAccess && blobId) url = `http://localhost:3000/images/${blobId}?token=${token}`;
+    // But for "sm" / "md" cards, thumb is better.
+
+    // If unauthorized, url still points to /thumb/..., which returns blur if needed, or unblurred thumb if available.
 
     const w = size === "sm" ? "w-24" : "w-28";
 
@@ -44,17 +51,22 @@ export function PostCard({
             title={post.title ?? "Untitled"}
         >
             {url ? (
-                <img src={url} alt={post.title ?? ""} className={cn("h-full w-full object-cover", !canAccess && "blur-md")} draggable={false} />
+                <img src={url} alt={post.title ?? ""} className={cn("h-full w-full object-cover")} draggable={false} loading="lazy" />
             ) : (
                 <div className="flex h-full w-full items-center justify-center text-xs font-bold text-zinc-400">No image</div>
             )}
 
             {!canAccess ? (
-                thumbUrl ? (
-                    <div className="absolute inset-0 bg-white/10" />
-                ) : (
+                <div className="absolute inset-0 pointer-events-none">
+                    {/* The backend blur is served as image content so we don't need CSS blur necessarily, 
+                        BUT the backend serves "unblurred thumbnail" if available even for unauthorized users per request.
+                        So if we have access issue, we might want an overlay.
+                        Wait, the user said "It should serve the /blur endpoint if there's no thumbnail and we're still unauthorized."
+                        The backend handles the content. We just show it.
+                        However, we still show the LOCK icon if canAccess is false.
+                    */}
                     <LockedOverlay label={`Requires: ${post.allowedRoles.map(r => r.name).join(", ") || "(no roles)"}`} />
-                )
+                </div>
             ) : null}
 
             <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-white/90 to-transparent p-2">

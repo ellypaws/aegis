@@ -433,11 +433,27 @@ func (s *sqliteDB) GetImageBlob(id uint) (*types.ImageBlob, error) {
 	return &blob, nil
 }
 
+// GetImageThumbnailByBlobID fetches the thumbnail for the image associated with the given blob ID.
+func (s *sqliteDB) GetImageThumbnailByBlobID(blobID uint) ([]byte, error) {
+	var result struct {
+		Thumbnail []byte
+	}
+	err := s.db.Table("images").
+		Select("images.thumbnail").
+		Joins("JOIN image_blobs ON image_blobs.image_id = images.id").
+		Where("image_blobs.id = ?", blobID).
+		Scan(&result).Error
+
+	if err != nil {
+		return nil, err
+	}
+	return result.Thumbnail, nil
+}
+
 // GetPostByBlobID finds the post associated with a specific image blob ID.
 // Useful for permission checking before serving a blob.
 func (s *sqliteDB) GetPostByBlobID(blobID uint) (*types.Post, error) {
 	var blob types.ImageBlob
-	// Find blob -> image -> post
 	if err := s.db.Select("image_id").First(&blob, blobID).Error; err != nil {
 		return nil, err
 	}
@@ -447,5 +463,15 @@ func (s *sqliteDB) GetPostByBlobID(blobID uint) (*types.Post, error) {
 		return nil, err
 	}
 
-	return s.ReadPost(image.PostID)
+	// ReadPost logic but without preloading blobs data
+	var p types.Post
+	err := s.db.
+		Preload("Author").
+		Preload("AllowedRoles").
+		First(&p, image.PostID).Error
+	if err != nil {
+		return nil, err
+	}
+
+	return &p, nil
 }

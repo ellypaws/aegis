@@ -22,8 +22,8 @@ export function AuthorPanel({ user, onCreate }: {
 }) {
     const [title, setTitle] = useState("");
     const [desc, setDesc] = useState("");
-    const [allowedRoleIds, setAllowedRoleIds] = useState<string[]>(["r_tier1"]);
-    const [channelIds, setChannelIds] = useState<string[]>(["c_art"]);
+    const [allowedRoleIds, setAllowedRoleIds] = useState<string[]>([]);
+    const [channelIds, setChannelIds] = useState<string[]>([]);
 
     const [fullFile, setFullFile] = useState<File | null>(null);
     const [thumbFile, setThumbFile] = useState<File | null>(null);

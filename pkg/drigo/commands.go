@@ -48,7 +48,7 @@ var commandOption = map[string]*discordgo.ApplicationCommandOption{
 		Type:        discordgo.ApplicationCommandOptionAttachment,
 		Name:        thumbnailImage,
 		Description: "Image",
-		Required:    true,
+		Required:    false,
 	},
 	roleSelect: {
 		Type:        discordgo.ApplicationCommandOptionRole,

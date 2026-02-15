@@ -14,19 +14,17 @@ export function RightSidebar({
     canAccessPost,
     onSelect,
     selected,
-    canAccessSelected,
     user,
 }: {
-
     q: string;
     posts: Post[];
     selectedId: string | null;
     canAccessPost: (p: Post) => boolean;
     onSelect: (id: string) => void;
     selected: Post | null;
-    canAccessSelected: boolean;
     user: DiscordUser | null;
 }) {
+    const canAccessSelected = selected ? canAccessPost(selected) : false;
     return (
         <div className="sticky top-4 space-y-4">
             <GalleryPanel
