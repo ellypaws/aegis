@@ -17,6 +17,7 @@ export function GalleryGridCard({
     variant?: "fixed" | "flexible";
 }) {
     const roleNames = post.allowedRoles.map(r => r.name).join(", ");
+    const hasTitle = !!post.title?.trim();
     const blobId = post.image?.blobs?.[0]?.ID;
     const token = typeof window !== 'undefined' ? localStorage.getItem("jwt") : null;
     let url = null;
@@ -47,7 +48,10 @@ export function GalleryGridCard({
                 )}
                 title={post.title ?? "Untitled"}
             >
-                <div className="h-48 w-full border-b-4 border-zinc-100 bg-zinc-50 shrink-0 relative overflow-hidden">
+                <div className={cn(
+                    "w-full bg-zinc-50 shrink-0 relative overflow-hidden",
+                    hasTitle ? "h-48 border-b-4 border-zinc-100" : "h-full"
+                )}>
                     {url ? (
                         <div className="flex h-full w-full items-center justify-center bg-zinc-50 overflow-hidden">
                             <img
@@ -77,11 +81,13 @@ export function GalleryGridCard({
                         )
                     ) : null}
                 </div>
-                <div className="p-3 min-w-0 flex-1 flex flex-col justify-between whitespace-nowrap overflow-hidden">
-                    <div>
-                        <div className="truncate text-left text-sm font-black uppercase tracking-wide text-zinc-900">{post.title ?? "Untitled"}</div>
+                {hasTitle && (
+                    <div className="p-3 min-w-0 flex-1 flex flex-col justify-between whitespace-nowrap overflow-hidden">
+                        <div>
+                            <div className="truncate text-left text-sm font-black uppercase tracking-wide text-zinc-900">{post.title}</div>
+                        </div>
                     </div>
-                </div>
+                )}
             </button>
         );
     }
@@ -98,7 +104,10 @@ export function GalleryGridCard({
             )}
             title={post.title ?? "Untitled"}
         >
-            <div className="aspect-square relative overflow-hidden">
+            <div className={cn(
+                "relative overflow-hidden",
+                hasTitle ? "aspect-square" : "aspect-square"
+            )}>
                 {url ? (
                     <div className="flex h-full w-full items-center justify-center bg-zinc-50 overflow-hidden">
                         <img
@@ -126,9 +135,11 @@ export function GalleryGridCard({
                     )
                 ) : null}
             </div>
-            <div className="p-3">
-                <div className="truncate text-left text-sm font-black uppercase tracking-wide text-zinc-900">{post.title ?? "Untitled"}</div>
-            </div>
+            {hasTitle && (
+                <div className="p-3">
+                    <div className="truncate text-left text-sm font-black uppercase tracking-wide text-zinc-900">{post.title}</div>
+                </div>
+            )}
         </button>
     );
 }
