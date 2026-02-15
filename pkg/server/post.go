@@ -284,7 +284,7 @@ func (s *Server) handleCreatePost(c echo.Context) error {
 		discordgo.Button{
 			Label: "View in Gallery",
 			Style: discordgo.LinkButton,
-			URL:   fmt.Sprintf("/post/%s", postKey),
+			URL:   fmt.Sprintf("%s/post/%s", getHost(c), postKey),
 		},
 	}, drigo.BuildShowActionsRow(postKey).Components...)
 
