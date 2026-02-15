@@ -29,31 +29,37 @@ export function ViewerActions({ post, canAccess }: { post: Post; canAccess: bool
         <div className="space-y-3">
             <DownloadButton file={file} enabled={canAccess} />
 
-            <div className="grid grid-cols-3 gap-2">
-                <a
-                    href={canAccess ? fullUrl : undefined}
-                    target={canAccess ? "_blank" : undefined}
-                    rel="noreferrer"
-                    onClick={(e) => {
-                        if (!canAccess) e.preventDefault();
-                    }}
-                    className={cn(UI.button, "px-3 py-2 text-xs", canAccess ? UI.btnGreen : cn(UI.btnYellow, UI.btnDisabled))}
-                    title={canAccess ? "Open full in new tab" : "No access"}
-                >
-                    Open
-                </a>
-                <button
-                    type="button"
-                    onClick={() => setToast(canAccess ? "Pretend: sent to DMs" : "No access")}
-                    disabled={!canAccess}
-                    className={cn(UI.button, "px-3 py-2 text-xs", canAccess ? UI.btnRed : cn(UI.btnYellow, UI.btnDisabled))}
-                    title={canAccess ? "Send to DMs (mock)" : "No access"}
-                >
-                    DM
-                </button>
-                <button type="button" onClick={() => setToast("Copied post link (mock)")} className={cn(UI.button, "px-3 py-2 text-xs", UI.btnBlue)}>
-                    Share
-                </button>
+            <div className="flex gap-2 isolate">
+                <div className="relative flex-1 hover:grow-[1.5] transition-[flex-grow] duration-300 ease-in-out min-w-0">
+                    <a
+                        href={canAccess ? fullUrl : undefined}
+                        target={canAccess ? "_blank" : undefined}
+                        rel="noreferrer"
+                        onClick={(e) => {
+                            if (!canAccess) e.preventDefault();
+                        }}
+                        className={cn(UI.button, "block w-full px-1 py-2 text-xs text-center whitespace-nowrap", canAccess ? UI.btnGreen : cn(UI.btnYellow, UI.btnDisabled))}
+                        title={canAccess ? "Open full in new tab" : "No access"}
+                    >
+                        Open
+                    </a>
+                </div>
+                <div className="relative flex-1 hover:grow-[1.5] transition-[flex-grow] duration-300 ease-in-out min-w-0">
+                    <button
+                        type="button"
+                        onClick={() => setToast(canAccess ? "Pretend: sent to DMs" : "No access")}
+                        disabled={!canAccess}
+                        className={cn(UI.button, "w-full px-1 py-2 text-xs text-center whitespace-nowrap", canAccess ? UI.btnRed : cn(UI.btnYellow, UI.btnDisabled))}
+                        title={canAccess ? "Send to DMs (mock)" : "No access"}
+                    >
+                        DM
+                    </button>
+                </div>
+                <div className="relative flex-1 hover:grow-[1.5] transition-[flex-grow] duration-300 ease-in-out min-w-0">
+                    <button type="button" onClick={() => setToast("Copied post link (mock)")} className={cn(UI.button, "w-full px-1 py-2 text-xs text-center whitespace-nowrap", UI.btnBlue)}>
+                        Share
+                    </button>
+                </div>
             </div>
 
             {toast ? (
