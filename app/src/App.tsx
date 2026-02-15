@@ -145,7 +145,7 @@ function App() {
   const viewerRoleIds = useMemo(() => (user?.roles ?? []).map((r) => r.id), [user]);
 
   const filteredPosts = useMemo(() => {
-    const base = posts.slice().sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+    const base = posts.slice();
     const byTag = base; // Tag filtering logic if tags field exists in future
     const s = q.trim().toLowerCase();
     if (!s) return byTag;
@@ -172,6 +172,8 @@ function App() {
     image: File;
     thumbnail?: File;
     postDate: string;
+    focusX?: number;
+    focusY?: number;
   }) {
     const formData = new FormData();
     formData.append("title", postInput.title);
@@ -180,6 +182,8 @@ function App() {
     formData.append("channels", postInput.channelIds.join(","));
     formData.append("image", postInput.image);
     formData.append("postDate", postInput.postDate);
+    formData.append("focusX", String(postInput.focusX ?? 50));
+    formData.append("focusY", String(postInput.focusY ?? 50));
 
     const token = localStorage.getItem("jwt");
     const headers: Record<string, string> = {};

@@ -30,6 +30,7 @@ export function GalleryGridCard({
     }
 
     const hasThumbnail = post.image?.hasThumbnail;
+    const focusStyle = { objectPosition: `${post.focusX ?? 50}% ${post.focusY ?? 50}%` };
 
     if (variant === "flexible") {
         return (
@@ -56,6 +57,7 @@ export function GalleryGridCard({
                                     "h-full w-full object-cover transition-all duration-500",
                                     !canAccess && !hasThumbnail && "blur-md scale-105"
                                 )}
+                                style={focusStyle}
                                 draggable={false}
                                 loading="lazy"
                             />
@@ -106,6 +108,7 @@ export function GalleryGridCard({
                                 "h-full w-full object-cover transition-all duration-500",
                                 !canAccess && !hasThumbnail && "blur-md scale-105"
                             )}
+                            style={focusStyle}
                             draggable={false}
                             loading="lazy"
                         />

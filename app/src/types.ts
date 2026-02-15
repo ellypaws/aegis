@@ -64,6 +64,8 @@ export type Post = {
     description: string;
     timestamp: string; // RFC3339
     isPremium: boolean;
+    focusX?: number;   // 0-100, default 50
+    focusY?: number;   // 0-100, default 50
     authorId: number;
     author: DiscordUser;
     allowedRoles: DiscordRole[];

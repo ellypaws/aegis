@@ -33,6 +33,8 @@ type Post struct {
 	Description string    `gorm:"type:text" json:"description"`
 	Timestamp   time.Time `gorm:"index" json:"timestamp"`
 	IsPremium   bool      `json:"isPremium"`
+	FocusX      *float64  `gorm:"default:50" json:"focusX"`
+	FocusY      *float64  `gorm:"default:50" json:"focusY"`
 
 	AuthorID uint  `gorm:"index;default:null" json:"authorId"` // FK to User (optional)
 	Author   *User `gorm:"constraint:OnUpdate:CASCADE,OnDelete:SET NULL" json:"author"`

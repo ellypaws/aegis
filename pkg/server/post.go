@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -220,6 +221,16 @@ func (s *Server) handleCreatePost(c echo.Context) error {
 		}
 	}
 
+	// Parse focus position (percentage 0-100, default 50 = center)
+	focusX := 50.0
+	if v, err := strconv.ParseFloat(c.FormValue("focusX"), 64); err == nil {
+		focusX = v
+	}
+	focusY := 50.0
+	if v, err := strconv.ParseFloat(c.FormValue("focusY"), 64); err == nil {
+		focusY = v
+	}
+
 	post := &types.Post{
 		PostKey:     postKey,
 		ChannelID:   channelsStr,
@@ -228,6 +239,8 @@ func (s *Server) handleCreatePost(c echo.Context) error {
 		Description: description,
 		Timestamp:   now,
 		IsPremium:   true,
+		FocusX:      &focusX,
+		FocusY:      &focusY,
 		Image: &types.Image{
 			Blobs: []types.ImageBlob{
 				{Index: 0, Data: imgBytes, ContentType: fileHeader.Header.Get("Content-Type"), Filename: fileHeader.Filename},

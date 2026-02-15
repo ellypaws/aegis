@@ -37,6 +37,8 @@ export function AuthorPanel({ user, onCreate }: {
         image: File;
         thumbnail?: File;
         postDate: string;
+        focusX?: number;
+        focusY?: number;
     }) => void;
 }) {
     const [title, setTitle] = useState("");
@@ -60,6 +62,10 @@ export function AuthorPanel({ user, onCreate }: {
 
     const [dragFull, setDragFull] = useState(false);
     const [dragThumb, setDragThumb] = useState(false);
+
+    const [focusX, setFocusX] = useState(50);
+    const [focusY, setFocusY] = useState(50);
+    const fullPreviewRef = useRef<HTMLDivElement>(null);
 
     const handleDrop = useCallback((e: React.DragEvent, setter: (f: File | null) => void) => {
         e.preventDefault();
@@ -281,6 +287,8 @@ export function AuthorPanel({ user, onCreate }: {
                                         image: fullFile,
                                         thumbnail: thumbFile || undefined,
                                         postDate: postDate,
+                                        focusX,
+                                        focusY,
                                     });
 
                                     // Clear form (keep roles & channels). Previews will revoke via effects.
@@ -289,6 +297,8 @@ export function AuthorPanel({ user, onCreate }: {
                                     setPostDate(new Date().toISOString().slice(0, 10));
                                     setFullFile(null);
                                     setThumbFile(null);
+                                    setFocusX(50);
+                                    setFocusY(50);
                                     // Reset file input elements so displayed text clears
                                     if (fullInputRef.current) fullInputRef.current.value = "";
                                     if (thumbInputRef.current) thumbInputRef.current.value = "";
@@ -303,18 +313,68 @@ export function AuthorPanel({ user, onCreate }: {
                     <div className="space-y-3">
                         <div className="grid gap-3 md:grid-cols-2">
                             <div
-                                className={cn("p-3 cursor-pointer hover:opacity-90 active:scale-95 transition relative", UI.cardBlue)}
-                                onClick={() => fullInputRef.current?.click()}
-                                onDragEnter={(e) => { e.preventDefault(); setDragFull(true); }}
-                                onDragOver={handleDragOver}
-                                onDragLeave={(e) => { e.preventDefault(); setDragFull(false); }}
-                                onDrop={(e) => handleDrop(e, setFullFile)}
+                                className={cn(
+                                    "p-3 transition relative",
+                                    UI.cardBlue,
+                                    previewFull ? "cursor-crosshair" : "cursor-pointer hover:opacity-90 active:scale-95"
+                                )}
+                                onClick={() => { if (!previewFull) fullInputRef.current?.click(); }}
+                                onDragEnter={(e) => { if (!previewFull) { e.preventDefault(); setDragFull(true); } }}
+                                onDragOver={(e) => { if (!previewFull) handleDragOver(e); }}
+                                onDragLeave={(e) => { if (!previewFull) { e.preventDefault(); setDragFull(false); } }}
+                                onDrop={(e) => { if (!previewFull) handleDrop(e, setFullFile); }}
                             >
-                                <DropOverlay visible={dragFull} />
+                                {!previewFull && <DropOverlay visible={dragFull} />}
                                 <div className={UI.label}>Full Preview</div>
-                                <div className="mt-2 aspect-square overflow-hidden rounded-2xl border-4 border-zinc-200 bg-zinc-50">
-                                    {previewFull ? <img src={previewFull} className="h-full w-full object-cover" alt="" /> : <div className="flex h-full w-full items-center justify-center text-xs font-bold text-zinc-400">Pick a file</div>}
+                                <div
+                                    ref={fullPreviewRef}
+                                    className="mt-2 aspect-square overflow-hidden rounded-2xl border-4 border-zinc-200 bg-zinc-50 relative cursor-crosshair select-none"
+                                    onMouseDown={(e) => {
+                                        const rect = fullPreviewRef.current?.getBoundingClientRect();
+                                        if (!rect || !previewFull) return;
+                                        e.stopPropagation();
+                                        const x = Math.min(100, Math.max(0, ((e.clientX - rect.left) / rect.width) * 100));
+                                        const y = Math.min(100, Math.max(0, ((e.clientY - rect.top) / rect.height) * 100));
+                                        setFocusX(Math.round(x * 10) / 10);
+                                        setFocusY(Math.round(y * 10) / 10);
+
+                                        const onMove = (ev: MouseEvent) => {
+                                            const mx = Math.min(100, Math.max(0, ((ev.clientX - rect.left) / rect.width) * 100));
+                                            const my = Math.min(100, Math.max(0, ((ev.clientY - rect.top) / rect.height) * 100));
+                                            setFocusX(Math.round(mx * 10) / 10);
+                                            setFocusY(Math.round(my * 10) / 10);
+                                        };
+                                        const onUp = () => {
+                                            window.removeEventListener("mousemove", onMove);
+                                            window.removeEventListener("mouseup", onUp);
+                                        };
+                                        window.addEventListener("mousemove", onMove);
+                                        window.addEventListener("mouseup", onUp);
+                                    }}
+                                    onClick={(e) => { if (previewFull) e.stopPropagation(); }}
+                                >
+                                    {previewFull ? (
+                                        <>
+                                            <img src={previewFull} className="h-full w-full object-cover" style={{ objectPosition: `${focusX}% ${focusY}%` }} alt="" draggable={false} />
+                                            {/* Focus point marker */}
+                                            <div
+                                                className="absolute pointer-events-none"
+                                                style={{ left: `${focusX}%`, top: `${focusY}%`, transform: "translate(-50%, -50%)" }}
+                                            >
+                                                <div className="h-8 w-8 rounded-full bg-zinc-500/30 border-2 border-zinc-400/50 shadow-lg flex items-center justify-center backdrop-blur-[1px]">
+                                                    <div className="h-2.5 w-2.5 rounded-full bg-zinc-700/80 shadow" />
+                                                </div>
+                                            </div>
+                                        </>
+                                    ) : (
+                                        <div className="flex h-full w-full items-center justify-center text-xs font-bold text-zinc-400">Pick a file</div>
+                                    )}
                                 </div>
+                                {previewFull && (
+                                    <div className="mt-1 text-[10px] font-bold text-zinc-400 tabular-nums">
+                                        Focus: {focusX.toFixed(1)}% × {focusY.toFixed(1)}%
+                                    </div>
+                                )}
                                 {fullFile ? <div className="mt-2 text-xs font-bold text-zinc-500">{fullFile.name}</div> : null}
                             </div>
                             <div
