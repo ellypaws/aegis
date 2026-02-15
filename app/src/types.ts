@@ -68,7 +68,7 @@ export type Post = {
     image: Image;
 };
 
-export type ViewMode = "gallery" | "post";
+export type ViewMode = "gallery" | "post" | "not-found";
 export type FileRef = {
     name: string;
     mime: string;

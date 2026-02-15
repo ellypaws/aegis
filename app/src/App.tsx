@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { Routes, Route, useNavigate, useLocation, matchPath } from "react-router-dom";
 import { intersect, cn } from "./lib/utils";
 import { UI } from "./constants";
 import { MOCK_GUILD } from "./data/mock";
@@ -11,40 +12,43 @@ import { MainGalleryView } from "./components/MainGalleryView";
 import { PostDetailView } from "./components/PostDetailView";
 import { RightSidebar } from "./components/RightSidebar";
 import { ProfileSidebar } from "./components/ProfileSidebar";
+import { NotFound } from "./pages/NotFound";
 
 function App() {
   const [user, setUser] = useState<DiscordUser | null>(null);
   const [guild] = useState<Guild>(MOCK_GUILD);
-  const [view, setView] = useState<ViewMode>("gallery");
   const [loginOpen, setLoginOpen] = useState(false);
   const [posts, setPosts] = useState<Post[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Parse URL and restore state from history
-  useEffect(() => {
-    const path = window.location.pathname;
-    const params = new URLSearchParams(window.location.search);
-    const tokenParam = params.get("token");
-    const postParam = params.get("post");
+  const navigate = useNavigate();
+  const location = useLocation();
 
-    // Handle JWT token from OAuth callback
+  const [tagFilter, setTagFilter] = useState<string | null>(null);
+  const [q, setQ] = useState("");
+  const [transitionRect, setTransitionRect] = useState<DOMRect | null>(null);
+
+  // Derive state from URL
+  const postMatch = matchPath("/post/:postId", location.pathname);
+  const selectedId = postMatch ? postMatch.params.postId || null : null;
+
+  const view: ViewMode = useMemo(() => {
+    if (selectedId) return "post";
+    if (location.pathname === "/") return "gallery";
+    return "not-found"; // Or handle as special case, but ViewMode type might need update if we strictly use it
+  }, [location.pathname, selectedId]);
+
+  // Parse JWT for user info on mount
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const tokenParam = params.get("token");
+
     if (tokenParam) {
       localStorage.setItem("jwt", tokenParam);
-      window.history.replaceState({}, document.title, "/");
+      // Remove token from URL
+      navigate(location.pathname, { replace: true });
     }
 
-    // Handle post ID from URL path or query param
-    const pathMatch = path.match(/^\/post\/(.+)$/);
-    if (pathMatch) {
-      setSelectedId(pathMatch[1]);
-      setView("post");
-    } else if (postParam) {
-      setSelectedId(postParam);
-      setView("post");
-      window.history.replaceState({}, document.title, `/post/${postParam}`);
-    }
-
-    // Parse JWT for user info
     const token = localStorage.getItem("jwt");
     if (token) {
       try {
@@ -129,36 +133,6 @@ function App() {
     loadPosts(nextPage);
   };
 
-  const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [tagFilter, setTagFilter] = useState<string | null>(null);
-  const [q, setQ] = useState("");
-  const [transitionRect, setTransitionRect] = useState<DOMRect | null>(null);
-
-  // Handle browser back/forward buttons
-  useEffect(() => {
-    const handlePopState = () => {
-      const path = window.location.pathname;
-      const pathMatch = path.match(/^\/post\/(.+)$/);
-      
-      if (pathMatch) {
-        setSelectedId(pathMatch[1]);
-        setView("post");
-      } else {
-        setSelectedId(null);
-        setView("gallery");
-      }
-    };
-
-    window.addEventListener("popstate", handlePopState);
-    return () => window.removeEventListener("popstate", handlePopState);
-  }, []);
-
-  // Reset selectedId when posts load if none selected
-  useEffect(() => {
-    if (!selectedId && posts.length > 0) {
-    }
-  }, [posts, selectedId]);
-
   const selected = useMemo(() => posts?.find((p) => p.postKey === selectedId) ?? null, [posts, selectedId]);
 
   const viewerRoleIds = useMemo(() => (user?.roles ?? []).map((r) => r.id), [user]);
@@ -182,8 +156,6 @@ function App() {
       return intersect(postRoleIds, viewerRoleIds);
     };
   }, [user, viewerRoleIds]);
-
-
 
   async function handleCreate(postInput: {
     title: string;
@@ -244,23 +216,26 @@ function App() {
           onClickRandom={() => {
             const pick = filteredPosts[Math.floor(Math.random() * Math.max(1, filteredPosts.length))];
             if (pick) {
-              setSelectedId(pick.postKey);
-              setView("post");
+              navigate(`/post/${pick.postKey}`);
             }
           }}
         />
 
-        <TopBar
-          guild={guild}
-          view={view}
-          setView={setView}
-          tagFilter={tagFilter}
-          setTagFilter={setTagFilter}
-          user={user}
-          setLoginOpen={setLoginOpen}
-          setUser={setUser}
-          selectedId={selectedId}
-        />
+        {view !== "not-found" && (
+          <TopBar
+            guild={guild}
+            view={view === "post" ? "post" : "gallery"} // Fallback to gallery styles if 404
+            setView={(v) => {
+              if (v === "gallery") navigate("/");
+            }}
+            tagFilter={tagFilter}
+            setTagFilter={setTagFilter}
+            user={user}
+            setLoginOpen={setLoginOpen}
+            setUser={setUser}
+            selectedId={selectedId}
+          />
+        )}
 
         {user?.isAdmin ? (
           <div className="mt-6">
@@ -271,64 +246,72 @@ function App() {
         <div className="mt-6 flex flex-col gap-4 lg:flex-row relative items-start">
           {/* Left: MAIN */}
           <div className={cn("transition-all duration-500 w-full lg:w-[calc(100%-22rem)]")}>
-            {loading ? (
-              <div className="p-12 text-center font-bold text-zinc-400">Loading posts...</div>
-            ) : view === "gallery" ? (
-              <MainGalleryView
-                posts={filteredPosts}
-                selectedId={selectedId}
-                canAccessPost={canAccessPost}
-                onOpenPost={(id, rect) => {
-                  setSelectedId(id);
-                  setTransitionRect(rect || null);
-                  setView("post");
-                  window.history.pushState({ postId: id }, "", `/post/${id}`);
-                }}
-                q={q}
-                setQ={setQ}
-                onLoadMore={handleLoadMore}
-                hasMore={hasMore}
-                loading={loading}
+            <Routes>
+              <Route
+                path="/"
+                element={
+                  loading ? (
+                    <div className="p-12 text-center font-bold text-zinc-400">Loading posts...</div>
+                  ) : (
+                    <MainGalleryView
+                      posts={filteredPosts}
+                      selectedId={selectedId}
+                      canAccessPost={canAccessPost}
+                      onOpenPost={(id, rect) => {
+                        setTransitionRect(rect || null);
+                        navigate(`/post/${id}`);
+                      }}
+                      q={q}
+                      setQ={setQ}
+                      onLoadMore={handleLoadMore}
+                      hasMore={hasMore}
+                      loading={loading}
+                    />
+                  )
+                }
               />
-            ) : (
-              <PostDetailView
-                selected={selected}
-                onBack={() => {
-                  setView("gallery");
-                  setSelectedId(null);
-                  window.history.pushState({}, "", "/");
-                }}
-                transitionRect={transitionRect}
-                user={user}
+              <Route
+                path="/post/:postId"
+                element={
+                  <PostDetailView
+                    selected={selected}
+                    onBack={() => {
+                      navigate("/");
+                    }}
+                    transitionRect={transitionRect}
+                    user={user}
+                  />
+                }
               />
-            )}
+              <Route path="*" element={<NotFound />} />
+            </Routes>
           </div>
 
-          {/* Right: SIDEBAR */}
-          <div
-            className={cn(
-              "hidden w-80 lg:block"
-            )}
-          >
-            <div className="sticky top-4">
-              {view === "gallery" ? (
-                <ProfileSidebar user={user} onLogin={() => setLoginOpen(true)} />
-              ) : (
-                <RightSidebar
-                  posts={filteredPosts}
-                  selectedId={selectedId}
-                  canAccessPost={canAccessPost}
-                  onSelect={(id) => {
-                    setSelectedId(id);
-                    setView("post");
-                    window.history.pushState({ postId: id }, "", `/post/${id}`);
-                  }}
-                  selected={selected}
-                  user={user}
-                />
+          {/* Right: SIDEBAR - Do not show on 404? or default? */}
+          {view !== "not-found" && (
+            <div
+              className={cn(
+                "hidden w-80 lg:block"
               )}
+            >
+              <div className="sticky top-4">
+                {view === "gallery" ? (
+                  <ProfileSidebar user={user} onLogin={() => setLoginOpen(true)} />
+                ) : (
+                  <RightSidebar
+                    posts={filteredPosts}
+                    selectedId={selectedId}
+                    canAccessPost={canAccessPost}
+                    onSelect={(id) => {
+                      navigate(`/post/${id}`);
+                    }}
+                    selected={selected}
+                    user={user}
+                  />
+                )}
+              </div>
             </div>
-          </div>
+          )}
         </div>
       </div>
     </div>

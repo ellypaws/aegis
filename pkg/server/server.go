@@ -112,6 +112,19 @@ func (s *Server) routes() {
 			return c.NoContent(http.StatusNotFound)
 		}
 
+		cleanPath := strings.TrimPrefix(path, "/")
+		if cleanPath == "" {
+			cleanPath = "index.html"
+		}
+
+		f, err := staticFSWrapper.Open(cleanPath)
+		if err != nil {
+			c.Request().URL.Path = "/"
+			fileServer.ServeHTTP(c.Response(), c.Request())
+			return nil
+		}
+		f.Close()
+
 		fileServer.ServeHTTP(c.Response(), c.Request())
 		return nil
 	})
