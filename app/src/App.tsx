@@ -65,7 +65,7 @@ function App() {
           globalName: claims.sub,
           discriminator: "0000",
           avatar: claims.avt || "",
-          banner: "",
+          banner: claims.ban || "",
           accentColor: 0,
           bot: false,
           system: false,

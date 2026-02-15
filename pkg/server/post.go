@@ -22,11 +22,7 @@ import (
 )
 
 func getHost(c echo.Context) string {
-	if c.Request().TLS != nil {
-		return "https://" + c.Request().Host
-	}
-
-	return "http://" + c.Request().Host
+	return "https://" + c.Request().Host
 }
 
 func (s *Server) handleLogin(c echo.Context) error {
@@ -91,14 +87,17 @@ func (s *Server) handleCallback(c echo.Context) error {
 	}
 
 	var roles []*discordgo.Role
-	var avatarURL string
+	var avatarHash string
 	if member != nil {
 		for _, rid := range member.Roles {
 			if r, err := s.bot.Session().State.Role(s.config.GuildID, rid); err == nil {
 				roles = append(roles, r)
 			}
 		}
-		avatarURL = member.AvatarURL("")
+		// Use member avatar if available, otherwise fall back to user avatar
+		if member.Avatar != "" {
+			avatarHash = member.Avatar
+		}
 	}
 
 	var isAdmin bool
@@ -108,14 +107,16 @@ func (s *Server) handleCallback(c echo.Context) error {
 		log.Info("User logging in not found in DB or not admin", "user", discordUser.Username, "id", discordUser.ID)
 	}
 
-	if avatarURL == "" {
-		avatarURL = discordUser.AvatarURL("")
+	// Fall back to user avatar hash if no member avatar
+	if avatarHash == "" {
+		avatarHash = discordUser.Avatar
 	}
 
 	user := types.User{
 		UserID:   discordUser.ID,
 		Username: discordUser.Username,
-		Avatar:   avatarURL,
+		Avatar:   avatarHash,
+		Banner:   discordUser.Banner,
 		IsAdmin:  isAdmin,
 	}
 
@@ -283,7 +284,7 @@ func (s *Server) handleCreatePost(c echo.Context) error {
 		discordgo.Button{
 			Label: "View in Gallery",
 			Style: discordgo.LinkButton,
-			URL:   fmt.Sprintf("/?post=%s", postKey),
+			URL:   fmt.Sprintf("/post/%s", postKey),
 		},
 	}, drigo.BuildShowActionsRow(postKey).Components...)
 

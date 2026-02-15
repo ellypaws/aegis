@@ -204,12 +204,21 @@ func (q *Bot) prepareEmbed(member *discordgo.Member, p *types.Post, webhookEdit 
 	encoder := exif.NewEncoder(memberExif)
 	var images []io.Reader
 	for _, blob := range p.Image.Blobs {
-		var buffer bytes.Buffer
-		err := encoder.EncodeReader(&buffer, bytes.NewReader(blob.Data))
+		imgBlob, err := q.db.GetImageBlob(blob.ID)
 		if err != nil {
-			return fmt.Errorf("error encoding: %w", err)
+			return fmt.Errorf("error getting image blob: %w", err)
 		}
-		images = append(images, &buffer)
+
+		if imgBlob.ContentType == "image/png" {
+			var buffer bytes.Buffer
+			err := encoder.EncodeReader(&buffer, bytes.NewReader(imgBlob.Data))
+			if err != nil {
+				return fmt.Errorf("error encoding: %w", err)
+			}
+			images = append(images, &buffer)
+		} else {
+			images = append(images, bytes.NewReader(imgBlob.Data))
+		}
 	}
 
 	if err := handlers.EmbedImages(webhookEdit, embed, images, nil, compositor.Compositor(memberExif)); err != nil {
@@ -485,8 +494,14 @@ func (q *Bot) fallbackToLink(i *discordgo.InteractionCreate, p *types.Post) (url
 	}
 
 	var data []byte
-	if len(p.Image.Blobs) > 0 && p.Image.Blobs[0].Data != nil {
-		data = p.Image.Blobs[0].Data
+	if len(p.Image.Blobs) > 0 {
+		if p.Image.Blobs[0].Data != nil {
+			data = p.Image.Blobs[0].Data
+		} else {
+			if blob, err := q.db.GetImageBlob(p.Image.Blobs[0].ID); err == nil {
+				data = blob.Data
+			}
+		}
 	} else if len(p.Image.Thumbnail) > 0 {
 		data = p.Image.Thumbnail
 	}

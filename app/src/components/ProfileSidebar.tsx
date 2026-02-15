@@ -33,7 +33,10 @@ export function ProfileSidebar({ user, onLogin }: { user: DiscordUser | null; on
     return (
         <div className={cn("overflow-hidden rounded-[20px] bg-[#111214] text-gray-100 shadow-xl border border-[#1e1f22]")}>
             {/* Banner */}
-            <div className="h-[120px] w-full bg-[#5865F2] relative">
+            <div 
+                className="h-[120px] w-full bg-[#5865F2] relative bg-cover bg-center"
+                style={user.banner ? { backgroundImage: `url(${user.banner})` } : undefined}
+            >
                 <div className="absolute inset-0 bg-gradient-to-b from-transparent to-black/20" />
             </div>
 
