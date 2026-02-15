@@ -15,10 +15,11 @@ export function ViewerActions({ post, canAccess }: { post: Post; canAccess: bool
     const blob = post.image?.blobs?.[0];
     const token = localStorage.getItem("jwt");
     const fullUrl = blob ? `/images/${blob.ID}${token ? `?token=${token}` : ""}` : "";
+    const downloadUrl = fullUrl ? fullUrl + (fullUrl.includes("?") ? "&" : "?") + "download=1" : "";
     const ext = getExtension(blob?.contentType);
 
     const file: DownloadFile = {
-        url: fullUrl,
+        url: downloadUrl,
         name: blob?.filename || `${post.title || "image"}.${ext}`,
         mime: blob?.contentType || "image/png",
         size: blob?.size || 0,

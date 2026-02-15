@@ -2,6 +2,7 @@ package server
 
 import (
 	"bytes"
+	"fmt"
 	"image"
 	_ "image/gif"
 	_ "image/jpeg"
@@ -66,8 +67,24 @@ func (s *Server) handleGetImage(c echo.Context) error {
 		contentType = "application/octet-stream"
 	}
 
+	filename := blob.Filename
+	if filename == "" {
+		ext := blob.GetFileExtension()
+		title := post.Title
+		if title == "" {
+			title = "image"
+		}
+		filename = fmt.Sprintf("%s.%s", title, ext)
+	}
+
+	disposition := "inline"
+	if c.QueryParam("download") == "1" {
+		disposition = "attachment"
+	}
+
 	c.Response().Header().Set("Cache-Control", "private, max-age=31536000") // Private cache since it's auth-dependent
 	c.Response().Header().Set("Content-Type", contentType)
+	c.Response().Header().Set("Content-Disposition", fmt.Sprintf("%s; filename=%q", disposition, filename))
 
 	return c.Stream(http.StatusOK, contentType, bytes.NewReader(blob.Data))
 }
