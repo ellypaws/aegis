@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef, useState, useEffect, useMemo } from "react";
+import { useLayoutEffect, useRef, useState, useMemo } from "react";
 import { cn } from "../lib/utils";
 import { UI } from "../constants";
 import type { Post, DiscordUser } from "../types";
@@ -23,35 +23,8 @@ export function PostDetailView({
         height: number;
     } | null>(null);
 
-    const [post, setPost] = useState<Post | null>(selected);
-
-    // Sync selected to post initially
-    useEffect(() => {
-        setPost(selected);
-    }, [selected]);
-
-    // Fetch full post to get fresh roles (image data is now fetched via URL)
-    useEffect(() => {
-        if (!selected?.postKey) return;
-
-        const token = localStorage.getItem("jwt");
-        const headers: Record<string, string> = {};
-        if (token) headers["Authorization"] = `Bearer ${token}`;
-
-        fetch(`/posts/${selected.postKey}`, { headers })
-            .then(res => {
-                if (res.ok) return res.json();
-                throw new Error("Failed to fetch post");
-            })
-            .then(data => {
-                setPost(data);
-            })
-            .catch(err => {
-                console.error(err);
-            });
-    }, [selected?.postKey]);
-
-    const activePost = post || selected;
+    // Use the hydrated post data directly from App.tsx — no extra fetch needed
+    const activePost = selected;
 
     const canAccess = useMemo(() => {
         if (!activePost) return false;
@@ -59,7 +32,6 @@ export function PostDetailView({
         const roleIds = activePost.allowedRoles.map(r => r.id);
         if (roleIds.length === 0) return true;
         const userRoleIds = user?.roles?.map(r => r.id) || [];
-        // Check intersection
         return roleIds.some(id => userRoleIds.includes(id));
     }, [activePost, user]);
 
@@ -105,7 +77,6 @@ export function PostDetailView({
 
     const getDisplayUrl = (p: Post | null, access: boolean) => {
         if (!p) return undefined;
-        // Construct endpoint URL
         const blobId = p.image?.blobs?.[0]?.ID;
         if (!blobId) return undefined;
 
