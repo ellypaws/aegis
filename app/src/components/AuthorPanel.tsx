@@ -1,13 +1,31 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useCallback } from "react";
 import { cn, safeRevoke } from "../lib/utils";
 import { UI } from "../constants";
-import type { DiscordUser } from "../types"; // Removed FileRef, Post, Image
+import type { DiscordUser } from "../types";
 import { MOCK_GUILD } from "../data/mock";
 import { Patterns } from "./Patterns";
 import { DropdownAddToList } from "./DropdownAddToList";
 import { RolePill, ChannelPill } from "./Pills";
+import { ImagePlus } from "lucide-react";
 
 const { useRef } = React;
+
+/** Shared drop-zone overlay shown during drag */
+function DropOverlay({ visible }: { visible: boolean }) {
+    return (
+        <div
+            className={cn(
+                "absolute inset-0 z-20 flex flex-col items-center justify-center rounded-2xl border-4 border-dashed transition-all duration-200 pointer-events-none",
+                visible
+                    ? "border-blue-400 bg-blue-50/80 opacity-100 scale-100"
+                    : "border-transparent bg-transparent opacity-0 scale-95"
+            )}
+        >
+            <ImagePlus className={cn("h-10 w-10 text-blue-400 transition-transform duration-200", visible && "animate-bounce")} />
+            <span className="mt-1 text-sm font-black uppercase tracking-wide text-blue-500">Drop here</span>
+        </div>
+    );
+}
 
 export function AuthorPanel({ user, onCreate }: {
     user: DiscordUser;
@@ -37,6 +55,25 @@ export function AuthorPanel({ user, onCreate }: {
 
     const fullInputRef = useRef<HTMLInputElement>(null);
     const thumbInputRef = useRef<HTMLInputElement>(null);
+
+    const [dragFull, setDragFull] = useState(false);
+    const [dragThumb, setDragThumb] = useState(false);
+
+    const handleDrop = useCallback((e: React.DragEvent, setter: (f: File | null) => void) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setDragFull(false);
+        setDragThumb(false);
+        const file = e.dataTransfer.files?.[0];
+        if (file && file.type.startsWith("image/")) {
+            setter(file);
+        }
+    }, []);
+
+    const handleDragOver = useCallback((e: React.DragEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+    }, []);
 
     const [config, setConfig] = useState<{ roles: any[], channels: any[], guild_name?: string } | null>(null);
 
@@ -133,7 +170,14 @@ export function AuthorPanel({ user, onCreate }: {
                 <div className="mt-5 grid gap-4 lg:grid-cols-2">
                     <div className="space-y-3">
                         <div className="grid gap-3 md:grid-cols-2">
-                            <label className="space-y-1 block cursor-pointer group">
+                            <label
+                                className="space-y-1 block cursor-pointer group relative"
+                                onDragEnter={(e) => { e.preventDefault(); setDragFull(true); }}
+                                onDragOver={handleDragOver}
+                                onDragLeave={(e) => { e.preventDefault(); setDragFull(false); }}
+                                onDrop={(e) => handleDrop(e, setFullFile)}
+                            >
+                                <DropOverlay visible={dragFull} />
                                 <div className={UI.label}>Full image *</div>
                                 <input
                                     ref={fullInputRef}
@@ -150,7 +194,14 @@ export function AuthorPanel({ user, onCreate }: {
                                     )}
                                 />
                             </label>
-                            <label className="space-y-1 block cursor-pointer group">
+                            <label
+                                className="space-y-1 block cursor-pointer group relative"
+                                onDragEnter={(e) => { e.preventDefault(); setDragThumb(true); }}
+                                onDragOver={handleDragOver}
+                                onDragLeave={(e) => { e.preventDefault(); setDragThumb(false); }}
+                                onDrop={(e) => handleDrop(e, setThumbFile)}
+                            >
+                                <DropOverlay visible={dragThumb} />
                                 <div className={UI.label}>Thumbnail (optional)</div>
                                 <input
                                     ref={thumbInputRef}
@@ -244,9 +295,14 @@ export function AuthorPanel({ user, onCreate }: {
                     <div className="space-y-3">
                         <div className="grid gap-3 md:grid-cols-2">
                             <div
-                                className={cn("p-3 cursor-pointer hover:opacity-90 active:scale-95 transition", UI.cardBlue)}
+                                className={cn("p-3 cursor-pointer hover:opacity-90 active:scale-95 transition relative", UI.cardBlue)}
                                 onClick={() => fullInputRef.current?.click()}
+                                onDragEnter={(e) => { e.preventDefault(); setDragFull(true); }}
+                                onDragOver={handleDragOver}
+                                onDragLeave={(e) => { e.preventDefault(); setDragFull(false); }}
+                                onDrop={(e) => handleDrop(e, setFullFile)}
                             >
+                                <DropOverlay visible={dragFull} />
                                 <div className={UI.label}>Full Preview</div>
                                 <div className="mt-2 aspect-square overflow-hidden rounded-2xl border-4 border-zinc-200 bg-zinc-50">
                                     {previewFull ? <img src={previewFull} className="h-full w-full object-cover" alt="" /> : <div className="flex h-full w-full items-center justify-center text-xs font-bold text-zinc-400">Pick a file</div>}
@@ -254,9 +310,14 @@ export function AuthorPanel({ user, onCreate }: {
                                 {fullFile ? <div className="mt-2 text-xs font-bold text-zinc-500">{fullFile.name}</div> : null}
                             </div>
                             <div
-                                className={cn("p-3 cursor-pointer hover:opacity-90 active:scale-95 transition", UI.cardGreen)}
+                                className={cn("p-3 cursor-pointer hover:opacity-90 active:scale-95 transition relative", UI.cardGreen)}
                                 onClick={() => thumbInputRef.current?.click()}
+                                onDragEnter={(e) => { e.preventDefault(); setDragThumb(true); }}
+                                onDragOver={handleDragOver}
+                                onDragLeave={(e) => { e.preventDefault(); setDragThumb(false); }}
+                                onDrop={(e) => handleDrop(e, setThumbFile)}
                             >
+                                <DropOverlay visible={dragThumb} />
                                 <div className={UI.label}>Thumbnail Preview</div>
                                 <div className="mt-2 aspect-square overflow-hidden rounded-2xl border-4 border-zinc-200 bg-zinc-50">
                                     {previewThumb ? <img src={previewThumb} className="h-full w-full object-cover" alt="" /> : <div className="flex h-full w-full items-center justify-center text-xs font-bold text-zinc-400">Optional</div>}
