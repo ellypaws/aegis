@@ -206,13 +206,15 @@ func (s *sqliteDB) UpdatePost(p *types.Post) error {
 					return err
 				}
 			}
-			if err := tx.Where("image_id = ?", p.Image.ID).Delete(&types.ImageBlob{}).Error; err != nil {
-				return err
-			}
-			for i := range blobs {
-				blobs[i].ImageID = p.Image.ID
-			}
+			// Only replace blobs if new ones are provided; if nil, leave existing blobs untouched
 			if len(blobs) > 0 {
+				if err := tx.Where("image_id = ?", p.Image.ID).Delete(&types.ImageBlob{}).Error; err != nil {
+					return err
+				}
+				for i := range blobs {
+					blobs[i].ImageID = p.Image.ID
+					blobs[i].ID = 0 // ensure fresh insert
+				}
 				if err := tx.Create(&blobs).Error; err != nil {
 					return err
 				}

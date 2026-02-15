@@ -85,6 +85,14 @@ func (s *Server) handlePatchPost(c echo.Context) error {
 	}
 	post.AllowedRoles = allowedRoles
 
+	// Clear the preloaded Image so UpdatePost won't try to re-save old blobs.
+	// If the user uploads a new image we set a fresh Image below.
+	// If not, setting nil tells UpdatePost to leave the existing image untouched.
+	// But we do NOT want UpdatePost's nil-Image branch to DELETE the old image,
+	// so we save the existing imageID and restore it only when no new image is provided.
+	existingImage := post.Image
+	post.Image = nil
+
 	// Optional new image — if a new file is provided we replace it
 	fileHeader, fileErr := c.FormFile("image")
 	if fileErr == nil && fileHeader != nil {
@@ -99,13 +107,22 @@ func (s *Server) handlePatchPost(c echo.Context) error {
 			return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Failed to read image"})
 		}
 
+		// Fresh Image with ID=0 so UpdatePost creates a new row
+		// (UpdatePost's nil-Image branch already removes old images for this post)
 		post.Image = &types.Image{
 			Blobs: []types.ImageBlob{
 				{Index: 0, Data: imgBytes, ContentType: fileHeader.Header.Get("Content-Type"), Filename: fileHeader.Filename},
 			},
 		}
+	} else {
+		// No new image — restore the existing image pointer so UpdatePost
+		// keeps it (the Image has a valid ID, no Blobs mutation needed).
+		// We still nil out Blobs to prevent the re-create problem.
+		if existingImage != nil {
+			existingImage.Blobs = nil
+			post.Image = existingImage
+		}
 	}
-	// If no new image uploaded, the existing post.Image stays as is
 
 	// Save via UpdatePost which handles associations
 	if err := s.db.UpdatePost(post); err != nil {
