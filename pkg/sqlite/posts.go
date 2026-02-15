@@ -16,6 +16,9 @@ func (s *sqliteDB) CreatePost(p *types.Post) error {
 	if p == nil {
 		return errors.New("nil post")
 	}
+	if p.Timestamp.IsZero() {
+		p.Timestamp = time.Now().UTC()
+	}
 	return s.db.Transaction(func(tx *gorm.DB) error {
 		if p.Author != nil {
 

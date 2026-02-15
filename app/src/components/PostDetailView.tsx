@@ -130,9 +130,6 @@ export function PostDetailView({
                     <div className="truncate text-lg font-black uppercase tracking-wide text-zinc-900">
                         {activePost?.title ?? "Untitled"}
                     </div>
-                    <div className="mt-2 text-xs font-bold text-zinc-400">
-                        {activePost ? new Date(activePost.timestamp).toLocaleString() : null}
-                    </div>
                 </div>
                 <button type="button" onClick={onBack} className={cn(UI.button, UI.btnYellow)}>
                     Back

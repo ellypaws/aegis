@@ -171,6 +171,7 @@ function App() {
     channelIds: string[];
     image: File;
     thumbnail?: File;
+    postDate: string;
   }) {
     const formData = new FormData();
     formData.append("title", postInput.title);
@@ -178,6 +179,7 @@ function App() {
     formData.append("roles", postInput.allowedRoleIds.join(","));
     formData.append("channels", postInput.channelIds.join(","));
     formData.append("image", postInput.image);
+    formData.append("postDate", postInput.postDate);
 
     const token = localStorage.getItem("jwt");
     const headers: Record<string, string> = {};

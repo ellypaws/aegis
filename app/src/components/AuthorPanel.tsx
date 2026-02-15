@@ -36,10 +36,12 @@ export function AuthorPanel({ user, onCreate }: {
         channelIds: string[];
         image: File;
         thumbnail?: File;
+        postDate: string;
     }) => void;
 }) {
     const [title, setTitle] = useState("");
     const [desc, setDesc] = useState("");
+    const [postDate, setPostDate] = useState(() => new Date().toISOString().slice(0, 10));
     const [allowedRoleIds, setAllowedRoleIds] = useState<string[]>(() => {
         try { return JSON.parse(localStorage.getItem("author_allowedRoleIds") || "[]"); } catch { return []; }
     });
@@ -226,6 +228,10 @@ export function AuthorPanel({ user, onCreate }: {
                                 <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="e.g. Valentines set" className={UI.input} />
                             </label>
 
+                            <label className="space-y-1">
+                                <div className={UI.label}>Post date</div>
+                                <input type="date" value={postDate} onChange={(e) => setPostDate(e.target.value)} className={UI.input} />
+                            </label>
                         </div>
 
                         <label className="space-y-1">
@@ -273,12 +279,14 @@ export function AuthorPanel({ user, onCreate }: {
                                         allowedRoleIds: allowedRoleIds,
                                         channelIds: channelIds,
                                         image: fullFile,
-                                        thumbnail: thumbFile || undefined
+                                        thumbnail: thumbFile || undefined,
+                                        postDate: postDate,
                                     });
 
                                     // Clear form (keep roles & channels). Previews will revoke via effects.
                                     setTitle("");
                                     setDesc("");
+                                    setPostDate(new Date().toISOString().slice(0, 10));
                                     setFullFile(null);
                                     setThumbFile(null);
                                     // Reset file input elements so displayed text clears

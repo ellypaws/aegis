@@ -185,6 +185,13 @@ func (s *Server) handleCreatePost(c echo.Context) error {
 	postKey := ksuid.New().String()
 	now := time.Now().UTC()
 
+	// Use author-supplied date if provided
+	if dateStr := c.FormValue("postDate"); dateStr != "" {
+		if parsed, err := time.Parse("2006-01-02", dateStr); err == nil {
+			now = parsed.UTC()
+		}
+	}
+
 	// Handle Roles
 	var allowedRoles []types.Allowed
 	for _, rid := range strings.Split(rolesStr, ",") {

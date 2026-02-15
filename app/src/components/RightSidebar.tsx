@@ -61,6 +61,12 @@ export function RightSidebar({
                                 </div>
                             </div>
                             <div>
+                                <div className={UI.label}>Posted</div>
+                                <div className="mt-1 text-sm font-bold text-zinc-700">
+                                  {new Date(selected.timestamp).toLocaleDateString(undefined, { year: "numeric", month: "long", day: "numeric" })}
+                                </div>
+                            </div>
+                            <div>
                                 <div className={UI.label}>Channels</div>
                                 <div className="mt-2 flex flex-wrap gap-2">
                                     {selected.channelId ? (
@@ -96,20 +102,13 @@ export function RightSidebar({
             </div>
 
             <div className={cn("p-4", UI.card)}>
-                <div className={UI.sectionTitle}>Role-based access</div>
-                <div className="mt-2 text-sm font-bold text-zinc-700">
-                    Your roles:
-                    <div className="mt-2 flex flex-wrap gap-2">
-                        {(user?.roles ?? []).length ? (
-                            (user?.roles ?? []).map((r) => <RolePill key={r.id} name={r.name} color={r.color} />)
-                        ) : (
-                            <span className="text-sm font-bold text-zinc-400">Not logged in</span>
-                        )}
-                    </div>
-                </div>
-                <div className="mt-3 text-xs font-bold text-zinc-400">
-                    Access is granted if your roles intersect a post’s allowed roles. Authors always have access to their own
-                    posts.
+            <div className={UI.sectionTitle}>Roles</div>
+                <div className="mt-2 flex flex-wrap gap-2">
+                    {(user?.roles ?? []).length ? (
+                        (user?.roles ?? []).map((r) => <RolePill key={r.id} name={r.name} color={r.color} />)
+                    ) : (
+                        <span className="text-sm font-bold text-zinc-400">Not logged in</span>
+                    )}
                 </div>
             </div>
         </div>
