@@ -3,6 +3,19 @@ import { cn } from "../lib/utils";
 
 import type { Post } from "../types";
 
+/** Title overlay with dark gradient — sits at the bottom of the image */
+function TitleOverlay({ title }: { title: string }) {
+    return (
+        <div className="absolute inset-x-0 bottom-0 pointer-events-none">
+            <div className="bg-gradient-to-t from-black/70 via-black/30 to-transparent px-4 pb-3 pt-8">
+                <div className="truncate text-left text-sm font-black uppercase tracking-wide text-white drop-shadow-[0_1px_3px_rgba(0,0,0,0.5)]">
+                    {title}
+                </div>
+            </div>
+        </div>
+    );
+}
+
 export function GalleryGridCard({
     post,
     canAccess,
@@ -48,10 +61,7 @@ export function GalleryGridCard({
                 )}
                 title={post.title ?? "Untitled"}
             >
-                <div className={cn(
-                    "w-full bg-zinc-50 shrink-0 relative overflow-hidden",
-                    hasTitle ? "h-48 border-b-4 border-zinc-100" : "h-full"
-                )}>
+                <div className="h-full w-full bg-zinc-50 relative overflow-hidden">
                     {url ? (
                         <div className="flex h-full w-full items-center justify-center bg-zinc-50 overflow-hidden">
                             <img
@@ -80,14 +90,8 @@ export function GalleryGridCard({
                             </div>
                         )
                     ) : null}
+                    {hasTitle && <TitleOverlay title={post.title!} />}
                 </div>
-                {hasTitle && (
-                    <div className="p-3 min-w-0 flex-1 flex flex-col justify-between whitespace-nowrap overflow-hidden">
-                        <div>
-                            <div className="truncate text-left text-sm font-black uppercase tracking-wide text-zinc-900">{post.title}</div>
-                        </div>
-                    </div>
-                )}
             </button>
         );
     }
@@ -104,10 +108,7 @@ export function GalleryGridCard({
             )}
             title={post.title ?? "Untitled"}
         >
-            <div className={cn(
-                "relative overflow-hidden",
-                hasTitle ? "aspect-square" : "aspect-square"
-            )}>
+            <div className="aspect-square relative overflow-hidden">
                 {url ? (
                     <div className="flex h-full w-full items-center justify-center bg-zinc-50 overflow-hidden">
                         <img
@@ -134,12 +135,8 @@ export function GalleryGridCard({
                         </div>
                     )
                 ) : null}
+                {hasTitle && <TitleOverlay title={post.title!} />}
             </div>
-            {hasTitle && (
-                <div className="p-3">
-                    <div className="truncate text-left text-sm font-black uppercase tracking-wide text-zinc-900">{post.title}</div>
-                </div>
-            )}
         </button>
     );
 }
