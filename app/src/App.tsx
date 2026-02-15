@@ -143,6 +143,30 @@ function App() {
 
   const selected = useMemo(() => posts?.find((p) => p.postKey === selectedId) ?? null, [posts, selectedId]);
 
+  // If we have a selectedId but it's not in the loaded posts list, fetch it individually
+  useEffect(() => {
+    if (!selectedId || selected) return;
+    const token = localStorage.getItem("jwt");
+    const headers: Record<string, string> = {};
+    if (token) headers["Authorization"] = `Bearer ${token}`;
+
+    fetch(`/posts/${selectedId}`, { headers })
+      .then(res => {
+        if (!res.ok) return null;
+        return res.json();
+      })
+      .then(post => {
+        if (post) {
+          setPosts(prev => {
+            // Avoid duplicates
+            if (prev.some(p => p.postKey === post.postKey)) return prev;
+            return [post, ...prev];
+          });
+        }
+      })
+      .catch(err => console.error("Failed to fetch individual post", err));
+  }, [selectedId, selected]);
+
   const viewerRoleIds = useMemo(() => (user?.roles ?? []).map((r) => r.id), [user]);
 
   const filteredPosts = useMemo(() => {
