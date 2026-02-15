@@ -31,6 +31,8 @@ export function MainGalleryView({
     hasMore,
     loading,
     initialLoading,
+    sortMode,
+    onSortChange,
 }: {
     posts: Post[];
     selectedId: string | null;
@@ -42,35 +44,20 @@ export function MainGalleryView({
     hasMore: boolean;
     loading: boolean;
     initialLoading: boolean;
+    sortMode: "id" | "date";
+    onSortChange: (mode: "id" | "date") => void;
 }) {
     const cols = useColumns();
 
-    type SortMode = "id" | "date";
-    const [sortMode, setSortMode] = useState<SortMode>(() => {
-        const saved = localStorage.getItem("gallery_sort");
-        return saved === "date" ? "date" : "id";
-    });
-
-    useEffect(() => {
-        localStorage.setItem("gallery_sort", sortMode);
-    }, [sortMode]);
-
-    const sorted = useMemo(() => {
-        const arr = posts.slice();
-        if (sortMode === "date") {
-            return arr.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
-        }
-        // sort by ID descending — higher ID = newer insertion
-        return arr.sort((a, b) => (b.ID ?? 0) - (a.ID ?? 0));
-    }, [posts, sortMode]);
+    // Posts are already sorted by the backend; use them directly
 
     const rows = useMemo(() => {
         const r: Post[][] = [];
-        for (let i = 0; i < sorted.length; i += cols) {
-            r.push(sorted.slice(i, i + cols));
+        for (let i = 0; i < posts.length; i += cols) {
+            r.push(posts.slice(i, i + cols));
         }
         return r;
-    }, [sorted, cols]);
+    }, [posts, cols]);
 
     return (
         <div className={cn("p-4", UI.card)}>
@@ -87,7 +74,7 @@ export function MainGalleryView({
                         <div className="flex overflow-hidden rounded-xl border-4 border-zinc-200 bg-white">
                             <button
                                 type="button"
-                                onClick={() => setSortMode("id")}
+                                onClick={() => onSortChange("id")}
                                 className={cn(
                                     "px-3 py-1.5 text-xs font-black uppercase tracking-wide transition-colors duration-200",
                                     sortMode === "id"
@@ -99,7 +86,7 @@ export function MainGalleryView({
                             </button>
                             <button
                                 type="button"
-                                onClick={() => setSortMode("date")}
+                                onClick={() => onSortChange("date")}
                                 className={cn(
                                     "px-3 py-1.5 text-xs font-black uppercase tracking-wide transition-colors duration-200",
                                     sortMode === "date"

@@ -6,9 +6,15 @@ import (
 	"gorm.io/gorm"
 )
 
-// ListPosts returns a list of posts, ordered by timestamp desc.
-func (s *sqliteDB) ListPosts(limit, offset int) ([]*types.Post, error) {
+// ListPosts returns a list of posts. sort can be "date" (by timestamp) or "id" (by insertion, default).
+func (s *sqliteDB) ListPosts(limit, offset int, sort string) ([]*types.Post, error) {
 	var posts []*types.Post
+
+	orderClause := "id desc" // default: newest by insertion
+	if sort == "date" {
+		orderClause = "timestamp desc"
+	}
+
 	err := s.db.
 		Preload("Author").
 		Preload("Image", func(db *gorm.DB) *gorm.DB {
@@ -18,7 +24,7 @@ func (s *sqliteDB) ListPosts(limit, offset int) ([]*types.Post, error) {
 			return db.Select("id", "created_at", "updated_at", "deleted_at", "image_id", "index", "content_type", "filename", "length(data) as size")
 		}).
 		Preload("AllowedRoles").
-		Order("timestamp desc").
+		Order(orderClause).
 		Limit(limit).
 		Offset(offset).
 		Find(&posts).Error

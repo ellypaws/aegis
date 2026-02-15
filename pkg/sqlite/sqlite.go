@@ -27,7 +27,7 @@ type DB interface {
 	UpdatePost(p *types.Post) error
 	DeletePost(id uint) error
 	PatchPost(id uint, patch PostPatch) error
-	ListPosts(limit, offset int) ([]*types.Post, error)
+	ListPosts(limit, offset int, sort string) ([]*types.Post, error)
 	UserByID(id string) (*types.User, error)
 	UpsertUser(user *types.User) error
 	CountUsers() (int64, error)

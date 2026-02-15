@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Routes, Route, useNavigate, useLocation, matchPath } from "react-router-dom";
 import { intersect, cn } from "./lib/utils";
 import { UI } from "./constants";
@@ -30,6 +30,20 @@ function App() {
   const [q, setQ] = useState("");
   const [transitionRect, setTransitionRect] = useState<DOMRect | null>(null);
   const [editingPost, setEditingPost] = useState<Post | null>(null);
+
+  // Sort mode — lifted up so it controls the backend fetch
+  type SortMode = "id" | "date";
+  const [sortMode, setSortMode] = useState<SortMode>(() => {
+    const saved = localStorage.getItem("gallery_sort");
+    return saved === "date" ? "date" : "id";
+  });
+  useEffect(() => {
+    localStorage.setItem("gallery_sort", sortMode);
+  }, [sortMode]);
+
+  // Cache: store fetched posts per sort mode for instant switching
+  // Map<SortMode, Post[]>
+  const sortCacheRef = useRef<Record<string, Post[]>>({});
 
   // Derive state from URL
   const postMatch = matchPath("/post/:postId", location.pathname);
@@ -103,7 +117,7 @@ function App() {
   const [hasMore, setHasMore] = useState(true);
   const limit = 9;
 
-  const loadPosts = (pageNum: number, reset: boolean = false) => {
+  const loadPosts = useCallback((pageNum: number, reset: boolean = false, sort: SortMode = sortMode) => {
     setLoading(true);
     const token = localStorage.getItem("jwt");
     const headers: Record<string, string> = {};
@@ -111,12 +125,18 @@ function App() {
       headers["Authorization"] = `Bearer ${token}`;
     }
 
-    fetch(`/posts?page=${pageNum}&limit=${limit}`, { headers })
+    // If reset and we need all currently-visible items, compute the right limit
+    const fetchLimit = reset && pageNum === 1 ? Math.max(limit, posts.length) : limit;
+
+    fetch(`/posts?page=${pageNum}&limit=${fetchLimit}&sort=${sort}`, { headers })
       .then(res => res.json())
       .then(data => {
         const items: Post[] = Array.isArray(data) ? data : [];
-        setPosts(prev => reset ? items : [...prev, ...items]);
-        setHasMore(items.length === limit);
+        const newPosts = reset ? items : [...posts, ...items];
+        setPosts(newPosts);
+        // Update cache for this sort mode
+        sortCacheRef.current[sort] = newPosts;
+        setHasMore(items.length === fetchLimit);
         setLoading(false);
         setInitialLoading(false);
       })
@@ -125,20 +145,35 @@ function App() {
         setLoading(false);
         setInitialLoading(false);
       });
-  };
+  }, [sortMode, posts.length]);
 
   // Initial Fetch
   useEffect(() => {
     setInitialLoading(true);
+    sortCacheRef.current = {}; // clear cache on user change
     loadPosts(1, true);
     setPage(1);
   }, [user]);
 
+  // When sort mode changes, use cache if available, otherwise fetch
+  useEffect(() => {
+    const cached = sortCacheRef.current[sortMode];
+    if (cached && cached.length > 0) {
+      setPosts(cached);
+      setHasMore(cached.length % limit === 0); // rough heuristic
+    } else {
+      loadPosts(1, true, sortMode);
+      setPage(1);
+    }
+  }, [sortMode]);
+
   const handleLoadMore = () => {
     if (!hasMore || loading) return;
+    // Invalidate cache for both sort modes since we're extending the list
+    sortCacheRef.current = {};
     const nextPage = page + 1;
     setPage(nextPage);
-    loadPosts(nextPage);
+    loadPosts(nextPage, false, sortMode);
   };
 
   const selected = useMemo(() => posts?.find((p) => p.postKey === selectedId) ?? null, [posts, selectedId]);
@@ -375,6 +410,8 @@ function App() {
                     hasMore={hasMore}
                     loading={loading}
                     initialLoading={initialLoading}
+                    sortMode={sortMode}
+                    onSortChange={setSortMode}
                   />
                 }
               />
