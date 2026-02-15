@@ -13,6 +13,7 @@ import { PostDetailView } from "./components/PostDetailView";
 import { RightSidebar } from "./components/RightSidebar";
 import { ProfileSidebar } from "./components/ProfileSidebar";
 import { NotFound } from "./pages/NotFound";
+import { Settings } from "./pages/Settings";
 
 function App() {
   const [user, setUser] = useState<DiscordUser | null>(null);
@@ -35,7 +36,8 @@ function App() {
   const view: ViewMode = useMemo(() => {
     if (selectedId) return "post";
     if (location.pathname === "/") return "gallery";
-    return "not-found"; // Or handle as special case, but ViewMode type might need update if we strictly use it
+    if (location.pathname === "/settings") return "gallery"; // Keep gallery view style for settings roughly
+    return "not-found";
   }, [location.pathname, selectedId]);
 
   // Parse JWT for user info on mount
@@ -97,7 +99,7 @@ function App() {
   // Fetch posts
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
-  const limit = 50;
+  const limit = 10;
 
   const loadPosts = (pageNum: number, reset: boolean = false) => {
     setLoading(true);
@@ -247,6 +249,7 @@ function App() {
           {/* Left: MAIN */}
           <div className={cn("transition-all duration-500 w-full lg:w-[calc(100%-22rem)]")}>
             <Routes>
+              <Route path="/settings" element={<Settings user={user} />} />
               <Route
                 path="/"
                 element={

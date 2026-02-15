@@ -70,7 +70,7 @@ export function TopBar({
                             <div className={UI.label}>Logged in</div>
                             <div className="text-sm font-black text-zinc-900">{user.username}</div>
                         </div>
-                        <button type="button" onClick={() => setUser(null)} className={cn(UI.button, UI.btnYellow)}>
+                        <button type="button" onClick={() => { localStorage.removeItem("jwt"); setUser(null); }} className={cn(UI.button, UI.btnYellow)}>
                             Logout
                         </button>
                     </>

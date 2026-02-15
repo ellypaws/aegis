@@ -68,6 +68,12 @@ export type Post = {
     image: Image;
 };
 
+export interface Settings {
+    hero_title: string;
+    hero_subtitle: string;
+    hero_description: string;
+}
+
 export type ViewMode = "gallery" | "post" | "not-found";
 export type FileRef = {
     name: string;

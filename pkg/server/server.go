@@ -93,6 +93,10 @@ func (s *Server) routes() {
 	s.router.POST("/posts", s.handleCreatePost)
 	s.router.PATCH("/posts/:id", s.handlePatchPost)
 
+	// Settings
+	s.router.GET("/settings", s.handleGetSettings)
+	s.router.POST("/settings", s.handleUpdateSettings)
+
 	staticFS := app.FS()
 	staticFSWrapper, err := fs.Sub(staticFS, ".")
 	if err != nil {

@@ -2,7 +2,7 @@
 import { cn } from "../lib/utils";
 import { UI } from "../constants";
 import type { DiscordUser } from "../types";
-
+import { Link } from "react-router-dom";
 
 export function ProfileSidebar({ user, onLogin }: { user: DiscordUser | null; onLogin: () => void }) {
     if (!user) {
@@ -28,12 +28,10 @@ export function ProfileSidebar({ user, onLogin }: { user: DiscordUser | null; on
         );
     }
 
-
-
     return (
         <div className={cn("overflow-hidden rounded-[20px] bg-[#111214] text-gray-100 shadow-xl border border-[#1e1f22]")}>
             {/* Banner */}
-            <div 
+            <div
                 className="h-[120px] w-full bg-[#5865F2] relative bg-cover bg-center"
                 style={user.banner ? { backgroundImage: `url(${user.banner})` } : undefined}
             >
@@ -86,6 +84,12 @@ export function ProfileSidebar({ user, onLogin }: { user: DiscordUser | null; on
                         <div className="mt-4">
                             <div className="text-xs font-bold uppercase tracking-wide text-gray-300 mb-2">Member Since</div>
                             <div className="text-xs text-gray-300">Feb 14, 2026</div>
+
+                            {user.isAdmin && (
+                                <Link to="/settings" className="block mt-4 text-xs font-bold uppercase tracking-wide text-yellow-400 hover:text-yellow-300">
+                                    Admin Settings
+                                </Link>
+                            )}
                         </div>
                     </div>
                 </div>

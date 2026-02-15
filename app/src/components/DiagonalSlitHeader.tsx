@@ -3,8 +3,11 @@ import { cn } from "../lib/utils";
 import { UI } from "../constants";
 import type { Post } from "../types";
 import { Patterns } from "./Patterns";
+import { useSettings } from "../contexts/SettingsContext";
 
 export function DiagonalSlitHeader({ posts, onClickRandom }: { posts: Post[]; onClickRandom: () => void }) {
+    const { settings } = useSettings();
+
     const tiles = useMemo(() => {
         const src = posts
             .slice()
@@ -50,11 +53,11 @@ export function DiagonalSlitHeader({ posts, onClickRandom }: { posts: Post[]; on
             <div className="relative z-10 flex items-center justify-between gap-4 px-6 py-6">
                 <div className="space-y-2">
                     <div className="inline-block rounded-xl border-4 border-red-400 bg-white px-4 py-2 rotate-[-2deg] shadow-[4px_4px_0px_rgba(248,113,113,1)]">
-                        <div className="text-xl font-black uppercase tracking-tight text-red-500">Tiered Vault</div>
+                        <div className="text-xl font-black uppercase tracking-tight text-red-500">{settings.hero_title}</div>
                     </div>
                     <div className="max-w-xl rounded-2xl border-4 border-blue-400 bg-white px-4 py-3 shadow-[4px_4px_0px_rgba(96,165,250,1)]">
-                        <div className="text-xs font-black uppercase tracking-wide text-blue-300">How it works</div>
-                        <div className="text-sm font-bold text-blue-700">Upload full + thumbnail. Gate access by Discord roles. Browse locked previews.</div>
+                        <div className="text-xs font-black uppercase tracking-wide text-blue-300">{settings.hero_subtitle}</div>
+                        <div className="text-sm font-bold text-blue-700">{settings.hero_description}</div>
                     </div>
                 </div>
 

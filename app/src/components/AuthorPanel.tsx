@@ -22,8 +22,12 @@ export function AuthorPanel({ user, onCreate }: {
 }) {
     const [title, setTitle] = useState("");
     const [desc, setDesc] = useState("");
-    const [allowedRoleIds, setAllowedRoleIds] = useState<string[]>([]);
-    const [channelIds, setChannelIds] = useState<string[]>([]);
+    const [allowedRoleIds, setAllowedRoleIds] = useState<string[]>(() => {
+        try { return JSON.parse(localStorage.getItem("author_allowedRoleIds") || "[]"); } catch { return []; }
+    });
+    const [channelIds, setChannelIds] = useState<string[]>(() => {
+        try { return JSON.parse(localStorage.getItem("author_channelIds") || "[]"); } catch { return []; }
+    });
 
     const [fullFile, setFullFile] = useState<File | null>(null);
     const [thumbFile, setThumbFile] = useState<File | null>(null);
@@ -35,6 +39,15 @@ export function AuthorPanel({ user, onCreate }: {
     const thumbInputRef = useRef<HTMLInputElement>(null);
 
     const [config, setConfig] = useState<{ roles: any[], channels: any[], guild_name?: string } | null>(null);
+
+    // Persist allowedRoleIds and channelIds to localStorage
+    useEffect(() => {
+        localStorage.setItem("author_allowedRoleIds", JSON.stringify(allowedRoleIds));
+    }, [allowedRoleIds]);
+
+    useEffect(() => {
+        localStorage.setItem("author_channelIds", JSON.stringify(channelIds));
+    }, [channelIds]);
 
     useEffect(() => {
         const token = localStorage.getItem("jwt");
@@ -107,7 +120,7 @@ export function AuthorPanel({ user, onCreate }: {
                             <div className="text-base font-black uppercase tracking-tight text-red-500">Author Upload</div>
                         </div>
                         <div className="mt-3 text-sm font-bold text-zinc-600">
-                            Pick a <span className="text-zinc-900">full image</span> + optional <span className="text-zinc-900">thumbnail</span>. These file pickers are real.
+                            Pick a <span className="text-zinc-900">full image</span> + optional <span className="text-zinc-900">thumbnail</span>.
                         </div>
                     </div>
 
@@ -130,6 +143,9 @@ export function AuthorPanel({ user, onCreate }: {
                                     className={cn(
                                         UI.input,
                                         "file:mr-3 file:rounded-xl file:border-4 file:border-blue-300 file:bg-blue-200 file:px-3 file:py-1.5 file:text-xs file:font-black file:uppercase file:tracking-wide file:text-blue-900",
+                                        "file:cursor-pointer file:transition-all file:duration-200 file:ease-out",
+                                        "file:hover:scale-105 file:hover:brightness-110 file:hover:shadow-[0_4px_12px_rgba(147,197,253,0.5)]",
+                                        "file:active:scale-95",
                                         "cursor-pointer"
                                     )}
                                 />
@@ -144,6 +160,9 @@ export function AuthorPanel({ user, onCreate }: {
                                     className={cn(
                                         UI.input,
                                         "file:mr-3 file:rounded-xl file:border-4 file:border-green-300 file:bg-green-200 file:px-3 file:py-1.5 file:text-xs file:font-black file:uppercase file:tracking-wide file:text-green-900",
+                                        "file:cursor-pointer file:transition-all file:duration-200 file:ease-out",
+                                        "file:hover:scale-105 file:hover:brightness-110 file:hover:shadow-[0_4px_12px_rgba(134,239,172,0.5)]",
+                                        "file:active:scale-95",
                                         "cursor-pointer"
                                     )}
                                 />
@@ -206,13 +225,14 @@ export function AuthorPanel({ user, onCreate }: {
                                         thumbnail: thumbFile || undefined
                                     });
 
-                                    // Clear form. (previews will revoke via effects)
+                                    // Clear form (keep roles & channels). Previews will revoke via effects.
                                     setTitle("");
                                     setDesc("");
-                                    setAllowedRoleIds([]); // Clear defaults
-                                    setChannelIds([]);
                                     setFullFile(null);
                                     setThumbFile(null);
+                                    // Reset file input elements so displayed text clears
+                                    if (fullInputRef.current) fullInputRef.current.value = "";
+                                    if (thumbInputRef.current) thumbInputRef.current.value = "";
                                 }}
                                 className={cn(UI.button, UI.btnRed, !canSubmit && UI.btnDisabled)}
                             >
@@ -266,7 +286,6 @@ export function AuthorPanel({ user, onCreate }: {
                                     }) : <span className="text-zinc-400">None</span>}
                                 </div>
                             </div>
-                            <div className="mt-3 text-xs font-bold text-zinc-400">Real app: post embeds + links per channel, and optionally DM purchasers.</div>
                         </div>
                     </div>
                 </div>
