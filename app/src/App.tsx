@@ -100,7 +100,7 @@ function App() {
   // Fetch posts
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
-  const limit = 10;
+  const limit = 9;
 
   const loadPosts = (pageNum: number, reset: boolean = false) => {
     setLoading(true);
