@@ -1,7 +1,7 @@
-import React, { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { cn } from "../lib/utils";
 import { UI } from "../constants";
-import { Post } from "../types";
+import type { Post } from "../types";
 import { GalleryGridCard } from "./GalleryGridCard";
 
 function useColumns() {

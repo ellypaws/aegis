@@ -18,7 +18,18 @@ export function GalleryGridCard({
 }) {
     const roleNames = post.allowedRoles.map(r => r.name).join(", ");
     const blobId = post.image?.blobs?.[0]?.ID;
-    const url = blobId ? `http://localhost:3000/thumb/${blobId}` : null;
+    const token = typeof window !== 'undefined' ? localStorage.getItem("jwt") : null;
+    let url = null;
+
+    if (blobId) {
+        if (canAccess) {
+            url = `/images/${blobId}${token ? `?token=${token}` : ""}`;
+        } else {
+            url = `/thumb/${blobId}`;
+        }
+    }
+
+    const hasThumbnail = post.image?.hasThumbnail;
 
     if (variant === "flexible") {
         return (
@@ -37,7 +48,18 @@ export function GalleryGridCard({
             >
                 <div className="h-48 w-full border-b-4 border-zinc-100 bg-zinc-50 shrink-0 relative overflow-hidden">
                     {url ? (
-                        <img src={url} alt={post.title ?? ""} className={cn("h-full w-full object-cover")} draggable={false} loading="lazy" />
+                        <div className="flex h-full w-full items-center justify-center bg-zinc-50 overflow-hidden">
+                            <img
+                                src={url}
+                                alt={post.title ?? ""}
+                                className={cn(
+                                    "h-full w-full object-cover transition-all duration-500",
+                                    !canAccess && !hasThumbnail && "blur-md scale-105"
+                                )}
+                                draggable={false}
+                                loading="lazy"
+                            />
+                        </div>
                     ) : (
                         <div className="flex h-full w-full items-center justify-center text-sm font-bold text-zinc-400">No preview</div>
                     )}
@@ -74,9 +96,20 @@ export function GalleryGridCard({
             )}
             title={post.title ?? "Untitled"}
         >
-            <div className="aspect-square relative">
+            <div className="aspect-square relative overflow-hidden">
                 {url ? (
-                    <img src={url} alt={post.title ?? ""} className={cn("h-full w-full object-cover bg-zinc-50")} draggable={false} loading="lazy" />
+                    <div className="flex h-full w-full items-center justify-center bg-zinc-50 overflow-hidden">
+                        <img
+                            src={url}
+                            alt={post.title ?? ""}
+                            className={cn(
+                                "h-full w-full object-cover transition-all duration-500",
+                                !canAccess && !hasThumbnail && "blur-md scale-105"
+                            )}
+                            draggable={false}
+                            loading="lazy"
+                        />
+                    </div>
                 ) : (
                     <div className="flex h-full w-full items-center justify-center text-sm font-bold text-zinc-400">No preview</div>
                 )}
@@ -92,7 +125,6 @@ export function GalleryGridCard({
             </div>
             <div className="p-3">
                 <div className="truncate text-left text-sm font-black uppercase tracking-wide text-zinc-900">{post.title ?? "Untitled"}</div>
-                {/* Tags removed */}
             </div>
         </button>
     );

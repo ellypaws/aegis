@@ -141,7 +141,7 @@ func (s *Server) handleCallback(c echo.Context) error {
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Failed to generate token"})
 	}
 
-	redirectTarget := fmt.Sprintf("http://localhost:5173/?token=%s", tokenString)
+	redirectTarget := fmt.Sprintf("/?token=%s", tokenString)
 	return c.Redirect(http.StatusTemporaryRedirect, redirectTarget)
 }
 
@@ -279,18 +279,11 @@ func (s *Server) handleCreatePost(c echo.Context) error {
 		sb.WriteString(">\n")
 	}
 
-	// Components: Action Row with Link Button
-	// TODO: Replace localhost with configured public URL
-	publicURL := os.Getenv("PUBLIC_URL")
-	if publicURL == "" {
-		publicURL = "http://localhost:5173"
-	}
-
 	messageComponents := append([]discordgo.MessageComponent{
 		discordgo.Button{
 			Label: "View in Gallery",
 			Style: discordgo.LinkButton,
-			URL:   fmt.Sprintf("%s?post=%s", publicURL, postKey),
+			URL:   fmt.Sprintf("/?post=%s", postKey),
 		},
 	}, drigo.BuildShowActionsRow(postKey).Components...)
 

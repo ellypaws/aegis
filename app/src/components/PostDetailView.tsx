@@ -38,7 +38,7 @@ export function PostDetailView({
         const headers: Record<string, string> = {};
         if (token) headers["Authorization"] = `Bearer ${token}`;
 
-        fetch(`http://localhost:3000/posts/${selected.postKey}`, { headers })
+        fetch(`/posts/${selected.postKey}`, { headers })
             .then(res => {
                 if (res.ok) return res.json();
                 throw new Error("Failed to fetch post");
@@ -112,13 +112,9 @@ export function PostDetailView({
         const token = localStorage.getItem("jwt");
 
         if (access) {
-            // Authorized: Serve full image
-            // We append token for auth
-            return `http://localhost:3000/images/${blobId}${token ? `?token=${token}` : ""}`;
+            return `/images/${blobId}${token ? `?token=${token}` : ""}`;
         }
-
-        // Unauthorized: Serve thumbnail (which handles fallback to blur on backend)
-        return `http://localhost:3000/thumb/${blobId}`;
+        return `/thumb/${blobId}`;
     };
 
     const displayUrl = getDisplayUrl(activePost, canAccess);

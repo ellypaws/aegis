@@ -19,6 +19,9 @@ type Image struct {
 	PostID    uint   `gorm:"uniqueIndex" json:"postId"`
 	Thumbnail []byte `gorm:"type:blob" json:"thumbnail"`
 
+	// Computed field
+	HasThumbnail *bool `gorm:"->;type:boolean" json:"hasThumbnail"`
+
 	Blobs []ImageBlob `gorm:"constraint:OnDelete:CASCADE" json:"blobs"`
 }
 

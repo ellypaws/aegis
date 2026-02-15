@@ -8,7 +8,6 @@ import { ChannelPill, RolePill } from "./Pills";
 import { ViewerActions } from "./ViewerActions";
 
 export function RightSidebar({
-    q,
     posts,
     selectedId,
     canAccessPost,
@@ -16,7 +15,6 @@ export function RightSidebar({
     selected,
     user,
 }: {
-    q: string;
     posts: Post[];
     selectedId: string | null;
     canAccessPost: (p: Post) => boolean;
@@ -29,11 +27,6 @@ export function RightSidebar({
         <div className="sticky top-4 space-y-4">
             <GalleryPanel
                 title="Gallery"
-                subtitle={
-                    q.trim()
-                        ? `Search: “${q.trim()}”`
-                        : "Search"
-                }
                 posts={posts}
                 selectedId={selectedId}
                 canAccessByPost={canAccessPost}

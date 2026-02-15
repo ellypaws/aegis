@@ -1,4 +1,3 @@
-import React from "react";
 import { cn } from "../lib/utils";
 
 export function Chip({ label, onRemove }: { label: string; onRemove?: () => void }) {

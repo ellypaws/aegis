@@ -91,7 +91,7 @@ function App() {
       headers["Authorization"] = `Bearer ${token}`;
     }
 
-    fetch(`http://localhost:3000/posts?page=${pageNum}&limit=${limit}`, { headers })
+    fetch(`/posts?page=${pageNum}&limit=${limit}`, { headers })
       .then(res => res.json())
       .then(data => {
         setPosts(prev => reset ? data : [...prev, ...data]);
@@ -174,7 +174,7 @@ function App() {
     if (token) headers["Authorization"] = `Bearer ${token}`;
 
     try {
-      const res = await fetch("http://localhost:3000/posts", {
+      const res = await fetch("/posts", {
         method: "POST",
         headers,
         body: formData,
@@ -279,7 +279,6 @@ function App() {
                 <ProfileSidebar user={user} onLogin={() => setLoginOpen(true)} />
               ) : (
                 <RightSidebar
-                  q={q}
                   posts={filteredPosts}
                   selectedId={selectedId}
                   canAccessPost={canAccessPost}

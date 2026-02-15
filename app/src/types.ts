@@ -49,6 +49,7 @@ export type Image = {
     ID: number;
     postId: number;
     thumbnail: string; // Base64
+    hasThumbnail?: boolean;
     blobs: ImageBlob[];
 };
 

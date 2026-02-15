@@ -1,7 +1,7 @@
-import React, { useMemo } from "react";
+import { useMemo } from "react";
 import { cn } from "../lib/utils";
 import { UI } from "../constants";
-import { Post } from "../types";
+import type { Post } from "../types";
 import { Patterns } from "./Patterns";
 
 export function DiagonalSlitHeader({ posts, onClickRandom }: { posts: Post[]; onClickRandom: () => void }) {

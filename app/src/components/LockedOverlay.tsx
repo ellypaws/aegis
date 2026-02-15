@@ -1,5 +1,3 @@
-import React from "react";
-
 export function LockedOverlay({ label }: { label: string }) {
     return (
         <div className="absolute inset-0 flex items-center justify-center">

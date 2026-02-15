@@ -1,19 +1,16 @@
-import React from "react";
 import { cn } from "../lib/utils";
 import { UI } from "../constants";
-import { Post } from "../types";
+import type { Post } from "../types";
 import { PostCard } from "./PostCard";
 
 export function GalleryPanel({
     title,
-    subtitle,
     posts,
     selectedId,
     canAccessByPost,
     onSelect,
 }: {
     title: string;
-    subtitle: string;
     posts: Post[];
     selectedId: string | null;
     canAccessByPost: (p: Post) => boolean;
@@ -31,11 +28,11 @@ export function GalleryPanel({
                 <div className="flex gap-3">
                     {posts.slice(0, 18).map((p) => (
                         <PostCard
-                            key={p.id}
+                            key={p.postKey}
                             post={p}
                             canAccess={canAccessByPost(p)}
-                            selected={p.id === selectedId}
-                            onSelect={() => onSelect(p.id)}
+                            selected={p.postKey === selectedId}
+                            onSelect={() => onSelect(p.postKey)}
                             size="sm"
                         />
                     ))}

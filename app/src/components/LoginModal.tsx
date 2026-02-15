@@ -1,13 +1,10 @@
-import React, { useState, useEffect } from "react";
 import { cn } from "../lib/utils";
-// import { MOCK_USERS } from "../data/mock";
-import { DiscordUser } from "../types";
+import type { DiscordUser } from "../types";
 import { Modal } from "./Modal";
 
 export function LoginModal({
     open,
     onClose,
-    onLogin,
 }: {
     open: boolean;
     onClose: () => void;
@@ -21,7 +18,7 @@ export function LoginModal({
                 <button
                     type="button"
                     onClick={() => {
-                        window.location.href = "http://localhost:3000/login";
+                        window.location.href = "/login";
                     }}
                     className={cn(
                         "w-full rounded-3xl border-4 bg-[#5865F2] p-4 text-left text-white",

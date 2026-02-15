@@ -1,8 +1,8 @@
-import React, { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { cn } from "../lib/utils";
 import { UI } from "../constants";
-import { Post } from "../types";
-import { DownloadButton, DownloadFile } from "./DownloadButton";
+import type { Post } from "../types";
+import { DownloadButton, type DownloadFile } from "./DownloadButton";
 
 export function ViewerActions({ post, canAccess }: { post: Post; canAccess: boolean }) {
     const [toast, setToast] = useState<string | null>(null);

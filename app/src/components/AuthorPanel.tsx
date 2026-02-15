@@ -41,7 +41,7 @@ export function AuthorPanel({ user, onCreate }: {
         const headers: Record<string, string> = {};
         if (token) headers["Authorization"] = `Bearer ${token}`;
 
-        fetch("http://localhost:3000/upload", { headers })
+        fetch("/upload", { headers })
             .then(res => {
                 if (res.ok) return res.json();
                 throw new Error("Unauthorized or failed");

@@ -2,12 +2,15 @@ package server
 
 import (
 	"context"
+	"io/fs"
+	"net/http"
 
 	"github.com/charmbracelet/log"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
 
+	"drigo/app"
 	"drigo/pkg/discord"
 	"drigo/pkg/sqlite"
 
@@ -76,7 +79,7 @@ func New(cfg *Config) *Server {
 
 func (s *Server) routes() {
 	s.router.GET("/posts", s.handleGetPosts)
-	s.router.GET("/posts/:id", s.handleGetPost) // Get by post-key
+	s.router.GET("/posts/:id", s.handleGetPost)
 	s.router.GET("/roles", s.handleGetRoles)
 	s.router.GET("/upload", s.handleGetUploadConfig)
 	s.router.GET("/images/:id", s.handleGetImage)
@@ -88,6 +91,15 @@ func (s *Server) routes() {
 
 	s.router.POST("/posts", s.handleCreatePost)
 	s.router.PATCH("/posts/:id", s.handlePatchPost)
+
+	staticFS := app.FS()
+	staticFSWrapper, err := fs.Sub(staticFS, ".")
+	if err != nil {
+		log.Error("Failed to create sub filesystem", "error", err)
+		return
+	}
+
+	s.router.GET("/*", echo.WrapHandler(http.FileServer(http.FS(staticFSWrapper))))
 }
 
 func (s *Server) Start() error {

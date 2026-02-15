@@ -1,7 +1,6 @@
-import React from "react";
 import { cn } from "../lib/utils";
 import { UI } from "../constants";
-import { DiscordUser, Guild, ViewMode } from "../types";
+import type { DiscordUser, Guild, ViewMode } from "../types";
 
 export function TopBar({
     guild,

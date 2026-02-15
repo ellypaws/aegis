@@ -1,5 +1,3 @@
-import React from "react";
-
 export const Patterns = {
     Polka({ color = "rgba(255,0,0,0.10)" }: { color?: string }) {
         return (
