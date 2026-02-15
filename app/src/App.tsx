@@ -20,20 +20,34 @@ function App() {
   const [posts, setPosts] = useState<Post[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Parse user from URL query param if present
+  // Parse URL and restore state from history
   useEffect(() => {
+    const path = window.location.pathname;
     const params = new URLSearchParams(window.location.search);
     const tokenParam = params.get("token");
+    const postParam = params.get("post");
 
+    // Handle JWT token from OAuth callback
     if (tokenParam) {
       localStorage.setItem("jwt", tokenParam);
       window.history.replaceState({}, document.title, "/");
     }
 
+    // Handle post ID from URL path or query param
+    const pathMatch = path.match(/^\/post\/(.+)$/);
+    if (pathMatch) {
+      setSelectedId(pathMatch[1]);
+      setView("post");
+    } else if (postParam) {
+      setSelectedId(postParam);
+      setView("post");
+      window.history.replaceState({}, document.title, `/post/${postParam}`);
+    }
+
+    // Parse JWT for user info
     const token = localStorage.getItem("jwt");
     if (token) {
       try {
-        // Simple parse of JWT payload (2nd part)
         const base64Url = token.split('.')[1];
         const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
         const jsonPayload = decodeURIComponent(window.atob(base64).split('').map(function (c) {
@@ -41,8 +55,6 @@ function App() {
         }).join(''));
 
         const claims = JSON.parse(jsonPayload);
-        // Construct user from claims
-        // Claims: uid, sub, adm, roles
         const u: DiscordUser = {
           userId: claims.uid,
           username: claims.sub,
@@ -121,6 +133,25 @@ function App() {
   const [tagFilter, setTagFilter] = useState<string | null>(null);
   const [q, setQ] = useState("");
   const [transitionRect, setTransitionRect] = useState<DOMRect | null>(null);
+
+  // Handle browser back/forward buttons
+  useEffect(() => {
+    const handlePopState = () => {
+      const path = window.location.pathname;
+      const pathMatch = path.match(/^\/post\/(.+)$/);
+      
+      if (pathMatch) {
+        setSelectedId(pathMatch[1]);
+        setView("post");
+      } else {
+        setSelectedId(null);
+        setView("gallery");
+      }
+    };
+
+    window.addEventListener("popstate", handlePopState);
+    return () => window.removeEventListener("popstate", handlePopState);
+  }, []);
 
   // Reset selectedId when posts load if none selected
   useEffect(() => {
@@ -251,6 +282,7 @@ function App() {
                   setSelectedId(id);
                   setTransitionRect(rect || null);
                   setView("post");
+                  window.history.pushState({ postId: id }, "", `/post/${id}`);
                 }}
                 q={q}
                 setQ={setQ}
@@ -261,7 +293,11 @@ function App() {
             ) : (
               <PostDetailView
                 selected={selected}
-                onBack={() => setView("gallery")}
+                onBack={() => {
+                  setView("gallery");
+                  setSelectedId(null);
+                  window.history.pushState({}, "", "/");
+                }}
                 transitionRect={transitionRect}
                 user={user}
               />
@@ -285,6 +321,7 @@ function App() {
                   onSelect={(id) => {
                     setSelectedId(id);
                     setView("post");
+                    window.history.pushState({ postId: id }, "", `/post/${id}`);
                   }}
                   selected={selected}
                   user={user}
