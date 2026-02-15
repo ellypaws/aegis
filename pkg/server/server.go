@@ -4,6 +4,7 @@ import (
 	"context"
 	"io/fs"
 	"net/http"
+	"strings"
 
 	"github.com/charmbracelet/log"
 	"github.com/golang-jwt/jwt/v5"
@@ -99,7 +100,21 @@ func (s *Server) routes() {
 		return
 	}
 
-	s.router.GET("/*", echo.WrapHandler(http.FileServer(http.FS(staticFSWrapper))))
+	fileServer := http.FileServer(http.FS(staticFSWrapper))
+
+	s.router.GET("/*", func(c echo.Context) error {
+		path := c.Request().URL.Path
+		if strings.HasPrefix(path, "/api/") || strings.HasPrefix(path, "/posts") ||
+			strings.HasPrefix(path, "/images/") || strings.HasPrefix(path, "/thumb/") ||
+			strings.HasPrefix(path, "/blur/") || strings.HasPrefix(path, "/login") ||
+			strings.HasPrefix(path, "/auth/") || strings.HasPrefix(path, "/upload") ||
+			strings.HasPrefix(path, "/roles") {
+			return c.NoContent(http.StatusNotFound)
+		}
+
+		fileServer.ServeHTTP(c.Response(), c.Request())
+		return nil
+	})
 }
 
 func (s *Server) Start() error {

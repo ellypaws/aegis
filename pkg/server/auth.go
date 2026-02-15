@@ -15,6 +15,7 @@ import (
 type JwtCustomClaims struct {
 	UserID   string            `json:"uid"`
 	Username string            `json:"sub"`
+	Avatar   string            `json:"avt"`
 	IsAdmin  bool              `json:"adm"`
 	Roles    []*discordgo.Role `json:"roles"`
 	jwt.RegisteredClaims
@@ -32,10 +33,11 @@ func GenerateToken(user *types.User, roles []*discordgo.Role) (string, error) {
 	claims := &JwtCustomClaims{
 		UserID:   user.UserID,
 		Username: user.Username,
+		Avatar:   user.Avatar,
 		IsAdmin:  user.IsAdmin,
 		Roles:    roles,
 		RegisteredClaims: jwt.RegisteredClaims{
-			ExpiresAt: jwt.NewNumericDate(time.Now().Add(time.Hour * 72)), // 3 days
+			ExpiresAt: jwt.NewNumericDate(time.Now().Add(time.Hour * 72)),
 			IssuedAt:  jwt.NewNumericDate(time.Now()),
 		},
 	}
