@@ -27,6 +27,11 @@ function DropOverlay({ visible }: { visible: boolean }) {
     );
 }
 
+function toDatetimeLocal(date: Date) {
+    const pad = (n: number) => n.toString().padStart(2, "0");
+    return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+
 export type AuthorPanelPostInput = {
     title: string;
     description: string;
@@ -50,7 +55,7 @@ export function AuthorPanel({ user, onCreate, editingPost, onUpdate, onCancelEdi
 
     const [title, setTitle] = useState("");
     const [desc, setDesc] = useState("");
-    const [postDate, setPostDate] = useState(() => new Date().toISOString().slice(0, 10));
+    const [postDate, setPostDate] = useState(() => toDatetimeLocal(new Date()));
     const [allowedRoleIds, setAllowedRoleIds] = useState<string[]>(() => {
         try { return JSON.parse(localStorage.getItem("author_allowedRoleIds") || "[]"); } catch { return []; }
     });
@@ -79,7 +84,7 @@ export function AuthorPanel({ user, onCreate, editingPost, onUpdate, onCancelEdi
         if (editingPost) {
             setTitle(editingPost.title || "");
             setDesc(editingPost.description || "");
-            setPostDate(editingPost.timestamp ? new Date(editingPost.timestamp).toISOString().slice(0, 10) : new Date().toISOString().slice(0, 10));
+            setPostDate(editingPost.timestamp ? toDatetimeLocal(new Date(editingPost.timestamp)) : toDatetimeLocal(new Date()));
             setAllowedRoleIds(editingPost.allowedRoles?.map(r => r.id) || []);
             setChannelIds(editingPost.channelId ? editingPost.channelId.split(",").map(s => s.trim()).filter(Boolean) : []);
             setFocusX(editingPost.focusX ?? 50);
@@ -200,7 +205,7 @@ export function AuthorPanel({ user, onCreate, editingPost, onUpdate, onCancelEdi
                 channelIds,
                 image: fullFile!,
                 thumbnail: thumbFile || undefined,
-                postDate,
+                postDate: postDate ? new Date(postDate).toISOString() : new Date().toISOString(),
                 focusX,
                 focusY,
             });
@@ -212,7 +217,7 @@ export function AuthorPanel({ user, onCreate, editingPost, onUpdate, onCancelEdi
                 channelIds,
                 image: fullFile,
                 thumbnail: thumbFile || undefined,
-                postDate,
+                postDate: postDate ? new Date(postDate).toISOString() : new Date().toISOString(),
                 focusX,
                 focusY,
             });
@@ -220,7 +225,7 @@ export function AuthorPanel({ user, onCreate, editingPost, onUpdate, onCancelEdi
             // Clear form (keep roles & channels). Previews will revoke via effects.
             setTitle("");
             setDesc("");
-            setPostDate(new Date().toISOString().slice(0, 10));
+            setPostDate(toDatetimeLocal(new Date()));
             setFullFile(null);
             setThumbFile(null);
             setFocusX(50);
@@ -342,7 +347,7 @@ export function AuthorPanel({ user, onCreate, editingPost, onUpdate, onCancelEdi
 
                             <label className="space-y-1">
                                 <div className={UI.label}>Post date</div>
-                                <input type="date" value={postDate} onChange={(e) => setPostDate(e.target.value)} className={UI.input} />
+                                <input type="datetime-local" value={postDate} onChange={(e) => setPostDate(e.target.value)} className={UI.input} />
                             </label>
                         </div>
 

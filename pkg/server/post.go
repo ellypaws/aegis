@@ -188,7 +188,9 @@ func (s *Server) handleCreatePost(c echo.Context) error {
 
 	// Use author-supplied date if provided
 	if dateStr := c.FormValue("postDate"); dateStr != "" {
-		if parsed, err := time.Parse("2006-01-02", dateStr); err == nil {
+		if parsed, err := time.Parse(time.RFC3339, dateStr); err == nil {
+			now = parsed.UTC()
+		} else if parsed, err := time.Parse("2006-01-02", dateStr); err == nil {
 			now = parsed.UTC()
 		}
 	}
