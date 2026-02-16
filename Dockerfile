@@ -6,7 +6,7 @@ WORKDIR /frontend
 # Copy frontend dependency files
 COPY app/package.json ./
 # Copy lockfile if it exists, otherwise this step is skipped/handled
-# COPY app/bun.lock* ./
+COPY app/bun.lock* ./
 
 # Install dependencies  
 RUN bun install
