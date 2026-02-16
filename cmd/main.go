@@ -1,6 +1,7 @@
 package main
 
 import (
+	"cmp"
 	"context"
 	"flag"
 	"os"
@@ -112,7 +113,7 @@ func main() {
 	}
 
 	srv := server.New(&server.Config{
-		Port:         "3000",
+		Port:         cmp.Or(os.Getenv("PORT"), "3000"),
 		DiscordToken: *botToken,
 		GuildID:      *guildID,
 		DB:           sqliteDB,
