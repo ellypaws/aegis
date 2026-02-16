@@ -436,7 +436,7 @@ function App() {
           {view !== "not-found" && (
             <div
               className={cn(
-                "hidden w-80 lg:block"
+                "w-full lg:w-80"
               )}
             >
               <div className="sticky top-4">
