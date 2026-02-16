@@ -421,7 +421,10 @@ export function AuthorPanel({ user, onCreate, editingPost, onUpdate, onCancelEdi
                                 <div className={UI.label}>Full Preview</div>
                                 <div
                                     ref={fullPreviewRef}
-                                    className="mt-2 aspect-square overflow-hidden rounded-2xl border-4 border-zinc-200 bg-zinc-50 relative cursor-crosshair select-none"
+                                    className={cn(
+                                        "mt-2 aspect-square overflow-hidden rounded-2xl border-4 border-zinc-200 bg-zinc-50 relative select-none",
+                                        previewFull ? "cursor-crosshair" : "cursor-pointer"
+                                    )}
                                     onMouseDown={(e) => {
                                         const rect = fullPreviewRef.current?.getBoundingClientRect();
                                         if (!rect || !previewFull) return;
