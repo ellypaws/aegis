@@ -127,7 +127,7 @@ export function PostDetailView({
 
             <div className="flex items-center justify-between gap-3">
                 <div className="min-w-0">
-                    <div className="truncate text-lg font-black uppercase tracking-wide text-zinc-900">
+                    <div className="truncate text-lg font-black uppercase tracking-wide text-zinc-900 dark:text-zinc-100">
                         {activePost?.title ?? "Untitled"}
                     </div>
                 </div>
@@ -136,7 +136,7 @@ export function PostDetailView({
                 </button>
             </div>
 
-            <div className="mt-4 relative overflow-hidden rounded-3xl border-4 border-zinc-200 bg-white shadow-[6px_6px_0px_rgba(0,0,0,0.14)]">
+            <div className="mt-4 relative overflow-hidden rounded-3xl border-4 border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 shadow-[6px_6px_0px_rgba(0,0,0,0.14)] dark:shadow-[6px_6px_0px_rgba(0,0,0,0.5)]">
                 <div className="w-full min-h-[50vh] flex items-center justify-center">
                     {activePost ? (
                         (() => {
@@ -147,7 +147,7 @@ export function PostDetailView({
                                         src={displayUrl}
                                         alt={activePost.title ?? ""}
                                         className={cn(
-                                            "max-h-[85vh] w-auto h-auto object-contain bg-white mx-auto",
+                                            "max-h-[85vh] w-auto h-auto object-contain bg-white dark:bg-zinc-900 mx-auto",
                                             animating ? "opacity-0" : "opacity-100 transition-opacity duration-200"
                                         )}
                                         draggable={false}
@@ -158,20 +158,20 @@ export function PostDetailView({
                                 return (
                                     <div className="flex h-full w-full items-center justify-center py-20">
                                         <div className="text-center">
-                                            <div className="text-sm font-black uppercase text-zinc-500">🔒 Locked</div>
-                                            <div className="mt-1 text-sm font-bold text-zinc-400">{currentAccessLabel}</div>
+                                            <div className="text-sm font-black uppercase text-zinc-500 dark:text-zinc-400">🔒 Locked</div>
+                                            <div className="mt-1 text-sm font-bold text-zinc-400 dark:text-zinc-500">{currentAccessLabel}</div>
                                         </div>
                                     </div>
                                 );
                             }
                             return (
-                                <div className="flex h-full w-full items-center justify-center text-sm font-bold text-zinc-400 py-20">
+                                <div className="flex h-full w-full items-center justify-center text-sm font-bold text-zinc-400 dark:text-zinc-500 py-20">
                                     No image
                                 </div>
                             );
                         })()
                     ) : (
-                        <div className="flex h-full w-full items-center justify-center text-sm font-bold text-zinc-400 py-20">
+                        <div className="flex h-full w-full items-center justify-center text-sm font-bold text-zinc-400 dark:text-zinc-500 py-20">
                             No posts
                         </div>
                     )}
@@ -186,7 +186,7 @@ export function PostDetailView({
 
             {activePost ? (
                 <div className={cn("mt-4 p-4", UI.card)}>
-                    <div className="text-sm text-zinc-600 font-medium whitespace-pre-wrap">
+                    <div className="text-sm text-zinc-600 dark:text-zinc-300 font-medium whitespace-pre-wrap">
                         {activePost.description}
                     </div>
                 </div>

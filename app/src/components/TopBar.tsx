@@ -1,6 +1,7 @@
 import { cn } from "../lib/utils";
 import { UI } from "../constants";
 import type { DiscordUser, Guild, ViewMode } from "../types";
+import { ThemeToggle } from "./ThemeToggle";
 
 export function TopBar({
     guild,
@@ -28,7 +29,7 @@ export function TopBar({
             <div className="flex flex-wrap items-center gap-2">
                 <div className={cn("px-3 py-2", UI.soft)}>
                     <div className={UI.label}>Guild</div>
-                    <div className="text-sm font-black text-zinc-900">{guild.name}</div>
+                    <div className="text-sm font-black text-zinc-900 dark:text-zinc-100">{guild.name}</div>
                 </div>
 
                 <div className={cn("px-3 py-2", UI.soft)}>
@@ -60,6 +61,7 @@ export function TopBar({
             </div>
 
             <div className="flex flex-wrap items-center justify-end gap-2">
+                <ThemeToggle />
                 {!user ? (
                     <button type="button" onClick={() => setLoginOpen(true)} className={cn(UI.button, UI.btnBlue)}>
                         Login with Discord
@@ -68,7 +70,7 @@ export function TopBar({
                     <>
                         <div className={cn("px-3 py-2", UI.soft)}>
                             <div className={UI.label}>Logged in</div>
-                            <div className="text-sm font-black text-zinc-900">{user.username}</div>
+                            <div className="text-sm font-black text-zinc-900 dark:text-zinc-100">{user.username}</div>
                         </div>
                         <button type="button" onClick={() => { localStorage.removeItem("jwt"); setUser(null); }} className={cn(UI.button, UI.btnYellow)}>
                             Logout

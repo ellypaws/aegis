@@ -50,8 +50,8 @@ export function RightSidebar({
                             className={cn(
                                 "rounded-full border-4 px-3 py-1 text-[11px] font-black uppercase tracking-wide shadow-[3px_3px_0px_rgba(0,0,0,0.12)]",
                                 canAccessSelected
-                                    ? "border-green-300 bg-green-200 text-green-900"
-                                    : "border-zinc-200 bg-white text-zinc-500"
+                                    ? "border-green-300 bg-green-200 text-green-900 dark:border-green-700 dark:bg-green-900 dark:text-green-100"
+                                    : "border-zinc-200 bg-white text-zinc-500 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-400"
                             )}
                         >
                             {canAccessSelected ? "Access OK" : "Locked"}
@@ -63,13 +63,13 @@ export function RightSidebar({
                     <>
                         <div className="mt-3 space-y-3">
                             <div>
-                                <div className="mt-1 whitespace-pre-wrap text-sm font-bold text-zinc-700">
+                                <div className="mt-1 whitespace-pre-wrap text-sm font-bold text-zinc-700 dark:text-zinc-300">
                                     {selected.description?.trim() ? selected.description : "—"}
                                 </div>
                             </div>
                             <div>
                                 <div className={UI.label}>Posted</div>
-                                <div className="mt-1 text-sm font-bold text-zinc-700">
+                                <div className="mt-1 text-sm font-bold text-zinc-700 dark:text-zinc-300">
                                     {new Date(selected.timestamp).toLocaleDateString(undefined, { year: "numeric", month: "long", day: "numeric" })}
                                 </div>
                             </div>
@@ -79,7 +79,7 @@ export function RightSidebar({
                                     {selected.channelId ? (
                                         <ChannelPill name={selected.channelId} />
                                     ) : (
-                                        <span className="text-sm font-bold text-zinc-400">—</span>
+                                        <span className="text-sm font-bold text-zinc-400 dark:text-zinc-500">—</span>
                                     )}
                                 </div>
                             </div>
@@ -90,13 +90,13 @@ export function RightSidebar({
                                     {selected.allowedRoles.length ? (
                                         selected.allowedRoles.map((r) => <RolePill key={r.id} name={r.name} color={r.color} />)
                                     ) : (
-                                        <span className="text-sm font-bold text-zinc-400">—</span>
+                                        <span className="text-sm font-bold text-zinc-400 dark:text-zinc-500">—</span>
                                     )}
                                 </div>
                             </div>
                         </div>
 
-                        <div className="mt-4 border-t-4 border-zinc-200 pt-4">
+                        <div className="mt-4 border-t-4 border-zinc-200 dark:border-zinc-700 pt-4">
                             <div className={UI.sectionTitle}>Downloads</div>
                             <div className="mt-2">
                                 <ViewerActions post={selected} canAccess={canAccessSelected} />
@@ -104,7 +104,7 @@ export function RightSidebar({
                         </div>
 
                         {isAdmin && (
-                            <div className="mt-4 border-t-4 border-zinc-200">
+                            <div className="mt-4 border-t-4 border-zinc-200 dark:border-zinc-700">
                                 <div className="mt-2 flex gap-2">
                                     <button
                                         type="button"
@@ -129,7 +129,7 @@ export function RightSidebar({
                                                     onDeletePost?.(selected.postKey);
                                                     setConfirmDelete(false);
                                                 }}
-                                                className={cn(UI.button, "border-red-600 bg-red-500 text-white hover:bg-red-600 flex-1 text-xs py-2")}
+                                                className={cn(UI.button, "border-red-600 bg-red-500 text-white hover:bg-red-600 flex-1 text-xs py-2 dark:border-red-800 dark:bg-red-900")}
                                             >
                                                 Confirm
                                             </button>
@@ -147,7 +147,7 @@ export function RightSidebar({
                         )}
                     </>
                 ) : (
-                    <div className="mt-3 text-sm font-bold text-zinc-500">No post selected.</div>
+                    <div className="mt-3 text-sm font-bold text-zinc-500 dark:text-zinc-400">No post selected.</div>
                 )}
             </div>
 
@@ -157,7 +157,7 @@ export function RightSidebar({
                     {(user?.roles ?? []).length ? (
                         (user?.roles ?? []).map((r) => <RolePill key={r.id} name={r.name} color={r.color} />)
                     ) : (
-                        <span className="text-sm font-bold text-zinc-400">Not logged in</span>
+                        <span className="text-sm font-bold text-zinc-400 dark:text-zinc-500">Not logged in</span>
                     )}
                 </div>
             </div>

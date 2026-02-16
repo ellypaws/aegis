@@ -64,22 +64,22 @@ export function MainGalleryView({
             <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
                 <div>
                     <div className={UI.sectionTitle}>Main Gallery</div>
-                    <div className="mt-1 text-xs font-bold text-zinc-400">
+                    <div className="mt-1 text-xs font-bold text-zinc-400 dark:text-zinc-500">
                         Hover to expand details. Click to view.
                     </div>
                 </div>
                 <div className="flex items-end gap-3">
                     <div>
                         <div className={UI.label}>Sort</div>
-                        <div className="flex overflow-hidden rounded-xl border-4 border-zinc-200 bg-white">
+                        <div className="flex overflow-hidden rounded-xl border-4 border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800">
                             <button
                                 type="button"
                                 onClick={() => onSortChange("id")}
                                 className={cn(
                                     "px-3 py-1.5 text-xs font-black uppercase tracking-wide transition-colors duration-200",
                                     sortMode === "id"
-                                        ? "bg-zinc-900 text-white"
-                                        : "bg-white text-zinc-500 hover:bg-zinc-100"
+                                        ? "bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900"
+                                        : "bg-white text-zinc-500 hover:bg-zinc-100 dark:bg-zinc-800 dark:text-zinc-400 dark:hover:bg-zinc-700"
                                 )}
                             >
                                 Newest
@@ -90,8 +90,8 @@ export function MainGalleryView({
                                 className={cn(
                                     "px-3 py-1.5 text-xs font-black uppercase tracking-wide transition-colors duration-200",
                                     sortMode === "date"
-                                        ? "bg-zinc-900 text-white"
-                                        : "bg-white text-zinc-500 hover:bg-zinc-100"
+                                        ? "bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900"
+                                        : "bg-white text-zinc-500 hover:bg-zinc-100 dark:bg-zinc-800 dark:text-zinc-400 dark:hover:bg-zinc-700"
                                 )}
                             >
                                 By Date
@@ -155,7 +155,7 @@ export function MainGalleryView({
             </div>
 
             {posts.length === 0 && !initialLoading && !loading ? (
-                <div className="mt-6 text-center text-sm font-bold text-zinc-500">No results.</div>
+                <div className="mt-6 text-center text-sm font-bold text-zinc-500 dark:text-zinc-400">No results.</div>
             ) : null}
 
             {hasMore && !initialLoading ? (
