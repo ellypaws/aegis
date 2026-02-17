@@ -11,15 +11,17 @@
   --theme-primary-light: #fde047;
   --theme-secondary-light: #fef08a;
   --theme-page-bg-light: #fef08a;
-  --theme-card-bg-light: #ffffff;
+  --theme-card-bg-light: #ffffffdd;
   --theme-border-light: #fde047;
+  --theme-page-bg-image-light: url('/bluey_camping.webp');
 
   /* Dark */
   --theme-primary-dark: #ca8a04;
   --theme-secondary-dark: #a16207;
   --theme-page-bg-dark: #09090b;
-  --theme-card-bg-dark: #18181b;
+  --theme-card-bg-dark: #18181bdd;
   --theme-border-dark: #ca8a04;
+  --theme-page-bg-image-dark: url('/bluey_sunset.webp');
 }
 
 /* Skeleton shimmer sweep */

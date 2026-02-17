@@ -62,7 +62,7 @@ export function MainGalleryView({
     }, [posts, cols]);
 
     return (
-        <div className={cn("relative", UI.card)}>
+        <div className={cn("relative", UI.card, "backdrop-blur-sm")}>
             <div className="absolute inset-0 overflow-hidden rounded-[20px] pointer-events-none">
                 <Patterns.Polka color="rgba(253, 224, 71, 0.15)" />
                 <div className="absolute top-[-16px] left-[-16px] h-24 w-24 rounded-full border-4 border-white shadow-lg bg-yellow-400" />

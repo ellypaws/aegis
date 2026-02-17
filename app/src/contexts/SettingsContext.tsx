@@ -90,8 +90,6 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
             setSettings(updated);
         } catch (error) {
             console.error("Failed to update settings:", error);
-            // Revert on error? Or just let the user know.
-            // For now, we just log.
             await refreshSettings();
         }
     };

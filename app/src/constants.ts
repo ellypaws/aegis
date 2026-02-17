@@ -1,16 +1,11 @@
 export const UI = {
-    // Dynamic page bg
-    page: "min-h-screen font-sans transition-colors duration-300 bg-[var(--theme-page-bg-light)] dark:bg-[var(--theme-page-bg-dark)] text-zinc-900 dark:text-zinc-100",
+    // Dynamic page bg with themed background images
+    page: "min-h-screen font-sans transition-all duration-300 bg-[var(--theme-page-bg-light)] dark:bg-[var(--theme-page-bg-dark)] text-zinc-900 dark:text-zinc-100 bg-[image:var(--theme-page-bg-image-light)] dark:bg-[image:var(--theme-page-bg-image-dark)] bg-cover bg-center bg-fixed",
     max: "mx-auto max-w-7xl px-4 py-6",
 
     // Cards - using dynamic border radius/size/colors
     card:
         "relative rounded-[var(--theme-radius)] bg-[var(--theme-card-bg-light)] dark:bg-[var(--theme-card-bg-dark)] border-[length:var(--theme-border-size)] border-[var(--theme-border-light)] dark:border-[var(--theme-border-dark)] shadow-[6px_6px_0px_rgba(0,0,0,0.18)] dark:shadow-[6px_6px_0px_rgba(255,255,0,0.1)] transition-colors duration-300",
-
-    // We can keep these colored variants or also themify them. 
-    // The user said "adjusting of colors... universally". 
-    // But they might still want "Blue/Red/Green" cards for specific contexts.
-    // I'll leave valid tailwind classes for the colored ones for now, but update the base structure.
     cardBlue:
         "relative rounded-[var(--theme-radius)] bg-[var(--theme-card-bg-light)] dark:bg-[var(--theme-card-bg-dark)] border-[length:var(--theme-border-size)] border-blue-300 dark:border-blue-700 shadow-[6px_6px_0px_rgba(96,165,250,1)] dark:shadow-[6px_6px_0px_rgba(59,130,246,0.5)] transition-colors duration-300",
     cardRed:
@@ -26,16 +21,11 @@ export const UI = {
 
     button:
         "rounded-[calc(var(--theme-radius)-0.5rem)] border-[length:var(--theme-border-size)] px-4 py-2 text-sm font-black uppercase tracking-wide shadow-[4px_4px_0px_rgba(0,0,0,0.18)] dark:shadow-[4px_4px_0px_rgba(0,0,0,0.5)] transition cursor-pointer hover:scale-105 active:scale-95 active:translate-x-[1px] active:translate-y-[1px] active:shadow-[2px_2px_0px_rgba(0,0,0,0.18)]",
-
-    // Updated button variants to use theme colors as defaults?
-    // Or keep them specific colors.
+    
     btnBlue: "border-blue-400 bg-blue-200 text-blue-900 dark:border-blue-700 dark:bg-blue-900 dark:text-blue-100 hover:bg-blue-300 dark:hover:bg-blue-800",
     btnRed: "border-red-400 bg-red-200 text-red-900 dark:border-red-700 dark:bg-red-900 dark:text-red-100 hover:bg-red-300 dark:hover:bg-red-800",
     btnGreen: "border-green-400 bg-green-200 text-green-900 dark:border-green-700 dark:bg-green-900 dark:text-green-100 hover:bg-green-300 dark:hover:bg-green-800",
-
-    // btnYellow is likely the "Primary" button, so let's try to map it to primary theme colors if we can.
-    // But tailwind classes don't map easily to arbitrary vars for hover states without using arbitrary values everywhere.
-    // For now, I will leave btnYellow as hardcoded yellow but using the theme primary might be requested later.
+    
     btnYellow: "border-yellow-400 bg-yellow-200 text-yellow-900 dark:border-yellow-700 dark:bg-yellow-900 dark:text-yellow-100 hover:bg-yellow-300 dark:hover:bg-yellow-800",
 
     btnDisabled: "opacity-45 cursor-not-allowed hover:bg-inherit",

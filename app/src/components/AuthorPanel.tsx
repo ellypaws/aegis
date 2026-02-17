@@ -237,7 +237,7 @@ export function AuthorPanel({ user, onCreate, editingPost, onUpdate, onCancelEdi
     };
 
     return (
-        <div className={cn("relative", UI.card)}>
+        <div className={cn("relative", UI.card, "backdrop-blur-sm")}>
             <div className="absolute inset-0 overflow-hidden rounded-[20px] pointer-events-none">
                 <Patterns.Polka color={isEditing ? "rgba(59,130,246,0.08)" : "rgba(255,0,0,0.08)"} />
                 <div className={cn("absolute top-[-16px] left-[-16px] h-24 w-24 rounded-full border-4 border-white shadow-lg", isEditing ? "bg-blue-400" : "bg-red-400")} />
