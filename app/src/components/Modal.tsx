@@ -16,8 +16,8 @@ export function Modal({ open, title, children, onClose }: { open: boolean; title
     if (!open) return null;
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-            <div className="absolute inset-0 bg-black/30" onClick={onClose} />
-            <div className={cn("relative w-full max-w-lg overflow-hidden", UI.card)}>
+            <div className="absolute inset-0 bg-black/30 backdrop-blur-[2px]" onClick={onClose} />
+            <div className={cn("relative w-full max-w-lg overflow-hidden backdrop-blur-sm", UI.card)}>
                 <Patterns.Polka color="rgba(0,0,0,0.06)" />
                 <div className="pointer-events-none absolute top-[-16px] left-[-16px] h-24 w-24 rounded-full border-4 border-white bg-blue-400 shadow-lg" />
                 <div className="pointer-events-none absolute bottom-[-10px] right-[-10px] h-20 w-20 rotate-12 border-4 border-white bg-red-400 shadow-lg" />

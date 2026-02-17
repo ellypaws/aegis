@@ -92,7 +92,7 @@ export function PostDetailView({
     const displayUrl = getDisplayUrl(activePost, canAccess);
 
     return (
-        <div className={cn("p-4", UI.card)}>
+        <div className={cn("p-4", UI.card, "backdrop-blur-sm")}>
             {animating && fixedState && selected ? (
                 <div
                     className="fixed z-50 pointer-events-none transition-all duration-500 ease-[cubic-bezier(0.25,1,0.5,1)]"

@@ -31,7 +31,7 @@ export function RightSidebar({
     const [confirmDelete, setConfirmDelete] = useState(false);
 
     return (
-        <div className="sticky top-4 space-y-4">
+        <div className="sticky top-4 space-y-4 backdrop-blur-xs">
             <GalleryPanel
                 title="Gallery"
                 posts={posts}
