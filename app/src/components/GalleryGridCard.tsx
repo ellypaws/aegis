@@ -1,4 +1,5 @@
 import React from "react";
+import { Lock, ShieldCheck } from "lucide-react";
 import { cn } from "../lib/utils";
 import { buildSrcSet, GALLERY_CARD_SIZES } from "../lib/imageSrcSet";
 
@@ -84,7 +85,20 @@ export function GalleryGridCard({
                     )}
                     {!canAccess ? (
                         url ? (
-                            <div className="absolute inset-0 bg-white/10 dark:bg-black/30" />
+                            <>
+                                <div className="absolute inset-0 bg-white/10 dark:bg-black/30" />
+                                {!hasThumbnail && (
+                                    <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 pointer-events-none">
+                                        <Lock className="h-8 w-8 text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.5)]" />
+                                        {roleNames && (
+                                            <span className="inline-flex items-center gap-1 rounded-full bg-black/50 px-3 py-1 text-[11px] font-bold uppercase tracking-wider text-white backdrop-blur-sm">
+                                                <ShieldCheck className="h-3 w-3" />
+                                                {roleNames}
+                                            </span>
+                                        )}
+                                    </div>
+                                )}
+                            </>
                         ) : (
                             <div className="flex h-full w-full items-center justify-center absolute top-0 left-0">
                                 <span className="px-3 text-center text-[11px] font-black uppercase text-zinc-500 bg-white/80 dark:bg-black/60 dark:text-zinc-200 rounded-full py-1 backdrop-blur-sm">
@@ -133,7 +147,20 @@ export function GalleryGridCard({
                 )}
                 {!canAccess ? (
                     url ? (
-                        <div className="absolute inset-0 bg-white/10 dark:bg-black/30" />
+                        <>
+                            <div className="absolute inset-0 bg-white/10 dark:bg-black/30" />
+                            {!hasThumbnail && (
+                                <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 pointer-events-none">
+                                    <Lock className="h-8 w-8 text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.5)]" />
+                                    {roleNames && (
+                                        <span className="inline-flex items-center gap-1 rounded-full bg-black/50 px-3 py-1 text-[11px] font-bold uppercase tracking-wider text-white backdrop-blur-sm">
+                                            <ShieldCheck className="h-3 w-3" />
+                                            {roleNames}
+                                        </span>
+                                    )}
+                                </div>
+                            )}
+                        </>
                     ) : (
                         <div className="absolute inset-0 flex items-center justify-center">
                             <span className="px-3 text-center text-[11px] font-black uppercase text-zinc-500 dark:text-zinc-300">🔒 {roleNames}</span>
