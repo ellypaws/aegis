@@ -176,11 +176,18 @@ function App() {
     loadPosts(nextPage, false, sortMode);
   };
 
-  const selected = useMemo(() => posts?.find((p) => p.postKey === selectedId) ?? null, [posts, selectedId]);
+  const [selectedPost, setSelectedPost] = useState<Post | null>(null);
+  const selected = useMemo(() => {
+    if (!selectedId) return null;
+    return posts?.find((p) => p.postKey === selectedId) ?? selectedPost;
+  }, [posts, selectedId, selectedPost]);
 
   // If we have a selectedId but it's not in the loaded posts list, fetch it individually
   useEffect(() => {
     if (!selectedId || selected) return;
+    // Prevent re-fetching if we already have it in selectedPost
+    if (selectedPost && selectedPost.postKey === selectedId) return;
+
     const token = localStorage.getItem("jwt");
     const headers: Record<string, string> = {};
     if (token) headers["Authorization"] = `Bearer ${token}`;
@@ -192,15 +199,11 @@ function App() {
       })
       .then(post => {
         if (post) {
-          setPosts(prev => {
-            // Avoid duplicates
-            if (prev.some(p => p.postKey === post.postKey)) return prev;
-            return [post, ...prev];
-          });
+          setSelectedPost(post);
         }
       })
       .catch(err => console.error("Failed to fetch individual post", err));
-  }, [selectedId, selected]);
+  }, [selectedId, selected, selectedPost]);
 
   const viewerRoleIds = useMemo(() => (user?.roles ?? []).map((r) => r.id), [user]);
 
