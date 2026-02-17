@@ -2,6 +2,7 @@ import React from "react";
 import { Lock, ShieldCheck } from "lucide-react";
 import { cn } from "../lib/utils";
 import { buildSrcSet, GALLERY_CARD_SIZES } from "../lib/imageSrcSet";
+import { ImageWithSpinner } from "./ImageWithSpinner";
 
 import type { Post } from "../types";
 
@@ -66,7 +67,7 @@ export function GalleryGridCard({
                 <div className="h-full w-full bg-zinc-50 dark:bg-zinc-900 relative overflow-hidden">
                     {url ? (
                         <div className="flex h-full w-full items-center justify-center bg-zinc-50 dark:bg-zinc-900 overflow-hidden">
-                            <img
+                            <ImageWithSpinner
                                 src={url}
                                 srcSet={canAccess && blobId ? buildSrcSet(blobId, token) : undefined}
                                 sizes={canAccess && blobId ? GALLERY_CARD_SIZES : undefined}
@@ -76,8 +77,6 @@ export function GalleryGridCard({
                                     !canAccess && !hasThumbnail && "blur-md scale-105"
                                 )}
                                 style={focusStyle}
-                                draggable={false}
-                                loading="lazy"
                             />
                         </div>
                     ) : (
@@ -128,7 +127,7 @@ export function GalleryGridCard({
             <div className="aspect-square relative overflow-hidden">
                 {url ? (
                     <div className="flex h-full w-full items-center justify-center bg-zinc-50 dark:bg-zinc-900 overflow-hidden">
-                        <img
+                        <ImageWithSpinner
                             src={url}
                             srcSet={canAccess && blobId ? buildSrcSet(blobId, token) : undefined}
                             sizes={canAccess && blobId ? GALLERY_CARD_SIZES : undefined}
@@ -138,8 +137,6 @@ export function GalleryGridCard({
                                 !canAccess && !hasThumbnail && "blur-md scale-105"
                             )}
                             style={focusStyle}
-                            draggable={false}
-                            loading="lazy"
                         />
                     </div>
                 ) : (

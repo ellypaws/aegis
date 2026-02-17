@@ -10,14 +10,17 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"time"
 
+	"github.com/bwmarrin/discordgo"
 	"github.com/charmbracelet/log"
 	"github.com/disintegration/imaging"
 	"github.com/gen2brain/webp"
 	"github.com/labstack/echo/v4"
 	_ "golang.org/x/image/webp"
 
+	"drigo/pkg/exif"
 	"drigo/pkg/flight"
 	"drigo/pkg/types"
 )
@@ -85,11 +88,99 @@ func (s *Server) handleGetImage(c echo.Context) error {
 		disposition = "attachment"
 	}
 
+	// If not authenticated or not a PNG/JPEG that we want to convert to PNG with EXIF, just serve raw.
+	// Actually, only PNG supports this specific EXIF insertion via pkg/exif.
+	// So if it's not a PNG, we might skip EXIF or we have to convert it.
+	// The requirement says "Add discord user exif data ... make sure these are both cached only in memory".
+	// We'll stick to PNG for now as pkg/exif is for PNG.
+	isPNG := blob.GetContentType() == "image/png"
+	// We also support JPEG converting to PNG for EXIF if we really wanted to, but let's stick to PNG for now unless requested.
+	// If the user uploads a JPEG, we could decode and re-encode as PNG with EXIF.
+	// For now, let's assume we do this for all supported image types if we can easily convert,
+	// or just for PNG if we want to be safe.
+	// The prompt implies we should add it, so let's try to do it for all images by converting to PNG if needed,
+	// OR just for PNGs.
+	// Given "pkg/exif referencing pkg/drigo/handlers.go on how I built MemberExif", looking at handlers.go it encodes to PNG.
+	// "if imgBlob.ContentType == "image/png" { ... encoder.EncodeReader ... } else { ... }"
+	// So in handlers.go it seems it only encodes EXIF for PNGs?
+	// Wait, in handlers.go:
+	// if imgBlob.ContentType == "image/png" { ... } else { images = append(images, bytes.NewReader(imgBlob.Data)) }
+	// So it ONLY adds EXIF for PNGs. We will follow that pattern.
+
+	if user != nil && isPNG {
+		cacheKey := fmt.Sprintf("exif_%d_%s", id, user.UserID)
+		// Force filename to have .png extension since we are serving a PNG
+		downloadName := filename
+		if !strings.HasSuffix(strings.ToLower(downloadName), ".png") {
+			ext := filepath.Ext(downloadName)
+			if ext != "" {
+				downloadName = strings.TrimSuffix(downloadName, ext) + ".png"
+			} else {
+				downloadName += ".png"
+			}
+		}
+
+		if cached, err := imageExifCache.Get(cacheKey); err == nil {
+			c.Response().Header().Set("Cache-Control", "private, max-age=86400")
+			c.Response().Header().Set("Content-Type", "image/png")
+			c.Response().Header().Set("Content-Disposition", fmt.Sprintf("%s; filename=%q", disposition, downloadName))
+			c.Response().Header().Set("X-Cache", "hit-memory")
+			return c.Stream(http.StatusOK, "image/png", bytes.NewReader(cached))
+		}
+
+		// Not in cache, generate
+		member := &discordgo.Member{
+			User: &discordgo.User{
+				ID:            user.UserID,
+				Username:      user.Username,
+				Discriminator: "0",
+				GlobalName:    user.Username,
+			},
+			Nick: user.Username, // Best fallback since we don't have per-guild nickname in claims
+		}
+
+		memberExif := types.ToMemberExif(member)
+		// Fix up because ToMemberExif uses member.User which we constructed, but also member.DisplayName()
+		// which checks Nick then User.GlobalName then User.Username.
+		// We set Nick to user.DisplayName() which is checking GlobalName/Username.
+		// So this should be fine.
+
+		encoder := exif.NewEncoder(memberExif)
+		var buf bytes.Buffer
+		if err := encoder.EncodeReader(&buf, bytes.NewReader(blob.Data)); err != nil {
+			log.Error("Failed to encode EXIF", "error", err)
+			return c.Stream(http.StatusOK, contentType, bytes.NewReader(blob.Data))
+		}
+
+		exifData := buf.Bytes()
+		imageExifCache.Set(cacheKey, exifData)
+
+		c.Response().Header().Set("Cache-Control", "private, max-age=86400")
+		c.Response().Header().Set("Content-Type", "image/png")
+		c.Response().Header().Set("Content-Disposition", fmt.Sprintf("%s; filename=%q", disposition, downloadName))
+		c.Response().Header().Set("X-Cache", "generated-memory")
+		return c.Stream(http.StatusOK, "image/png", bytes.NewReader(exifData))
+	}
+
 	c.Response().Header().Set("Cache-Control", "private, max-age=31536000") // Private cache since it's auth-dependent
 	c.Response().Header().Set("Content-Type", contentType)
 	c.Response().Header().Set("Content-Disposition", fmt.Sprintf("%s; filename=%q", disposition, filename))
 
 	return c.Stream(http.StatusOK, contentType, bytes.NewReader(blob.Data))
+}
+
+// imageExifCache stores image data with EXIF metadata for specific users.
+// Key: "exif_{blobID}_{userID}"
+// Value: PNG bytes with EXIF
+var imageExifCache = flight.NewCache(func(key string) ([]byte, error) {
+	// We cannot generate the value here because we need the blob and user data,
+	// which are not available in this scope.
+	// This cache is populated manually via Set().
+	return nil, fmt.Errorf("item not found")
+})
+
+func init() {
+	imageExifCache.Expiry(24 * time.Hour)
 }
 
 // blurFlightCache coalesces concurrent blur requests and reads from disk cache.

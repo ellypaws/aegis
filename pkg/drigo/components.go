@@ -96,13 +96,6 @@ func buildDMOnlyRow(postKey string) discordgo.ActionsRow {
 	}
 }
 
-type MemberExif struct {
-	ID          string `json:"id"`
-	Username    string `json:"username"`
-	DisplayName string `json:"display_name,omitempty"`
-	Nitro       bool   `json:"nitro,omitempty"`
-}
-
 func (q *Bot) showImage(s *discordgo.Session, i *discordgo.InteractionCreate) error {
 	if err := handlers.EphemeralThink(s, i); err != nil {
 		return nil
@@ -200,7 +193,7 @@ func (q *Bot) prepareEmbed(member *discordgo.Member, p *types.Post, webhookEdit 
 		return nil
 	}
 
-	memberExif := q.memberExif(member)
+	memberExif := types.ToMemberExif(member)
 	encoder := exif.NewEncoder(memberExif)
 	var images []io.Reader
 	for _, blob := range p.Image.Blobs {
@@ -225,21 +218,6 @@ func (q *Bot) prepareEmbed(member *discordgo.Member, p *types.Post, webhookEdit 
 		return fmt.Errorf("error creating image embed: %w", err)
 	}
 	return nil
-}
-
-func (q *Bot) memberExif(member *discordgo.Member) *MemberExif {
-	var memberExif *MemberExif
-	if member != nil && member.User != nil {
-		memberExif = &MemberExif{
-			ID:          member.User.ID,
-			Username:    member.User.Username,
-			DisplayName: member.DisplayName(),
-			Nitro:       member.User.PremiumType != 0,
-		}
-	} else {
-		log.Warn("no member info available for exif")
-	}
-	return memberExif
 }
 
 func (q *Bot) isAllowedToView(s *discordgo.Session, i *discordgo.InteractionCreate, p *types.Post) (*discordgo.Member, bool) {
@@ -566,7 +544,7 @@ func (q *Bot) fallbackToLink(i *discordgo.InteractionCreate, p *types.Post) (url
 }
 
 func (q *Bot) encodeExif(data []byte, member *discordgo.Member) ([]byte, error) {
-	memberExif := q.memberExif(member)
+	memberExif := types.ToMemberExif(member)
 	if memberExif == nil {
 		log.Warn("no member info available for exif")
 		return nil, errors.New("no member info available for exif")

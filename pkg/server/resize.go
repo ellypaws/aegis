@@ -20,7 +20,11 @@ import (
 	"golang.org/x/image/draw"
 	_ "golang.org/x/image/webp"
 
+	"drigo/pkg/exif"
 	"drigo/pkg/flight"
+	"drigo/pkg/types"
+
+	"github.com/bwmarrin/discordgo"
 )
 
 var allowedWidths = map[int]bool{
@@ -187,10 +191,68 @@ func (s *Server) handleGetResizedImage(c echo.Context) error {
 		_, _ = resizeFlightCache.Force(cacheKey)
 	}()
 
+	// Check if we need to inject EXIF for authenticated users
+	// We only support PNG EXIF injection via pkg/exif.
+	// We don't support GIF EXIF injection yet.
+	if user != nil && contentType != "image/gif" {
+		exifCacheKey := fmt.Sprintf("resize_exif_%s_%s", cacheKey, user.UserID)
+		if cached, err := resizeExifCache.Get(exifCacheKey); err == nil {
+			c.Response().Header().Set("Cache-Control", "private, max-age=86400")
+			c.Response().Header().Set("Content-Type", "image/png")
+			c.Response().Header().Set("Content-Disposition", "inline; filename=\"resized.png\"")
+			c.Response().Header().Set("X-Cache", "hit-memory")
+			return c.Stream(http.StatusOK, "image/png", bytes.NewReader(cached))
+		}
+
+		// Not in cache, convert WebP result to PNG with EXIF
+		// Decode the WebP result we just got/generated
+		img, _, err := image.Decode(bytes.NewReader(result))
+		if err != nil {
+			log.Error("Failed to decode resized image for EXIF injection", "error", err)
+			// Fallback to sending original result
+		} else {
+			member := &discordgo.Member{
+				User: &discordgo.User{
+					ID:            user.UserID,
+					Username:      user.Username,
+					Discriminator: "0",
+					GlobalName:    user.Username,
+				},
+				Nick: user.Username,
+			}
+			memberExif := types.ToMemberExif(member)
+			encoder := exif.NewEncoder(memberExif)
+			var buf bytes.Buffer
+			if err := encoder.Encode(&buf, img); err != nil {
+				log.Error("Failed to encode resized PNG with EXIF", "error", err)
+			} else {
+				exifData := buf.Bytes()
+				resizeExifCache.Set(exifCacheKey, exifData)
+
+				c.Response().Header().Set("Cache-Control", "private, max-age=86400")
+				c.Response().Header().Set("Content-Type", "image/png")
+				c.Response().Header().Set("Content-Disposition", "inline; filename=\"resized.png\"")
+				c.Response().Header().Set("X-Cache", "generated-memory")
+				return c.Stream(http.StatusOK, "image/png", bytes.NewReader(exifData))
+			}
+		}
+	}
+
 	c.Response().Header().Set("Cache-Control", "private, max-age=86400")
 	c.Response().Header().Set("Content-Type", contentType)
 	c.Response().Header().Set("X-Cache", "generated")
 	return c.Stream(http.StatusOK, contentType, bytes.NewReader(result))
+}
+
+// resizeExifCache stores resized image data with EXIF metadata for specific users.
+// Key: "resize_exif_{resizeCacheKey}_{userID}"
+// Value: PNG bytes with EXIF
+var resizeExifCache = flight.NewCache(func(key string) ([]byte, error) {
+	return nil, fmt.Errorf("item not found")
+})
+
+func init() {
+	resizeExifCache.Expiry(24 * time.Hour)
 }
 
 // resizeStatic decodes a static image, resizes it to the given width using

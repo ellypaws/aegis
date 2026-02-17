@@ -3,6 +3,7 @@ import { cn } from "../lib/utils";
 import { UI } from "../constants";
 import type { Post, DiscordUser } from "../types";
 import { LockedOverlay } from "./LockedOverlay";
+import { ImageWithSpinner } from "./ImageWithSpinner";
 export function PostDetailView({
     selected,
     onBack,
@@ -142,7 +143,7 @@ export function PostDetailView({
                         (() => {
                             if (displayUrl) {
                                 return (
-                                    <img
+                                    <ImageWithSpinner
                                         ref={imgRef}
                                         src={displayUrl}
                                         alt={activePost.title ?? ""}

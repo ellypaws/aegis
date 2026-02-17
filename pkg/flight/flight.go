@@ -136,6 +136,11 @@ func (p *Cache[K, V]) Work(k K) (V, error) {
 	return p.work(k)
 }
 
+// Set manually sets a value in the cache, useful for when the value is generated outside the work function.
+func (p *Cache[K, V]) Set(k K, val V) {
+	p.storeEntry(k, val)
+}
+
 // --- internals ---
 
 func (p *Cache[K, V]) ttlDur() time.Duration {

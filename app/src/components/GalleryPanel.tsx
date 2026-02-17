@@ -15,6 +15,8 @@ function resolveImageUrl(post: Post, canAccess: boolean): string | null {
     return `/thumb/${blobId}`;
 }
 
+import { ImageWithSpinner } from "./ImageWithSpinner";
+
 export function GalleryPanel({
     title,
     posts,
@@ -64,8 +66,8 @@ export function GalleryPanel({
                             >
                                 <div className="h-full w-full bg-zinc-50 dark:bg-zinc-900 relative overflow-hidden">
                                     {url ? (
-                                        <div className="flex h-full w-full items-center justify-center bg-zinc-50 dark:bg-zinc-900 overflow-hidden">
-                                            <img
+                                        <div className="flex h-full w-full items-center justify-center bg-zinc-50 dark:bg-zinc-900 overflow-hidden relative">
+                                            <ImageWithSpinner
                                                 src={url}
                                                 srcSet={canAccess && blobId ? buildSrcSet(blobId, token) : undefined}
                                                 sizes={canAccess && blobId ? PANEL_THUMB_SIZES : undefined}
@@ -75,8 +77,6 @@ export function GalleryPanel({
                                                     !canAccess && !hasThumbnail && "blur-md scale-105"
                                                 )}
                                                 style={focusStyle}
-                                                draggable={false}
-                                                loading="lazy"
                                             />
                                         </div>
                                     ) : (
@@ -126,3 +126,4 @@ export function GalleryPanel({
         </div>
     );
 }
+
