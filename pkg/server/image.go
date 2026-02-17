@@ -7,7 +7,10 @@ import (
 	_ "image/jpeg"
 	_ "image/png"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strconv"
+	"time"
 
 	"github.com/charmbracelet/log"
 	"github.com/disintegration/imaging"
@@ -15,6 +18,7 @@ import (
 	"github.com/labstack/echo/v4"
 	_ "golang.org/x/image/webp"
 
+	"drigo/pkg/flight"
 	"drigo/pkg/types"
 )
 
@@ -88,6 +92,23 @@ func (s *Server) handleGetImage(c echo.Context) error {
 	return c.Stream(http.StatusOK, contentType, bytes.NewReader(blob.Data))
 }
 
+// blurFlightCache coalesces concurrent blur requests and reads from disk cache.
+var blurFlightCache = flight.NewCache(func(key string) ([]byte, error) {
+	diskPath := filepath.Join(cacheDir, key+".webp")
+	info, err := os.Stat(diskPath)
+	if err != nil {
+		return nil, fmt.Errorf("not in disk cache")
+	}
+	if time.Since(info.ModTime()) >= cacheTTL {
+		return nil, fmt.Errorf("stale")
+	}
+	return os.ReadFile(diskPath)
+})
+
+func init() {
+	blurFlightCache.Expiry(cacheTTL)
+}
+
 func (s *Server) handleGetBlur(c echo.Context) error {
 	idStr := c.Param("id")
 	id, err := strconv.ParseUint(idStr, 10, 32)
@@ -95,13 +116,21 @@ func (s *Server) handleGetBlur(c echo.Context) error {
 		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Invalid image ID"})
 	}
 
-	// Blur is public
+	cacheKey := fmt.Sprintf("blur_%d", id)
+
+	data, err := blurFlightCache.Get(cacheKey)
+	if err == nil && len(data) > 0 {
+		c.Response().Header().Set("Cache-Control", "public, max-age=31536000")
+		c.Response().Header().Set("Content-Type", "image/webp")
+		c.Response().Header().Set("X-Cache", "hit")
+		return c.Stream(http.StatusOK, "image/webp", bytes.NewReader(data))
+	}
+
 	blob, err := s.db.GetImageBlob(uint(id))
 	if err != nil {
 		return c.JSON(http.StatusNotFound, map[string]string{"error": "Image not found"})
 	}
 
-	// Generate blur
 	img, err := imaging.Decode(bytes.NewReader(blob.Data))
 	if err != nil {
 		log.Error("Failed to decode image for blur", "id", id, "error", err)
@@ -117,9 +146,23 @@ func (s *Server) handleGetBlur(c echo.Context) error {
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Failed to encode blur"})
 	}
 
+	result := buf.Bytes()
+
+	diskPath := filepath.Join(cacheDir, cacheKey+".webp")
+	if mkErr := os.MkdirAll(cacheDir, 0o755); mkErr != nil {
+		log.Warn("Failed to create cache directory", "error", mkErr)
+	} else if wErr := os.WriteFile(diskPath, result, 0o644); wErr != nil {
+		log.Warn("Failed to write blur disk cache", "path", diskPath, "error", wErr)
+	}
+
+	go func() {
+		_, _ = blurFlightCache.Force(cacheKey)
+	}()
+
 	c.Response().Header().Set("Cache-Control", "public, max-age=31536000")
 	c.Response().Header().Set("Content-Type", "image/webp")
-	return c.Stream(http.StatusOK, "image/webp", &buf)
+	c.Response().Header().Set("X-Cache", "generated")
+	return c.Stream(http.StatusOK, "image/webp", bytes.NewReader(result))
 }
 
 func canAccessPost(claims *JwtCustomClaims, p *types.Post) bool {
