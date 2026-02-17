@@ -101,6 +101,10 @@ func (s *Server) routes() {
 	s.router.GET("/settings", s.handleGetSettings)
 	s.router.POST("/settings", s.handleUpdateSettings)
 
+	// Users
+	s.router.GET("/users", s.handleGetUsers)
+	s.router.POST("/users/:id/admin", s.handleToggleAdmin)
+
 	staticFS := app.FS()
 	staticFSWrapper, err := fs.Sub(staticFS, ".")
 	if err != nil {

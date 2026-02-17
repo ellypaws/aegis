@@ -12,6 +12,7 @@ const defaultSettings: Settings = {
     hero_title: "Tiered Vault",
     hero_subtitle: "How it works",
     hero_description: "Upload full + thumbnail. Gate access by Discord roles. Browse locked previews.",
+    public_access: false,
     theme: {
         border_radius: "1.5rem",
         border_size: "4px",

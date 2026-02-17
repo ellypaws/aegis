@@ -12,6 +12,7 @@ type Settings struct {
 	HeroTitle       *string `json:"hero_title"`       // e.g. "Tiered Vault"
 	HeroSubtitle    *string `json:"hero_subtitle"`    // e.g. "How it works"
 	HeroDescription *string `json:"hero_description"` // e.g. "Upload full + thumbnail..."
+	PublicAccess    bool    `json:"public_access"`    // If true, all posts are public
 
 	Theme Theme `json:"theme" gorm:"embedded;embeddedPrefix:theme_"`
 }

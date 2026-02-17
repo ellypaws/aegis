@@ -77,6 +77,7 @@ func (s *sqliteDB) UpdateSettings(newSettings types.Settings) (*types.Settings, 
 	settings.HeroTitle = newSettings.HeroTitle
 	settings.HeroSubtitle = newSettings.HeroSubtitle
 	settings.HeroDescription = newSettings.HeroDescription
+	settings.PublicAccess = newSettings.PublicAccess
 	settings.Theme = newSettings.Theme
 
 	if err := s.db.Save(&settings).Error; err != nil {

@@ -99,6 +99,7 @@ export interface Settings {
     hero_title: string;
     hero_subtitle: string;
     hero_description: string;
+    public_access?: boolean;
     theme?: Theme;
 }
 

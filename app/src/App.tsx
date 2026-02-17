@@ -14,7 +14,8 @@ import { RightSidebar } from "./components/RightSidebar";
 import { ProfileSidebar } from "./components/ProfileSidebar";
 import { NotFound } from "./pages/NotFound";
 import { SettingsModal } from "./pages/Settings";
-import { SettingsProvider } from "./contexts/SettingsContext";
+import { useSettings } from "./contexts/SettingsContext";
+import { MembershipModal } from "./components/MembershipModal.tsx";
 
 function App() {
   const [user, setUser] = useState<DiscordUser | null>(null);
@@ -30,6 +31,7 @@ function App() {
   const [tagFilter, setTagFilter] = useState<string | null>(null);
   const [q, setQ] = useState("");
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [membershipOpen, setMembershipOpen] = useState(false);
   const [editingPost, setEditingPost] = useState<Post | null>(null);
 
   // Sort mode — lifted up so it controls the backend fetch
@@ -218,14 +220,17 @@ function App() {
     });
   }, [posts, tagFilter, q]);
 
+  const { settings } = useSettings();
+
   const canAccessPost = useMemo(() => {
     return (p: Post) => {
       if (user?.isAdmin) return true; // Admin/Author access
+      if (settings.public_access) return true; // Global Public Access
       const postRoleIds = p.allowedRoles.map(r => r.id);
       if (postRoleIds.length === 0) return true;
       return intersect(postRoleIds, viewerRoleIds);
     };
-  }, [user, viewerRoleIds]);
+  }, [user, viewerRoleIds, settings.public_access]);
 
   async function handleCreate(postInput: {
     title: string;
@@ -343,8 +348,9 @@ function App() {
   }
 
   return (
-    <SettingsProvider>
+    <>
       <SettingsModal open={settingsOpen} onClose={() => setSettingsOpen(false)} />
+      {membershipOpen && <MembershipModal onClose={() => setMembershipOpen(false)} />}
       <div className={UI.page}>
         <LoginModal
           open={loginOpen}
@@ -379,6 +385,7 @@ function App() {
               setUser={setUser}
               selectedId={selectedId}
               setSettingsOpen={setSettingsOpen}
+              setMembershipOpen={setMembershipOpen}
             />
           )}
 
@@ -467,8 +474,8 @@ function App() {
             )}
           </div>
         </div>
-      </div >
-    </SettingsProvider>
+      </div>
+    </>
   );
 }
 

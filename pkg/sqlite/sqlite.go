@@ -37,6 +37,7 @@ type DB interface {
 	GetPostByBlobID(blobID uint) (*types.Post, error)
 	GetSettings() (*types.Settings, error)
 	UpdateSettings(settings types.Settings) (*types.Settings, error)
+	GetAllUsers() ([]*types.User, error)
 }
 
 // sqliteDB is a gorm-backed implementation of DB.

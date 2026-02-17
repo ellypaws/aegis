@@ -68,3 +68,11 @@ func (s *sqliteDB) CountUsers() (int64, error) {
 func (s *sqliteDB) SetAdmin(id string, isAdmin bool) error {
 	return s.db.Model(&types.User{}).Where("user_id = ?", id).Update("is_admin", isAdmin).Error
 }
+
+func (s *sqliteDB) GetAllUsers() ([]*types.User, error) {
+	var users []*types.User
+	if err := s.db.Find(&users).Error; err != nil {
+		return nil, err
+	}
+	return users, nil
+}

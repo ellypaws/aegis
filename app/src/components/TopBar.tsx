@@ -14,6 +14,7 @@ export function TopBar({
     setUser,
     selectedId,
     setSettingsOpen,
+    setMembershipOpen,
 }: {
     guild: Guild;
     view: ViewMode;
@@ -25,6 +26,7 @@ export function TopBar({
     setUser: (u: DiscordUser | null) => void;
     selectedId: string | null;
     setSettingsOpen: (b: boolean) => void;
+    setMembershipOpen: (b: boolean) => void;
 }) {
     return (
         <div className="mt-6 flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
@@ -65,9 +67,14 @@ export function TopBar({
             <div className="flex flex-wrap items-center justify-end gap-2">
                 <ThemeToggle />
                 {user?.isAdmin && (
-                    <button type="button" onClick={() => setSettingsOpen(true)} className={cn(UI.button, UI.btnYellow)}>
-                        Settings
-                    </button>
+                    <>
+                        <button type="button" onClick={() => setMembershipOpen(true)} className={cn(UI.button, UI.btnYellow)}>
+                            Members
+                        </button>
+                        <button type="button" onClick={() => setSettingsOpen(true)} className={cn(UI.button, UI.btnYellow)}>
+                            Settings
+                        </button>
+                    </>
                 )}
                 {!user ? (
                     <button type="button" onClick={() => setLoginOpen(true)} className={cn(UI.button, UI.btnBlue)}>
