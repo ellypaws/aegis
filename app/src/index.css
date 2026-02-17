@@ -2,6 +2,26 @@
 
 @variant dark (&:where(.dark, .dark *));
 
+:root {
+  /* Default Theme Variables - Fallback */
+  --theme-radius: 1.5rem;
+  --theme-border-size: 4px;
+
+  /* Light */
+  --theme-primary-light: #fde047;
+  --theme-secondary-light: #fef08a;
+  --theme-page-bg-light: #fef08a;
+  --theme-card-bg-light: #ffffff;
+  --theme-border-light: #fde047;
+
+  /* Dark */
+  --theme-primary-dark: #ca8a04;
+  --theme-secondary-dark: #a16207;
+  --theme-page-bg-dark: #09090b;
+  --theme-card-bg-dark: #18181b;
+  --theme-border-dark: #ca8a04;
+}
+
 /* Skeleton shimmer sweep */
 @keyframes shimmer {
   0% {

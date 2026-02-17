@@ -35,8 +35,8 @@ type DB interface {
 	GetImageBlob(id uint) (*types.ImageBlob, error)
 	GetImageThumbnailByBlobID(blobID uint) ([]byte, error)
 	GetPostByBlobID(blobID uint) (*types.Post, error)
-	GetSettings() (*Settings, error)
-	UpdateSettings(settings Settings) (*Settings, error)
+	GetSettings() (*types.Settings, error)
+	UpdateSettings(settings types.Settings) (*types.Settings, error)
 }
 
 // sqliteDB is a gorm-backed implementation of DB.
@@ -69,7 +69,7 @@ func Connect(path string, ctx context.Context) (DB, error) {
 		&types.Post{},
 		&types.Image{},
 		&types.ImageBlob{},
-		&Settings{},
+		&types.Settings{},
 	)
 	if err != nil {
 		return nil, err

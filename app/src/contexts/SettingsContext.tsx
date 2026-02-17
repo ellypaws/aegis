@@ -12,6 +12,24 @@ const defaultSettings: Settings = {
     hero_title: "Tiered Vault",
     hero_subtitle: "How it works",
     hero_description: "Upload full + thumbnail. Gate access by Discord roles. Browse locked previews.",
+    theme: {
+        border_radius: "1.5rem",
+        border_size: "4px",
+        primary_color_light: "#fde047",
+        secondary_color_light: "#fef08a",
+        page_bg_light: "#fef08a",
+        page_bg_trans_light: 1.0,
+        card_bg_light: "#ffffff",
+        card_bg_trans_light: 1.0,
+        border_color_light: "#fde047",
+        primary_color_dark: "#ca8a04",
+        secondary_color_dark: "#a16207",
+        page_bg_dark: "#09090b",
+        page_bg_trans_dark: 1.0,
+        card_bg_dark: "#18181b",
+        card_bg_trans_dark: 1.0,
+        border_color_dark: "#ca8a04",
+    }
 };
 
 const SettingsContext = createContext<SettingsContextType>({

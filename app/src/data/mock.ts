@@ -2,7 +2,7 @@ import type { Guild, DiscordUser } from "../types";
 
 export const MOCK_GUILD: Guild = {
     id: "guild_1",
-    name: "Aegis",
+    name: "Jungle Pack",
     roles: [
         { id: "r_free", name: "Free", color: 0x52525b, managed: false, mentionable: false, hoist: false, position: 0, permissions: 0, icon: "", unicodeEmoji: "", flags: 0 },
         { id: "r_tier1", name: "Tier 1", color: 0x0284c7, managed: false, mentionable: false, hoist: false, position: 1, permissions: 0, icon: "", unicodeEmoji: "", flags: 0 },

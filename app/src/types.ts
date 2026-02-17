@@ -72,10 +72,34 @@ export type Post = {
     image: Image;
 };
 
+export interface Theme {
+    border_radius: string;
+    border_size: string;
+
+    // Light
+    primary_color_light: string;
+    secondary_color_light: string;
+    page_bg_light: string;
+    page_bg_trans_light: number;
+    card_bg_light: string;
+    card_bg_trans_light: number;
+    border_color_light: string;
+
+    // Dark
+    primary_color_dark: string;
+    secondary_color_dark: string;
+    page_bg_dark: string;
+    page_bg_trans_dark: number;
+    card_bg_dark: string;
+    card_bg_trans_dark: number;
+    border_color_dark: string;
+}
+
 export interface Settings {
     hero_title: string;
     hero_subtitle: string;
     hero_description: string;
+    theme?: Theme;
 }
 
 export type ViewMode = "gallery" | "post" | "not-found";

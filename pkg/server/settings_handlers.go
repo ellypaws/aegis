@@ -5,7 +5,7 @@ import (
 
 	"github.com/labstack/echo/v4"
 
-	"drigo/pkg/sqlite"
+	"drigo/pkg/types"
 )
 
 func (s *Server) handleGetSettings(c echo.Context) error {
@@ -22,7 +22,7 @@ func (s *Server) handleUpdateSettings(c echo.Context) error {
 		return c.JSON(http.StatusForbidden, map[string]string{"error": "Unauthorized"})
 	}
 
-	var newSettings sqlite.Settings
+	var newSettings types.Settings
 	if err := c.Bind(&newSettings); err != nil {
 		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Invalid input"})
 	}

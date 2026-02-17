@@ -13,7 +13,8 @@ import { PostDetailView } from "./components/PostDetailView";
 import { RightSidebar } from "./components/RightSidebar";
 import { ProfileSidebar } from "./components/ProfileSidebar";
 import { NotFound } from "./pages/NotFound";
-import { Settings } from "./pages/Settings";
+import { SettingsModal } from "./pages/Settings";
+import { SettingsProvider } from "./contexts/SettingsContext";
 
 function App() {
   const [user, setUser] = useState<DiscordUser | null>(null);
@@ -29,6 +30,7 @@ function App() {
   const [tagFilter, setTagFilter] = useState<string | null>(null);
   const [q, setQ] = useState("");
   const [transitionRect, setTransitionRect] = useState<DOMRect | null>(null);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const [editingPost, setEditingPost] = useState<Post | null>(null);
 
   // Sort mode — lifted up so it controls the backend fetch
@@ -52,7 +54,6 @@ function App() {
   const view: ViewMode = useMemo(() => {
     if (selectedId) return "post";
     if (location.pathname === "/") return "gallery";
-    if (location.pathname === "/settings") return "gallery"; // Keep gallery view style for settings roughly
     return "not-found";
   }, [location.pathname, selectedId]);
 
@@ -343,131 +344,134 @@ function App() {
   }
 
   return (
-    <div className={UI.page}>
-      <LoginModal
-        open={loginOpen}
-        onClose={() => setLoginOpen(false)}
-        onLogin={(u) => {
-          setUser(u);
-        }}
-      />
-
-      <div className={UI.max}>
-        <DiagonalSlitHeader
-          posts={posts}
-          onClickRandom={() => {
-            const pick = filteredPosts[Math.floor(Math.random() * Math.max(1, filteredPosts.length))];
-            if (pick) {
-              navigate(`/post/${pick.postKey}`);
-            }
+    <SettingsProvider>
+      <SettingsModal open={settingsOpen} onClose={() => setSettingsOpen(false)} />
+      <div className={UI.page}>
+        <LoginModal
+          open={loginOpen}
+          onClose={() => setLoginOpen(false)}
+          onLogin={(u) => {
+            setUser(u);
           }}
         />
 
-        {view !== "not-found" && (
-          <TopBar
-            guild={guild}
-            view={view === "post" ? "post" : "gallery"} // Fallback to gallery styles if 404
-            setView={(v) => {
-              if (v === "gallery") navigate("/");
+        <div className={UI.max}>
+          <DiagonalSlitHeader
+            posts={posts}
+            onClickRandom={() => {
+              const pick = filteredPosts[Math.floor(Math.random() * Math.max(1, filteredPosts.length))];
+              if (pick) {
+                navigate(`/post/${pick.postKey}`);
+              }
             }}
-            tagFilter={tagFilter}
-            setTagFilter={setTagFilter}
-            user={user}
-            setLoginOpen={setLoginOpen}
-            setUser={setUser}
-            selectedId={selectedId}
           />
-        )}
 
-        {user?.isAdmin ? (
-          <div className="mt-6">
-            <AuthorPanel
-              user={user}
-              onCreate={handleCreate}
-              editingPost={editingPost}
-              onUpdate={handleUpdate}
-              onCancelEdit={() => setEditingPost(null)}
-            />
-          </div>
-        ) : null}
-
-        <div className="mt-6 flex flex-col gap-4 lg:flex-row relative items-start">
-          {/* Left: MAIN */}
-          <div className={cn("transition-all duration-500 w-full lg:w-[calc(100%-22rem)]")}>
-            <Routes>
-              <Route path="/settings" element={<Settings user={user} />} />
-              <Route
-                path="/"
-                element={
-                  <MainGalleryView
-                    posts={filteredPosts}
-                    selectedId={selectedId}
-                    canAccessPost={canAccessPost}
-                    onOpenPost={(id, rect) => {
-                      setTransitionRect(rect || null);
-                      navigate(`/post/${id}`);
-                    }}
-                    q={q}
-                    setQ={setQ}
-                    onLoadMore={handleLoadMore}
-                    hasMore={hasMore}
-                    loading={loading}
-                    initialLoading={initialLoading}
-                    sortMode={sortMode}
-                    onSortChange={setSortMode}
-                  />
-                }
-              />
-              <Route
-                path="/post/:postId"
-                element={
-                  <PostDetailView
-                    selected={selected}
-                    onBack={() => {
-                      navigate("/");
-                    }}
-                    transitionRect={transitionRect}
-                    user={user}
-                  />
-                }
-              />
-              <Route path="*" element={<NotFound />} />
-            </Routes>
-          </div>
-
-          {/* Right: SIDEBAR - Do not show on 404? or default? */}
           {view !== "not-found" && (
-            <div
-              className={cn(
-                "w-full lg:w-80"
-              )}
-            >
-              <div className="sticky top-4">
-                {view === "gallery" ? (
-                  <ProfileSidebar user={user} onLogin={() => setLoginOpen(true)} />
-                ) : (
-                  <RightSidebar
-                    posts={filteredPosts}
-                    selectedId={selectedId}
-                    canAccessPost={canAccessPost}
-                    onSelect={(id) => {
-                      navigate(`/post/${id}`);
-                    }}
-                    selected={selected}
-                    user={user}
-                    onEditPost={(post) => {
-                      setEditingPost(post);
-                      window.scrollTo({ top: 0, behavior: "smooth" });
-                    }}
-                    onDeletePost={handleDelete}
-                  />
-                )}
-              </div>
-            </div>
+            <TopBar
+              guild={guild}
+              view={view === "post" ? "post" : "gallery"} // Fallback to gallery styles if 404
+              setView={(v) => {
+                if (v === "gallery") navigate("/");
+              }}
+              tagFilter={tagFilter}
+              setTagFilter={setTagFilter}
+              user={user}
+              setLoginOpen={setLoginOpen}
+              setUser={setUser}
+              selectedId={selectedId}
+              setSettingsOpen={setSettingsOpen}
+            />
           )}
+
+          {user?.isAdmin ? (
+            <div className="mt-6">
+              <AuthorPanel
+                user={user}
+                onCreate={handleCreate}
+                editingPost={editingPost}
+                onUpdate={handleUpdate}
+                onCancelEdit={() => setEditingPost(null)}
+              />
+            </div>
+          ) : null}
+
+          <div className="mt-6 flex flex-col gap-4 lg:flex-row relative items-start">
+            {/* Left: MAIN */}
+            <div className={cn("transition-all duration-500 w-full lg:w-[calc(100%-22rem)]")}>
+              <Routes>
+                <Route
+                  path="/"
+                  element={
+                    <MainGalleryView
+                      posts={filteredPosts}
+                      selectedId={selectedId}
+                      canAccessPost={canAccessPost}
+                      onOpenPost={(id, rect) => {
+                        setTransitionRect(rect || null);
+                        navigate(`/post/${id}`);
+                      }}
+                      q={q}
+                      setQ={setQ}
+                      onLoadMore={handleLoadMore}
+                      hasMore={hasMore}
+                      loading={loading}
+                      initialLoading={initialLoading}
+                      sortMode={sortMode}
+                      onSortChange={setSortMode}
+                    />
+                  }
+                />
+                <Route
+                  path="/post/:postId"
+                  element={
+                    <PostDetailView
+                      selected={selected}
+                      onBack={() => {
+                        navigate("/");
+                      }}
+                      transitionRect={transitionRect}
+                      user={user}
+                    />
+                  }
+                />
+                <Route path="*" element={<NotFound />} />
+              </Routes>
+            </div>
+
+            {/* Right: SIDEBAR - Do not show on 404? or default? */}
+            {view !== "not-found" && (
+              <div
+                className={cn(
+                  "w-full lg:w-80"
+                )}
+              >
+                <div className="sticky top-4">
+                  {view === "gallery" ? (
+                    <ProfileSidebar user={user} onLogin={() => setLoginOpen(true)} />
+                  ) : (
+                    <RightSidebar
+                      posts={filteredPosts}
+                      selectedId={selectedId}
+                      canAccessPost={canAccessPost}
+                      onSelect={(id) => {
+                        navigate(`/post/${id}`);
+                      }}
+                      selected={selected}
+                      user={user}
+                      onEditPost={(post) => {
+                        setEditingPost(post);
+                        window.scrollTo({ top: 0, behavior: "smooth" });
+                      }}
+                      onDeletePost={handleDelete}
+                    />
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
         </div>
-      </div>
-    </div>
+      </div >
+    </SettingsProvider>
   );
 }
 
