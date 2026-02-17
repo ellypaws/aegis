@@ -63,11 +63,14 @@ export function base64ToBlob(base64: string, type = "application/octet-stream") 
 }
 
 export function getExtension(mime?: string): string {
-    if (!mime) return "bin";
-    const parts = mime.split("/");
-    if (parts.length < 2) return "bin";
-    const ext = parts[1].toLowerCase().split("+")[0]; // handle image/svg+xml -> svg
+    if (!mime) return "png";
+    const parts = mime.toLowerCase().split("/");
+    if (parts.length < 2) return "png";
+    const ext = parts[1].split(";")[0].split("+")[0];
     if (ext === "jpeg") return "jpg";
     if (ext === "plain") return "txt";
-    return ext;
+    if (ext === "octet-stream") return "png"; // Fallback for generic stream
+    if (ext === "x-icon") return "ico";
+    if (ext === "svg+xml") return "svg";
+    return ext || "png";
 }

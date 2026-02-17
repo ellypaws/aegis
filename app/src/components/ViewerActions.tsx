@@ -21,7 +21,7 @@ export function ViewerActions({ post, canAccess }: { post: Post; canAccess: bool
     const file: DownloadFile = {
         url: downloadUrl,
         name: blob?.filename || `${post.title || "image"}.${ext}`,
-        mime: blob?.contentType || "image/png",
+        mime: (blob?.contentType === "application/octet-stream" ? "image/png" : blob?.contentType) || "image/png",
         size: blob?.size || 0,
     };
 

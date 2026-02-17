@@ -28,7 +28,7 @@ export function DownloadButton({ file, enabled }: { file: DownloadFile; enabled:
             <div className="min-w-0">
                 <div className={cn("truncate text-sm font-black uppercase tracking-wide", enabled ? "text-blue-700" : "text-zinc-400")}>{file.name}</div>
                 <div className={cn("mt-0.5 text-xs font-bold", enabled ? "text-blue-300" : "text-zinc-300")}>
-                    {file.size ? formatBytes(file.size) : "Unknown size"} · {file.mime || "bin"}
+                    {file.size ? formatBytes(file.size) : "Unknown size"} · {file.mime?.replace("application/octet-stream", "image/png") || "image/png"}
                 </div>
             </div>
             <div className={cn("shrink-0 text-lg", enabled ? "text-blue-600" : "text-zinc-300")}>⬇</div>
