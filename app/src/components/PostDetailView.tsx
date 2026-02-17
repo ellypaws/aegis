@@ -142,6 +142,24 @@ export function PostDetailView({
                     {activePost ? (
                         (() => {
                             if (displayUrl) {
+                                const contentType = activePost.image?.blobs?.[0]?.contentType || "";
+                                const filename = activePost.image?.blobs?.[0]?.filename || "";
+                                const isVideo = contentType.startsWith("video/") || /\.(mp4|webm|mov|mkv|avi)$/i.test(filename);
+
+                                if (isVideo && canAccess) {
+                                    return (
+                                        <video
+                                            src={displayUrl}
+                                            controls
+                                            autoPlay
+                                            className={cn(
+                                                "max-h-[85vh] w-auto h-auto object-contain bg-black mx-auto rounded-lg shadow-lg",
+                                                animating ? "opacity-0" : "opacity-100 transition-opacity duration-200"
+                                            )}
+                                        />
+                                    );
+                                }
+
                                 return (
                                     <ImageWithSpinner
                                         ref={imgRef}

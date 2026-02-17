@@ -11,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/charmbracelet/log"
@@ -23,6 +24,7 @@ import (
 	"drigo/pkg/exif"
 	"drigo/pkg/flight"
 	"drigo/pkg/types"
+	"drigo/pkg/video"
 
 	"github.com/bwmarrin/discordgo"
 )
@@ -130,6 +132,29 @@ func (s *Server) handleGetResizedImage(c echo.Context) error {
 	blob, err := s.db.GetImageBlob(uint(id))
 	if err != nil {
 		return c.JSON(http.StatusNotFound, map[string]string{"error": "Image not found"})
+	}
+
+	// If video, swap blob data with thumbnail or generated preview
+	if strings.HasPrefix(blob.GetContentType(), "video/") {
+		thumb, err := s.db.GetImageThumbnailByBlobID(uint(id))
+		if err == nil && len(thumb) > 0 {
+			// Use existing thumbnail
+			blob.Data = thumb
+			blob.ContentType = http.DetectContentType(thumb) // Likely image/jpeg or image/webp
+		} else {
+			// Generate a static preview (reuse video package, maybe get a single frame)
+			// For resize/static purposes, a single frame is better than a GIF if we want to resize to specific dimensions efficiently?
+			// But our resize supports GIFs.
+			// Let's use the 2fps clean preview for authorized, or just a standard preview.
+			// Since this is just 'resize' (often for UI thumbs), let's use the clean preview.
+			preview, err := video.GeneratePreviewGIF(blob.Data, 1, false)
+			if err != nil {
+				log.Error("Failed to generate video preview for resize", "id", id, "error", err)
+				return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Failed to process video"})
+			}
+			blob.Data = preview
+			blob.ContentType = "image/gif"
+		}
 	}
 
 	if isPercentage {

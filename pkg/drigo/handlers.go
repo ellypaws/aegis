@@ -101,7 +101,7 @@ func (q *Bot) handleModalSubmit(s *discordgo.Session, i *discordgo.InteractionCr
 		Image: &types.Image{
 			Thumbnail: append([]byte(nil), pending.Thumbnail...),
 			Blobs: []types.ImageBlob{
-				{Index: 0, Data: append([]byte(nil), pending.Full...), Filename: pending.Filename},
+				{Index: 0, Data: append([]byte(nil), pending.Full...), Filename: pending.Filename, ContentType: pending.ContentType},
 			},
 		},
 	}
@@ -406,7 +406,7 @@ func (q *Bot) handlePostImage(s *discordgo.Session, i *discordgo.InteractionCrea
 		IsPremium:   true,
 		Image: &types.Image{
 			Thumbnail: append([]byte(nil), thumbBytes...),
-			Blobs:     []types.ImageBlob{{Index: 0, Data: append([]byte(nil), fullBytes...), Filename: filename}},
+			Blobs:     []types.ImageBlob{{Index: 0, Data: append([]byte(nil), fullBytes...), Filename: filename, ContentType: attachments[optionMap[fullImage].Value.(string)].Attachment.ContentType}},
 		},
 	}
 	if user != nil {

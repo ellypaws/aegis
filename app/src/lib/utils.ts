@@ -72,5 +72,13 @@ export function getExtension(mime?: string): string {
     if (ext === "octet-stream") return "png"; // Fallback for generic stream
     if (ext === "x-icon") return "ico";
     if (ext === "svg+xml") return "svg";
+
+    // Video types
+    if (ext === "mp4") return "mp4";
+    if (ext === "webm") return "webm";
+    if (ext === "quicktime") return "mov";
+    if (ext === "x-matroska") return "mkv";
+    if (ext === "x-msvideo") return "avi";
+
     return ext || "png";
 }

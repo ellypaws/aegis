@@ -46,6 +46,32 @@ export function GalleryGridCard({
         }
     }
 
+    const contentType = post.image?.blobs?.[0]?.contentType || "";
+    const isVideo = contentType.startsWith("video/");
+
+    // If it's a video, the 'full' URL for the grid card should actually be the thumbnail/preview
+    // (which is a GIF from the backend). 
+    // BUT MainGalleryView might want the full video URL for the lightbox.
+    // In GridCard, we just show the preview.
+    // If we have a dedicated thumbnail, use it.
+    // If not, use /thumb endpoint which now handles video generation.
+    // So actually, for the grid card PREVIEW, we always want the thumbnail endpoint 
+    // IF we are not showing the full image directly.
+    // Wait, the existing logic:
+    // Authorized -> /images/ID (Full)
+    // Unauthorized -> /thumb/ID (Thumb/Blur)
+
+    // For video:
+    // Authorized -> We typically don't want to load a 500MB video in the grid. We want the preview GIF.
+    // So for Video items, even if authorized, we should prefer the /thumb endpoint for the GRID view,
+    // UNLESS we want to autoplay the video? The requirement says "video in the frontend as we already serve them...".
+    // Usually grid = preview.
+
+    if (isVideo) {
+        // Force use the thumbnail/preview endpoint for the grid card image
+        url = `/thumb/${blobId}`;
+    }
+
     const hasThumbnail = post.image?.hasThumbnail;
     const focusStyle = { objectPosition: `${post.focusX ?? 50}% ${post.focusY ?? 50}%` };
 

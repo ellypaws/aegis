@@ -65,6 +65,7 @@ type PendingPost struct {
 	Thumbnail   []byte
 	Full        []byte
 	Filename    string
+	ContentType string
 	Title       string
 	Description string
 }

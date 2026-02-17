@@ -8,6 +8,12 @@ function resolveImageUrl(post: Post, canAccess: boolean): string | null {
     const blobId = post.image?.blobs?.[0]?.ID;
     if (!blobId) return null;
 
+    const contentType = post.image?.blobs?.[0]?.contentType || "";
+    if (contentType.startsWith("video/")) {
+        // Always use thumbnail/preview for video in panel
+        return `/thumb/${blobId}`;
+    }
+
     if (canAccess) {
         const token = typeof window !== "undefined" ? localStorage.getItem("jwt") : null;
         return `/images/${blobId}${token ? `?token=${token}` : ""}`;
