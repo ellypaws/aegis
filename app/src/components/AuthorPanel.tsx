@@ -32,6 +32,18 @@ function toDatetimeLocal(date: Date) {
     return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
 }
 
+function isImageFile(file: File): boolean {
+    return file.type.startsWith("image/");
+}
+
+function isVideoFile(file: File): boolean {
+    return file.type.startsWith("video/");
+}
+
+function isMediaFile(file: File): boolean {
+    return isImageFile(file) || isVideoFile(file);
+}
+
 export type AuthorPanelPostInput = {
     title: string;
     description: string;
@@ -68,6 +80,8 @@ export function AuthorPanel({ user, onCreate, editingPost, onUpdate, onCancelEdi
 
     const [previewFull, setPreviewFull] = useState<string | null>(null);
     const [previewThumb, setPreviewThumb] = useState<string | null>(null);
+    const [isFullVideo, setIsFullVideo] = useState(false);
+    const [isThumbVideo, setIsThumbVideo] = useState(false);
 
     const fullInputRef = useRef<HTMLInputElement>(null);
     const thumbInputRef = useRef<HTMLInputElement>(null);
@@ -92,26 +106,36 @@ export function AuthorPanel({ user, onCreate, editingPost, onUpdate, onCancelEdi
             setFullFile(null);
             setThumbFile(null);
 
-            // Show the current image as preview
-            const blobId = editingPost.image?.blobs?.[0]?.ID;
-            if (blobId) {
+            // Show the current media as preview
+            const blob = editingPost.image?.blobs?.[0];
+            if (blob) {
                 const token = localStorage.getItem("jwt");
-                setPreviewFull(`/images/${blobId}${token ? `?token=${token}` : ""}`);
+                setPreviewFull(`/images/${blob.ID}${token ? `?token=${token}` : ""}`);
+                // Check if the blob is a video based on contentType or filename
+                const isVideo = blob.contentType?.startsWith("video/") || 
+                               blob.filename?.match(/\.(mp4|webm|mov|avi|mkv)$/i);
+                setIsFullVideo(!!isVideo);
             } else {
                 setPreviewFull(null);
+                setIsFullVideo(false);
             }
             setPreviewThumb(null);
+            setIsThumbVideo(false);
         }
     }, [editingPost]);
 
-    const handleDrop = useCallback((e: React.DragEvent, setter: (f: File | null) => void) => {
+    const handleDrop = useCallback((e: React.DragEvent, setter: (f: File | null) => void, acceptVideo: boolean = false) => {
         e.preventDefault();
         e.stopPropagation();
         setDragFull(false);
         setDragThumb(false);
         const file = e.dataTransfer.files?.[0];
-        if (file && file.type.startsWith("image/")) {
-            setter(file);
+        if (file) {
+            if (acceptVideo && isMediaFile(file)) {
+                setter(file);
+            } else if (!acceptVideo && isImageFile(file)) {
+                setter(file);
+            }
         }
     }, []);
 
@@ -154,11 +178,15 @@ export function AuthorPanel({ user, onCreate, editingPost, onUpdate, onCancelEdi
         if (previewFull && previewFull.startsWith("blob:")) safeRevoke(previewFull);
         if (!fullFile) {
             // In edit mode, keep remote preview; in create mode clear
-            if (!isEditing) setPreviewFull(null);
+            if (!isEditing) {
+                setPreviewFull(null);
+                setIsFullVideo(false);
+            }
             return;
         }
         const u = URL.createObjectURL(fullFile);
         setPreviewFull(u);
+        setIsFullVideo(isVideoFile(fullFile));
         return () => safeRevoke(u);
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [fullFile]);
@@ -167,10 +195,12 @@ export function AuthorPanel({ user, onCreate, editingPost, onUpdate, onCancelEdi
         if (previewThumb) safeRevoke(previewThumb);
         if (!thumbFile) {
             setPreviewThumb(null);
+            setIsThumbVideo(false);
             return;
         }
         const u = URL.createObjectURL(thumbFile);
         setPreviewThumb(u);
+        setIsThumbVideo(isVideoFile(thumbFile));
         return () => safeRevoke(u);
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [thumbFile]);
@@ -261,11 +291,11 @@ export function AuthorPanel({ user, onCreate, editingPost, onUpdate, onCancelEdi
                             </div>
                         </div>
                         <div className="mt-3 text-sm font-bold text-zinc-600">
-                            {isEditing ? (
-                                <>Editing <span className="text-zinc-900">{editingPost?.title || "Untitled"}</span>. Update fields and save.</>
-                            ) : (
-                                <>Pick a <span className="text-zinc-900">full image</span> + optional <span className="text-zinc-900">thumbnail</span>.</>
-                            )}
+                                {isEditing ? (
+                                    <>Editing <span className="text-zinc-900">{editingPost?.title || "Untitled"}</span>. Update fields and save.</>
+                                ) : (
+                                    <>Pick a <span className="text-zinc-900">full media</span> + optional <span className="text-zinc-900">thumbnail</span>.</>
+                                )}
                         </div>
                     </div>
 
@@ -294,14 +324,14 @@ export function AuthorPanel({ user, onCreate, editingPost, onUpdate, onCancelEdi
                                 onDragEnter={(e) => { e.preventDefault(); setDragFull(true); }}
                                 onDragOver={handleDragOver}
                                 onDragLeave={(e) => { e.preventDefault(); setDragFull(false); }}
-                                onDrop={(e) => handleDrop(e, setFullFile)}
+                                onDrop={(e) => handleDrop(e, setFullFile, true)}
                             >
                                 <DropOverlay visible={dragFull} />
-                                <div className={UI.label}>{isEditing ? "Replace image (optional)" : "Full image *"}</div>
+                                <div className={UI.label}>{isEditing ? "Replace media (optional)" : "Full media *"}</div>
                                 <input
                                     ref={fullInputRef}
                                     type="file"
-                                    accept="image/*"
+                                    accept="image/*,video/*"
                                     onChange={(e) => setFullFile(e.target.files?.[0] ?? null)}
                                     className={cn(
                                         UI.input,
@@ -318,7 +348,7 @@ export function AuthorPanel({ user, onCreate, editingPost, onUpdate, onCancelEdi
                                 onDragEnter={(e) => { e.preventDefault(); setDragThumb(true); }}
                                 onDragOver={handleDragOver}
                                 onDragLeave={(e) => { e.preventDefault(); setDragThumb(false); }}
-                                onDrop={(e) => handleDrop(e, setThumbFile)}
+                                onDrop={(e) => handleDrop(e, setThumbFile, false)}
                             >
                                 <DropOverlay visible={dragThumb} />
                                 <div className={UI.label}>Thumbnail (optional)</div>
@@ -385,8 +415,8 @@ export function AuthorPanel({ user, onCreate, editingPost, onUpdate, onCancelEdi
                         <div className="flex items-center justify-between gap-3 pt-2">
                             <div className="text-xs font-bold text-zinc-500">
                                 {isEditing
-                                    ? "Roles required. New image optional (keeps current)."
-                                    : "Full image required. Roles required. Thumbnail optional."}
+                                    ? "Roles required. New media optional (keeps current)."
+                                    : "Full media required. Roles required. Thumbnail optional."}
                             </div>
                             <button
                                 type="button"
@@ -409,13 +439,13 @@ export function AuthorPanel({ user, onCreate, editingPost, onUpdate, onCancelEdi
                                 className={cn(
                                     "p-3 transition relative",
                                     UI.cardBlue,
-                                    previewFull ? "cursor-crosshair" : "cursor-pointer hover:opacity-90 active:scale-95"
+                                    previewFull && !isFullVideo ? "cursor-crosshair" : "cursor-pointer hover:opacity-90 active:scale-95"
                                 )}
                                 onClick={() => { if (!previewFull) fullInputRef.current?.click(); }}
                                 onDragEnter={(e) => { if (!previewFull) { e.preventDefault(); setDragFull(true); } }}
                                 onDragOver={(e) => { if (!previewFull) handleDragOver(e); }}
                                 onDragLeave={(e) => { if (!previewFull) { e.preventDefault(); setDragFull(false); } }}
-                                onDrop={(e) => { if (!previewFull) handleDrop(e, setFullFile); }}
+                                onDrop={(e) => { if (!previewFull) handleDrop(e, setFullFile, true); }}
                             >
                                 {!previewFull && <DropOverlay visible={dragFull} />}
                                 <div className={UI.label}>Full Preview</div>
@@ -423,11 +453,11 @@ export function AuthorPanel({ user, onCreate, editingPost, onUpdate, onCancelEdi
                                     ref={fullPreviewRef}
                                     className={cn(
                                         "mt-2 aspect-square overflow-hidden rounded-2xl border-4 border-zinc-200 bg-zinc-50 relative select-none",
-                                        previewFull ? "cursor-crosshair" : "cursor-pointer"
+                                        previewFull && !isFullVideo ? "cursor-crosshair" : "cursor-pointer"
                                     )}
                                     onMouseDown={(e) => {
                                         const rect = fullPreviewRef.current?.getBoundingClientRect();
-                                        if (!rect || !previewFull) return;
+                                        if (!rect || !previewFull || isFullVideo) return;
                                         e.stopPropagation();
                                         const x = Math.min(100, Math.max(0, ((e.clientX - rect.left) / rect.width) * 100));
                                         const y = Math.min(100, Math.max(0, ((e.clientY - rect.top) / rect.height) * 100));
@@ -451,24 +481,36 @@ export function AuthorPanel({ user, onCreate, editingPost, onUpdate, onCancelEdi
                                 >
                                     {previewFull ? (
                                         <>
-                                            <img src={previewFull} className="h-full w-full object-cover" style={{ objectPosition: `${focusX}% ${focusY}%` }} alt="" draggable={false} />
-                                            {/* Focus point marker */}
-                                            <div
-                                                className="absolute pointer-events-none"
-                                                style={{ left: `${focusX}%`, top: `${focusY}%`, transform: "translate(-50%, -50%)" }}
-                                            >
-                                                <div className="h-8 w-8 rounded-full bg-zinc-500/30 border-2 border-zinc-400/50 shadow-lg flex items-center justify-center backdrop-blur-[1px]">
-                                                    <div className="h-2.5 w-2.5 rounded-full bg-zinc-700/80 shadow" />
-                                                </div>
-                                            </div>
+                                            {isFullVideo ? (
+                                                <video 
+                                                    src={previewFull} 
+                                                    className="h-full w-full object-cover" 
+                                                    controls
+                                                    controlsList="nodownload"
+                                                    playsInline
+                                                />
+                                            ) : (
+                                                <>
+                                                    <img src={previewFull} className="h-full w-full object-cover" style={{ objectPosition: `${focusX}% ${focusY}%` }} alt="" draggable={false} />
+                                                    {/* Focus point marker */}
+                                                    <div
+                                                        className="absolute pointer-events-none"
+                                                        style={{ left: `${focusX}%`, top: `${focusY}%`, transform: "translate(-50%, -50%)" }}
+                                                    >
+                                                        <div className="h-8 w-8 rounded-full bg-zinc-500/30 border-2 border-zinc-400/50 shadow-lg flex items-center justify-center backdrop-blur-[1px]">
+                                                            <div className="h-2.5 w-2.5 rounded-full bg-zinc-700/80 shadow" />
+                                                        </div>
+                                                    </div>
+                                                </>
+                                            )}
                                         </>
                                     ) : (
                                         <div className="flex h-full w-full items-center justify-center text-xs font-bold text-zinc-400">
-                                            {isEditing ? "Current image" : "Pick a file"}
+                                            {isEditing ? "Current media" : "Pick a file"}
                                         </div>
                                     )}
                                 </div>
-                                {previewFull && (
+                                {previewFull && !isFullVideo && (
                                     <div className="mt-1 text-[10px] font-bold text-zinc-400 tabular-nums">
                                         Focus: {focusX.toFixed(1)}% × {focusY.toFixed(1)}%
                                     </div>
@@ -481,12 +523,26 @@ export function AuthorPanel({ user, onCreate, editingPost, onUpdate, onCancelEdi
                                 onDragEnter={(e) => { e.preventDefault(); setDragThumb(true); }}
                                 onDragOver={handleDragOver}
                                 onDragLeave={(e) => { e.preventDefault(); setDragThumb(false); }}
-                                onDrop={(e) => handleDrop(e, setThumbFile)}
+                                onDrop={(e) => handleDrop(e, setThumbFile, false)}
                             >
                                 <DropOverlay visible={dragThumb} />
                                 <div className={UI.label}>Thumbnail Preview</div>
                                 <div className="mt-2 aspect-square overflow-hidden rounded-2xl border-4 border-zinc-200 bg-zinc-50">
-                                    {previewThumb ? <img src={previewThumb} className="h-full w-full object-cover" alt="" /> : <div className="flex h-full w-full items-center justify-center text-xs font-bold text-zinc-400">Optional</div>}
+                                    {previewThumb ? (
+                                        isThumbVideo ? (
+                                            <video 
+                                                src={previewThumb} 
+                                                className="h-full w-full object-cover" 
+                                                controls
+                                                controlsList="nodownload"
+                                                playsInline
+                                            />
+                                        ) : (
+                                            <img src={previewThumb} className="h-full w-full object-cover" alt="" />
+                                        )
+                                    ) : (
+                                        <div className="flex h-full w-full items-center justify-center text-xs font-bold text-zinc-400">Optional</div>
+                                    )}
                                 </div>
                                 {thumbFile ? <div className="mt-2 text-xs font-bold text-zinc-500">{thumbFile.name}</div> : null}
                             </div>
