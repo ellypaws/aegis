@@ -33,6 +33,9 @@ func (s *Server) handleGetImage(c echo.Context) error {
 	}
 
 	user := GetUserFromContext(c)
+	if user == nil {
+		return c.JSON(http.StatusUnauthorized, map[string]string{"error": "Unauthorized"})
+	}
 
 	// Check permissions using the new helper
 	post, err := s.db.GetPostByBlobID(uint(id))
@@ -42,23 +45,20 @@ func (s *Server) handleGetImage(c echo.Context) error {
 	}
 
 	if !canAccessPost(user, post) {
-		log.Warn("Access denied for image", "blobID", id, "postID", post.ID, "user", user != nil)
-		if user != nil {
-			roleIDs := make([]string, 0, len(user.Roles))
-			for _, r := range user.Roles {
-				if r != nil {
-					roleIDs = append(roleIDs, r.ID)
-				}
+		log.Warn("Access denied for image", "blobID", id, "postID", post.ID, "user", user)
+		roleIDs := make([]string, 0, len(user.Roles))
+		for _, r := range user.Roles {
+			if r != nil {
+				roleIDs = append(roleIDs, r.ID)
 			}
-
-			allowedIDs := make([]string, 0, len(post.AllowedRoles))
-			for _, ar := range post.AllowedRoles {
-				allowedIDs = append(allowedIDs, ar.RoleID)
-			}
-			log.Info("Debug Access", "userRoles", roleIDs, "allowedRoles", allowedIDs, "isAdmin", user.IsAdmin)
-		} else {
-			log.Info("Debug Access", "user", "nil", "postAllowedCount", len(post.AllowedRoles))
 		}
+
+		allowedIDs := make([]string, 0, len(post.AllowedRoles))
+		for _, ar := range post.AllowedRoles {
+			allowedIDs = append(allowedIDs, ar.RoleID)
+		}
+		log.Info("Debug Access", "userRoles", roleIDs, "allowedRoles", allowedIDs, "isAdmin", user.IsAdmin)
+
 		return c.JSON(http.StatusForbidden, map[string]string{"error": "Access denied"})
 	}
 
@@ -88,94 +88,98 @@ func (s *Server) handleGetImage(c echo.Context) error {
 		disposition = "attachment"
 	}
 
-	// If not authenticated or not a PNG/JPEG that we want to convert to PNG with EXIF, just serve raw.
-	// Actually, only PNG supports this specific EXIF insertion via pkg/exif.
-	// So if it's not a PNG, we might skip EXIF or we have to convert it.
-	// The requirement says "Add discord user exif data ... make sure these are both cached only in memory".
-	// We'll stick to PNG for now as pkg/exif is for PNG.
-	isPNG := blob.GetContentType() == "image/png"
-	// We also support JPEG converting to PNG for EXIF if we really wanted to, but let's stick to PNG for now unless requested.
-	// If the user uploads a JPEG, we could decode and re-encode as PNG with EXIF.
-	// For now, let's assume we do this for all supported image types if we can easily convert,
-	// or just for PNG if we want to be safe.
-	// The prompt implies we should add it, so let's try to do it for all images by converting to PNG if needed,
-	// OR just for PNGs.
-	// Given "pkg/exif referencing pkg/drigo/handlers.go on how I built MemberExif", looking at handlers.go it encodes to PNG.
-	// "if imgBlob.ContentType == "image/png" { ... encoder.EncodeReader ... } else { ... }"
-	// So in handlers.go it seems it only encodes EXIF for PNGs?
-	// Wait, in handlers.go:
-	// if imgBlob.ContentType == "image/png" { ... } else { images = append(images, bytes.NewReader(imgBlob.Data)) }
-	// So it ONLY adds EXIF for PNGs. We will follow that pattern.
-
-	if user != nil && isPNG {
-		cacheKey := fmt.Sprintf("exif_%d_%s", id, user.UserID)
-		// Force filename to have .png extension since we are serving a PNG
-		downloadName := filename
-		if !strings.HasSuffix(strings.ToLower(downloadName), ".png") {
-			ext := filepath.Ext(downloadName)
-			if ext != "" {
-				downloadName = strings.TrimSuffix(downloadName, ext) + ".png"
-			} else {
-				downloadName += ".png"
-			}
+	// Force filename to have .png extension since we are serving a PNG for EXIF
+	downloadName := filename
+	if !strings.HasSuffix(strings.ToLower(downloadName), ".png") {
+		ext := filepath.Ext(downloadName)
+		if ext != "" {
+			downloadName = strings.TrimSuffix(downloadName, ext) + ".png"
+		} else {
+			downloadName += ".png"
 		}
+	}
 
-		if cached, err := imageExifCache.Get(cacheKey); err == nil {
-			c.Response().Header().Set("Cache-Control", "private, max-age=86400")
-			c.Response().Header().Set("Content-Type", "image/png")
-			c.Response().Header().Set("Content-Disposition", fmt.Sprintf("%s; filename=%q", disposition, downloadName))
-			c.Response().Header().Set("X-Cache", "hit-memory")
-			return c.Stream(http.StatusOK, "image/png", bytes.NewReader(cached))
-		}
-
-		// Not in cache, generate
-		member := &discordgo.Member{
-			User: &discordgo.User{
-				ID:            user.UserID,
-				Username:      user.Username,
-				Discriminator: "0",
-				GlobalName:    user.Username,
-			},
-			Nick: user.Username, // Best fallback since we don't have per-guild nickname in claims
-		}
-
-		memberExif := types.ToMemberExif(member)
-		// Fix up because ToMemberExif uses member.User which we constructed, but also member.DisplayName()
-		// which checks Nick then User.GlobalName then User.Username.
-		// We set Nick to user.DisplayName() which is checking GlobalName/Username.
-		// So this should be fine.
-
-		encoder := exif.NewEncoder(memberExif)
-		var buf bytes.Buffer
-		if err := encoder.EncodeReader(&buf, bytes.NewReader(blob.Data)); err != nil {
-			log.Error("Failed to encode EXIF", "error", err)
-			return c.Stream(http.StatusOK, contentType, bytes.NewReader(blob.Data))
-		}
-
-		exifData := buf.Bytes()
-		imageExifCache.Set(cacheKey, exifData)
-
+	// Check cache first
+	cacheKey := fmt.Sprintf("exif_%d_%s", id, user.UserID)
+	if cached, err := imageExifCache.Get(cacheKey); err == nil {
 		c.Response().Header().Set("Cache-Control", "private, max-age=86400")
 		c.Response().Header().Set("Content-Type", "image/png")
 		c.Response().Header().Set("Content-Disposition", fmt.Sprintf("%s; filename=%q", disposition, downloadName))
-		c.Response().Header().Set("X-Cache", "generated-memory")
-		return c.Stream(http.StatusOK, "image/png", bytes.NewReader(exifData))
+		c.Response().Header().Set("X-Cache", "hit-memory")
+		return c.Stream(http.StatusOK, "image/png", bytes.NewReader(cached))
 	}
 
-	c.Response().Header().Set("Cache-Control", "private, max-age=31536000") // Private cache since it's auth-dependent
-	c.Response().Header().Set("Content-Type", contentType)
-	c.Response().Header().Set("Content-Disposition", fmt.Sprintf("%s; filename=%q", disposition, filename))
+	// Not in cache, generate
+	exifData, err := s.generateAndCacheImageExif(uint(id), user)
+	if err != nil {
+		log.Error("Failed to generate EXIF", "error", err)
+		// Serve raw image with original headers on failure
+		c.Response().Header().Set("Cache-Control", "private, max-age=31536000")
+		c.Response().Header().Set("Content-Type", contentType)
+		c.Response().Header().Set("Content-Disposition", fmt.Sprintf("%s; filename=%q", disposition, filename))
+		return c.Stream(http.StatusOK, contentType, bytes.NewReader(blob.Data))
+	}
 
-	return c.Stream(http.StatusOK, contentType, bytes.NewReader(blob.Data))
+	c.Response().Header().Set("Cache-Control", "private, max-age=86400")
+	c.Response().Header().Set("Content-Type", "image/png")
+	c.Response().Header().Set("Content-Disposition", fmt.Sprintf("%s; filename=%q", disposition, downloadName))
+	c.Response().Header().Set("X-Cache", "generated-memory")
+	return c.Stream(http.StatusOK, "image/png", bytes.NewReader(exifData))
 }
 
-// imageExifCache stores image data with EXIF metadata for specific users.
-// Key: "exif_{blobID}_{userID}"
-// Value: PNG bytes with EXIF
+func (s *Server) isImageExifCached(id uint, user *JwtCustomClaims) bool {
+	if user == nil {
+		return false
+	}
+	cacheKey := fmt.Sprintf("exif_%d_%s", id, user.UserID)
+	_, err := imageExifCache.Get(cacheKey)
+	return err == nil
+}
+
+func (s *Server) generateAndCacheImageExif(id uint, user *JwtCustomClaims) ([]byte, error) {
+	if user == nil {
+		return nil, fmt.Errorf("user is nil")
+	}
+
+	cacheKey := fmt.Sprintf("exif_%d_%s", id, user.UserID)
+	// Check cache again just in case (though caller might have checked)
+	if cached, err := imageExifCache.Get(cacheKey); err == nil {
+		return cached, nil
+	}
+
+	blob, err := s.db.GetImageBlob(id)
+	if err != nil {
+		return nil, err
+	}
+
+	if blob.GetContentType() != "image/png" {
+		// Currently only supporting PNG for EXIF injection pattern
+		return nil, fmt.Errorf("not a png")
+	}
+
+	member := &discordgo.Member{
+		User: &discordgo.User{
+			ID:            user.UserID,
+			Username:      user.Username,
+			Discriminator: "0",
+			GlobalName:    user.Username,
+		},
+		Nick: user.Username,
+	}
+
+	memberExif := types.ToMemberExif(member)
+	encoder := exif.NewEncoder(memberExif)
+	var buf bytes.Buffer
+	if err := encoder.EncodeReader(&buf, bytes.NewReader(blob.Data)); err != nil {
+		return nil, err
+	}
+
+	exifData := buf.Bytes()
+	imageExifCache.Set(cacheKey, exifData)
+	return exifData, nil
+}
+
 var imageExifCache = flight.NewCache(func(key string) ([]byte, error) {
-	// We cannot generate the value here because we need the blob and user data,
-	// which are not available in this scope.
-	// This cache is populated manually via Set().
 	return nil, fmt.Errorf("item not found")
 })
 
@@ -292,18 +296,16 @@ func (s *Server) handleGetThumb(c echo.Context) error {
 		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Invalid image ID"})
 	}
 
-	// Thumbnails are generally considered public if the blur is public,
-	// BUT for stricter security we could check permissions.
-	// The user request says "serve the thumbnail unblurred if it's available for unauthorized/logged out users".
-	// So we should NOT enforce strict auth on the thumbnail, or at least be lenient.
-	// However, usually we might want to check if the user *could* see the post if they were logged in?
-	// But the user explicitly said: "We should always be serving the thumbnail unblurred if it's available for unauthorized/logged out users."
-	// So effectively, thumbnails are public.
-
 	thumb, err := s.db.GetImageThumbnailByBlobID(uint(id))
 	if err != nil || len(thumb) == 0 {
 		// Fallback to blur if no thumbnail
 		return s.handleGetBlur(c)
+	}
+
+	// Trigger preload for full image EXIF
+	user := GetUserFromContext(c)
+	if user != nil {
+		s.preloadQueue.Enqueue(uint(id), user)
 	}
 
 	// Detect content type of thumbnail

@@ -19,10 +19,11 @@ import (
 )
 
 type Server struct {
-	router *echo.Echo
-	db     sqlite.DB
-	bot    discord.Bot
-	config *Config
+	router       *echo.Echo
+	db           sqlite.DB
+	bot          discord.Bot
+	config       *Config
+	preloadQueue *PreloadQueue
 }
 
 type Config struct {
@@ -72,6 +73,7 @@ func New(cfg *Config) *Server {
 		bot:    cfg.Bot,
 		config: cfg,
 	}
+	s.preloadQueue = NewPreloadQueue(s)
 
 	s.routes()
 
