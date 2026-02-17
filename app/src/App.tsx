@@ -29,7 +29,6 @@ function App() {
 
   const [tagFilter, setTagFilter] = useState<string | null>(null);
   const [q, setQ] = useState("");
-  const [transitionRect, setTransitionRect] = useState<DOMRect | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [editingPost, setEditingPost] = useState<Post | null>(null);
 
@@ -406,8 +405,7 @@ function App() {
                       posts={filteredPosts}
                       selectedId={selectedId}
                       canAccessPost={canAccessPost}
-                      onOpenPost={(id, rect) => {
-                        setTransitionRect(rect || null);
+                      onOpenPost={(id) => {
                         navigate(`/post/${id}`);
                       }}
                       q={q}
@@ -429,7 +427,6 @@ function App() {
                       onBack={() => {
                         navigate("/");
                       }}
-                      transitionRect={transitionRect}
                       user={user}
                     />
                   }

@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef, useState, useMemo } from "react";
+import { useRef, useMemo } from "react";
 import { cn } from "../lib/utils";
 import { UI } from "../constants";
 import type { Post, DiscordUser } from "../types";
@@ -7,22 +7,13 @@ import { ImageWithSpinner } from "./ImageWithSpinner";
 export function PostDetailView({
     selected,
     onBack,
-    transitionRect,
     user,
 }: {
     selected: Post | null;
     onBack: () => void;
-    transitionRect?: DOMRect | null;
     user: DiscordUser | null;
 }) {
     const imgRef = useRef<HTMLImageElement>(null);
-    const [animating, setAnimating] = useState(false);
-    const [fixedState, setFixedState] = useState<{
-        top: number;
-        left: number;
-        width: number;
-        height: number;
-    } | null>(null);
 
     // Use the hydrated post data directly from App.tsx — no extra fetch needed
     const activePost = selected;
@@ -41,41 +32,6 @@ export function PostDetailView({
         return activePost.allowedRoles.length ? `Requires: ${activePost.allowedRoles.map(r => r.name).join(", ")}` : "Public";
     }, [activePost]);
 
-    useLayoutEffect(() => {
-        if (!transitionRect || !selected) return;
-
-        setAnimating(true);
-        setFixedState({
-            top: transitionRect.top,
-            left: transitionRect.left,
-            width: transitionRect.width,
-            height: transitionRect.height,
-        });
-
-        requestAnimationFrame(() => {
-            requestAnimationFrame(() => {
-                if (!imgRef.current) {
-                    setAnimating(false);
-                    return;
-                }
-
-                const targetRect = imgRef.current.getBoundingClientRect();
-
-                setFixedState({
-                    top: targetRect.top,
-                    left: targetRect.left,
-                    width: targetRect.width,
-                    height: targetRect.height,
-                });
-
-                setTimeout(() => {
-                    setAnimating(false);
-                    setFixedState(null);
-                }, 500);
-            });
-        });
-    }, [transitionRect, selected]);
-
     const getDisplayUrl = (p: Post | null, access: boolean) => {
         if (!p) return undefined;
         const blobId = p.image?.blobs?.[0]?.ID;
@@ -93,39 +49,6 @@ export function PostDetailView({
 
     return (
         <div className={cn("p-4", UI.card, "backdrop-blur-sm")}>
-            {animating && fixedState && selected ? (
-                <div
-                    className="fixed z-50 pointer-events-none transition-all duration-500 ease-[cubic-bezier(0.25,1,0.5,1)]"
-                    style={{
-                        top: fixedState.top,
-                        left: fixedState.left,
-                        width: fixedState.width,
-                        height: fixedState.height,
-                    }}
-                >
-                    <img
-                        src={displayUrl || ""}
-                        className={cn(
-                            "absolute inset-0 h-full w-full object-cover rounded-2xl shadow-xl bg-white transition-opacity duration-500",
-                            "opacity-0"
-                        )}
-                        alt=""
-                    />
-
-                    <img
-                        src={displayUrl || ""}
-                        className={cn(
-                            "absolute inset-0 h-full w-full object-contain rounded-2xl shadow-xl",
-                        )}
-                        style={{ animation: "fadeIn 0.5s ease-in-out forwards" }}
-                        alt=""
-                    />
-                    <style>{`
-                @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
-             `}</style>
-                </div>
-            ) : null}
-
             <div className="flex items-center justify-between gap-3">
                 <div className="min-w-0">
                     <div className="truncate text-lg font-black uppercase tracking-wide text-zinc-900 dark:text-zinc-100">
@@ -152,10 +75,7 @@ export function PostDetailView({
                                             src={displayUrl}
                                             controls
                                             autoPlay
-                                            className={cn(
-                                                "max-h-[85vh] w-auto h-auto object-contain bg-black mx-auto rounded-lg shadow-lg",
-                                                animating ? "opacity-0" : "opacity-100 transition-opacity duration-200"
-                                            )}
+                                            className="max-h-[85vh] w-auto h-auto object-contain bg-black mx-auto rounded-lg shadow-lg"
                                         />
                                     );
                                 }
@@ -165,10 +85,7 @@ export function PostDetailView({
                                         ref={imgRef}
                                         src={displayUrl}
                                         alt={activePost.title ?? ""}
-                                        className={cn(
-                                            "max-h-[85vh] w-auto h-auto object-contain bg-white dark:bg-zinc-900 mx-auto",
-                                            animating ? "opacity-0" : "opacity-100 transition-opacity duration-200"
-                                        )}
+                                        className="max-h-[85vh] w-auto h-auto object-contain bg-white dark:bg-zinc-900 mx-auto"
                                         draggable={false}
                                     />
                                 );

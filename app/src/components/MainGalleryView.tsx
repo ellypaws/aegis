@@ -39,7 +39,7 @@ export function MainGalleryView({
     posts: Post[];
     selectedId: string | null;
     canAccessPost: (p: Post) => boolean;
-    onOpenPost: (id: string, rect?: DOMRect) => void;
+    onOpenPost: (id: string) => void;
     q: string;
     setQ: (s: string) => void;
     onLoadMore: () => void;
@@ -153,10 +153,8 @@ export function MainGalleryView({
                                             post={p}
                                             canAccess={canAccessPost(p)}
                                             selected={p.postKey === selectedId}
-                                            onOpen={(e) => {
-                                                const img = (e.currentTarget as HTMLElement).querySelector("img");
-                                                const rect = img?.getBoundingClientRect();
-                                                onOpenPost(p.postKey, rect);
+                                            onOpen={() => {
+                                                onOpenPost(p.postKey);
                                             }}
                                             variant="flexible"
                                         />
