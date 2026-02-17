@@ -75,6 +75,7 @@ export function PostDetailView({
                                             src={displayUrl}
                                             controls
                                             autoPlay
+                                            loop
                                             className="max-h-[85vh] w-auto h-auto object-contain bg-black mx-auto rounded-lg shadow-lg"
                                         />
                                     );
