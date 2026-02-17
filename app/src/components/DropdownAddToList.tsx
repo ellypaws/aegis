@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect, useMemo } from "react";
+import { createPortal } from "react-dom";
 import { cn } from "../lib/utils";
 import { UI } from "../constants";
 import { Chip } from "./Chip";
@@ -23,6 +24,8 @@ export function DropdownAddToList<T extends { id: string; name: string }>({
     const [open, setOpen] = useState(false);
     const [q, setQ] = useState("");
     const wrapRef = useRef<HTMLDivElement | null>(null);
+    const buttonRef = useRef<HTMLButtonElement | null>(null);
+    const [menuStyle, setMenuStyle] = useState<React.CSSProperties>({});
 
     useEffect(() => {
         const onDoc = (e: MouseEvent) => {
@@ -33,12 +36,85 @@ export function DropdownAddToList<T extends { id: string; name: string }>({
         return () => document.removeEventListener("mousedown", onDoc);
     }, []);
 
+    // Update menu position when opening or resizing
+    useEffect(() => {
+        if (!open || !buttonRef.current) return;
+        
+        const updatePosition = () => {
+            if (!buttonRef.current) return;
+            const rect = buttonRef.current.getBoundingClientRect();
+            setMenuStyle({
+                position: "fixed",
+                top: rect.bottom + 8,
+                left: rect.left,
+                width: rect.width,
+                zIndex: 10,
+            });
+        };
+
+        updatePosition();
+        window.addEventListener("resize", updatePosition);
+        window.addEventListener("scroll", updatePosition, true);
+        
+        return () => {
+            window.removeEventListener("resize", updatePosition);
+            window.removeEventListener("scroll", updatePosition, true);
+        };
+    }, [open]);
+
     const selectedSet = useMemo(() => new Set(selectedIds), [selectedIds]);
     const filtered = useMemo(() => {
         const s = q.trim().toLowerCase();
         const base = s ? options.filter((o) => o.name.toLowerCase().includes(s)) : options;
         return base;
     }, [options, q]);
+
+    const dropdownMenu = open ? (
+        <div
+            style={menuStyle}
+            className="overflow-hidden rounded-2xl border-4 border-zinc-200 bg-white shadow-[6px_6px_0px_rgba(0,0,0,0.18)]"
+        >
+            <div className="p-2">
+                <input 
+                    value={q} 
+                    onChange={(e) => setQ(e.target.value)} 
+                    placeholder="Search…" 
+                    className={UI.input}
+                    onClick={(e) => e.stopPropagation()}
+                />
+            </div>
+            <div className="max-h-56 overflow-auto p-1">
+                {filtered.length === 0 ? (
+                    <div className="px-3 py-3 text-sm font-bold text-zinc-400">No matches.</div>
+                ) : (
+                    filtered.map((o) => {
+                        const selected = selectedSet.has(o.id);
+                        return (
+                            <button
+                                key={o.id}
+                                type="button"
+                                onClick={() => {
+                                    if (selected) {
+                                        onRemove(o.id);
+                                    } else {
+                                        onAdd(o.id);
+                                    }
+                                }}
+                                className={cn(
+                                    "w-full rounded-xl px-3 py-2 text-left text-sm font-bold",
+                                    selected ? "text-zinc-300 bg-zinc-50 hover:text-red-400 hover:bg-red-50" : "text-zinc-800 hover:bg-yellow-100",
+                                    "active:translate-x-[1px] active:translate-y-[1px]"
+                                )}
+                                title={selected ? "Click to remove" : "Click to add"}
+                            >
+                                {o.name} {selected ? "(Added)" : ""}
+                            </button>
+                        );
+                    })
+                )}
+            </div>
+        </div>
+    ) : null;
 
     return (
         <div className="space-y-2" ref={wrapRef}>
@@ -68,51 +144,18 @@ export function DropdownAddToList<T extends { id: string; name: string }>({
             </div>
 
             <div className="relative">
-                <button type="button" onClick={() => setOpen(!open)} className={cn(UI.input, "text-left", "flex items-center justify-between")}>
+                <button 
+                    ref={buttonRef}
+                    type="button" 
+                    onClick={() => setOpen(!open)} 
+                    className={cn(UI.input, "text-left", "flex items-center justify-between w-full")}
+                >
                     <span className="text-zinc-500 font-bold">{placeholder}</span>
                     <span className="text-zinc-400">▾</span>
                 </button>
-
-                {open ? (
-                    <div className="absolute z-20 mt-2 w-full overflow-hidden rounded-2xl border-4 border-zinc-200 bg-white shadow-[6px_6px_0px_rgba(0,0,0,0.18)]">
-                        <div className="p-2">
-                            <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search…" className={UI.input} />
-                        </div>
-                        <div className="max-h-56 overflow-auto p-1">
-                            {filtered.length === 0 ? (
-                                <div className="px-3 py-3 text-sm font-bold text-zinc-400">No matches.</div>
-                            ) : (
-                                filtered.map((o) => {
-                                    const selected = selectedSet.has(o.id);
-                                    return (
-                                        <button
-                                            key={o.id}
-                                            type="button"
-                                            onClick={() => {
-                                                if (selected) {
-                                                    onRemove(o.id);
-                                                } else {
-                                                    onAdd(o.id);
-                                                }
-                                                // setQ(""); // Keep search query? Or clear it?
-                                                // decision: keep it to allow multi-select easily
-                                            }}
-                                            className={cn(
-                                                "w-full rounded-xl px-3 py-2 text-left text-sm font-bold",
-                                                selected ? "text-zinc-300 bg-zinc-50 hover:text-red-400 hover:bg-red-50" : "text-zinc-800 hover:bg-yellow-100",
-                                                "active:translate-x-[1px] active:translate-y-[1px]"
-                                            )}
-                                            title={selected ? "Click to remove" : "Click to add"}
-                                        >
-                                            {o.name} {selected ? "(Added)" : ""}
-                                        </button>
-                                    );
-                                })
-                            )}
-                        </div>
-                    </div>
-                ) : null}
             </div>
+            
+            {dropdownMenu ? createPortal(dropdownMenu, document.body) : null}
         </div>
     );
 }
