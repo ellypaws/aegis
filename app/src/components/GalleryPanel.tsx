@@ -2,6 +2,7 @@ import { cn } from "../lib/utils";
 import { UI } from "../constants";
 import type { Post } from "../types";
 import { LockedOverlay } from "./LockedOverlay";
+import { buildSrcSet, PANEL_THUMB_SIZES } from "../lib/imageSrcSet";
 
 function resolveImageUrl(post: Post, canAccess: boolean): string | null {
     const blobId = post.image?.blobs?.[0]?.ID;
@@ -42,6 +43,8 @@ export function GalleryPanel({
                         const url = resolveImageUrl(p, canAccess);
                         const hasThumbnail = p.image?.hasThumbnail;
                         const selected = p.postKey === selectedId;
+                        const blobId = p.image?.blobs?.[0]?.ID;
+                        const token = typeof window !== "undefined" ? localStorage.getItem("jwt") : null;
 
                         return (
                             <button
@@ -59,6 +62,8 @@ export function GalleryPanel({
                                 {url ? (
                                     <img
                                         src={url}
+                                        srcSet={canAccess && blobId ? buildSrcSet(blobId, token) : undefined}
+                                        sizes={canAccess && blobId ? PANEL_THUMB_SIZES : undefined}
                                         alt={p.title ?? ""}
                                         className={cn(
                                             "h-full w-full object-cover transition-all duration-500",

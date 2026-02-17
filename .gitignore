@@ -1,5 +1,6 @@
 .idea
 vendor
+cache
 
 # config
 *.txt

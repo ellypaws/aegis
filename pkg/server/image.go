@@ -3,7 +3,6 @@ package server
 import (
 	"bytes"
 	"fmt"
-	"image"
 	_ "image/gif"
 	_ "image/jpeg"
 	_ "image/png"
@@ -11,9 +10,9 @@ import (
 	"strconv"
 
 	"github.com/charmbracelet/log"
+	"github.com/disintegration/imaging"
 	"github.com/gen2brain/webp"
 	"github.com/labstack/echo/v4"
-	"golang.org/x/image/draw"
 	_ "golang.org/x/image/webp"
 
 	"drigo/pkg/types"
@@ -103,26 +102,17 @@ func (s *Server) handleGetBlur(c echo.Context) error {
 	}
 
 	// Generate blur
-	img, _, err := image.Decode(bytes.NewReader(blob.Data))
+	img, err := imaging.Decode(bytes.NewReader(blob.Data))
 	if err != nil {
 		log.Error("Failed to decode image for blur", "id", id, "error", err)
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Failed to decode image"})
 	}
 
-	// Resize to very small (e.g. 16px wide)
-	bounds := img.Bounds()
-	ratio := float64(bounds.Dx()) / float64(bounds.Dy())
-	w := 16
-	h := int(float64(w) / ratio)
-	if h < 1 {
-		h = 1
-	}
-
-	dst := image.NewRGBA(image.Rect(0, 0, w, h))
-	draw.ApproxBiLinear.Scale(dst, dst.Bounds(), img, bounds, draw.Over, nil)
+	img = imaging.Resize(img, 64, 0, imaging.Lanczos)
+	img = imaging.Blur(img, 8)
 
 	var buf bytes.Buffer
-	if err := webp.Encode(&buf, dst, webp.Options{Quality: 40}); err != nil {
+	if err := webp.Encode(&buf, img, webp.Options{Quality: 40}); err != nil {
 		log.Error("Failed to encode blur webp", "error", err)
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Failed to encode blur"})
 	}

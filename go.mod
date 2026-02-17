@@ -46,6 +46,7 @@ require (
 	github.com/charmbracelet/x/term v0.2.2 // indirect
 	github.com/clipperhouse/stringish v0.1.1 // indirect
 	github.com/clipperhouse/uax29/v2 v2.3.0 // indirect
+	github.com/disintegration/imaging v1.6.2 // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect
 	github.com/ebitengine/purego v0.8.3 // indirect
 	github.com/go-logfmt/logfmt v0.6.1 // indirect

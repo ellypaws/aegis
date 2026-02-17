@@ -1,5 +1,6 @@
 import React from "react";
 import { cn } from "../lib/utils";
+import { buildSrcSet, GALLERY_CARD_SIZES } from "../lib/imageSrcSet";
 
 import type { Post } from "../types";
 
@@ -66,6 +67,8 @@ export function GalleryGridCard({
                         <div className="flex h-full w-full items-center justify-center bg-zinc-50 dark:bg-zinc-900 overflow-hidden">
                             <img
                                 src={url}
+                                srcSet={canAccess && blobId ? buildSrcSet(blobId, token) : undefined}
+                                sizes={canAccess && blobId ? GALLERY_CARD_SIZES : undefined}
                                 alt={post.title ?? ""}
                                 className={cn(
                                     "h-full w-full object-cover transition-all duration-500",
@@ -113,6 +116,8 @@ export function GalleryGridCard({
                     <div className="flex h-full w-full items-center justify-center bg-zinc-50 dark:bg-zinc-900 overflow-hidden">
                         <img
                             src={url}
+                            srcSet={canAccess && blobId ? buildSrcSet(blobId, token) : undefined}
+                            sizes={canAccess && blobId ? GALLERY_CARD_SIZES : undefined}
                             alt={post.title ?? ""}
                             className={cn(
                                 "h-full w-full object-cover transition-all duration-500",
