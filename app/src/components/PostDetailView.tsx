@@ -50,6 +50,7 @@ export function PostDetailView({
     };
 
     const displayUrl = currentImage ? getUrl(currentImage.blobs?.[0]?.ID, canAccess, "full") : undefined;
+    const isShowingExplicitThumbnail = !canAccess && !!displayUrl && !!currentImage?.hasThumbnail;
 
     const paginate = (newDirection: number) => {
         setDirection(newDirection);
@@ -118,7 +119,7 @@ export function PostDetailView({
         )}>
             {/* Background Blur Layer */}
             <div className="absolute inset-0 z-0 pointer-events-none">
-                {activePost && displayUrl && (
+                {activePost && displayUrl && !isShowingExplicitThumbnail && (
                     <motion.img
                         key={currentImage?.blobs?.[0]?.ID || "bg"}
                         src={displayUrl}
@@ -207,7 +208,12 @@ export function PostDetailView({
                                                                 <ImageWithSpinner
                                                                     src={displayUrl}
                                                                     alt={activePost.title ?? ""}
-                                                                    className="w-full h-full object-cover blur-xl scale-110 opacity-70"
+                                                                    className={cn(
+                                                                        "w-full h-full object-cover",
+                                                                        isShowingExplicitThumbnail
+                                                                            ? "opacity-100"
+                                                                            : "blur-xl scale-110 opacity-70",
+                                                                    )}
                                                                     draggable={false}
                                                                 />
                                                             </div>

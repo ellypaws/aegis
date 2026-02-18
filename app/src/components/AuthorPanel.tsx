@@ -621,6 +621,20 @@ export function AuthorPanel({
     return null;
   }, [filePreviews, remotePreviews, mediaOrder]);
 
+  const focusPreview = useMemo(() => {
+    const explicitThumbUrl = previewThumb || (!clearThumbnail && existingThumbUrl);
+    if (explicitThumbUrl) {
+      return {
+        url: explicitThumbUrl,
+        isVideo: false,
+        isRemote: !!existingThumbUrl && !previewThumb,
+        isThumbnail: true,
+      };
+    }
+    if (!activePreview) return null;
+    return { ...activePreview, isThumbnail: false };
+  }, [activePreview, clearThumbnail, existingThumbUrl, previewThumb]);
+
   // We only support focus picking on the VERY FIRST image for now (to keep UI simple and consistent with backend focus field which is per post, not per image yet?)
   // Wait, backend has focusX/focusY per POST, but we have multiple images now.
   // Does the focus apply to the first image (cover)?
@@ -895,7 +909,7 @@ export function AuthorPanel({
                   className={cn(
                     "p-3 transition relative",
                     UI.cardBlue,
-                    activePreview && !activePreview.isVideo
+                    focusPreview && !focusPreview.isVideo
                       ? "cursor-crosshair"
                       : "cursor-pointer hover:opacity-90 active:scale-95",
                   )}
@@ -912,20 +926,24 @@ export function AuthorPanel({
                   }}
                   onDrop={(e) => handleDrop(e, addFiles, true)}
                 >
-                  {!activePreview && <DropOverlay visible={dragFull} />}
-                  <div className={UI.label}>Cover Preview (First Item)</div>
+                  {!focusPreview && <DropOverlay visible={dragFull} />}
+                  <div className={UI.label}>
+                    {focusPreview?.isThumbnail
+                      ? "Cover Preview (Thumbnail)"
+                      : "Cover Preview (First Item)"}
+                  </div>
                   <div
                     ref={fullPreviewRef}
                     className={cn(
                       "mt-2 aspect-square overflow-hidden rounded-2xl border-4 border-zinc-200 bg-zinc-50 relative select-none",
-                      activePreview && !activePreview.isVideo
+                      focusPreview && !focusPreview.isVideo
                         ? "cursor-crosshair"
                         : "cursor-pointer",
                     )}
                     onMouseDown={(e) => {
                       const rect =
                         fullPreviewRef.current?.getBoundingClientRect();
-                      if (!rect || !activePreview || activePreview.isVideo)
+                      if (!rect || !focusPreview || focusPreview.isVideo)
                         return;
                       e.stopPropagation();
                       const x = Math.min(
@@ -971,15 +989,15 @@ export function AuthorPanel({
                       window.addEventListener("mouseup", onUp);
                     }}
                     onClick={(e) => {
-                      if (activePreview) e.stopPropagation();
+                      if (focusPreview) e.stopPropagation();
                       else fullInputRef.current?.click();
                     }}
                   >
-                    {activePreview ? (
+                    {focusPreview ? (
                       <>
-                        {activePreview.isVideo ? (
+                        {focusPreview.isVideo ? (
                           <video
-                            src={activePreview.url}
+                            src={focusPreview.url}
                             className="h-full w-full object-cover"
                             controls
                             controlsList="nodownload"
@@ -988,7 +1006,7 @@ export function AuthorPanel({
                         ) : (
                           <>
                             <img
-                              src={activePreview.url}
+                              src={focusPreview.url}
                               className="h-full w-full object-cover"
                               style={{
                                 objectPosition: `${focusX}% ${focusY}%`,
@@ -1017,7 +1035,7 @@ export function AuthorPanel({
                       </div>
                     )}
                   </div>
-                  {activePreview && !activePreview.isVideo && (
+                  {focusPreview && !focusPreview.isVideo && (
                     <div className="mt-1 text-[10px] font-bold text-zinc-400 tabular-nums">
                       Focus: {focusX.toFixed(1)}% × {focusY.toFixed(1)}%
                     </div>
