@@ -35,6 +35,8 @@ func (s *Server) handleDeletePost(c echo.Context) error {
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Failed to delete post"})
 	}
 
+	s.getPostCache.Reset()
+
 	log.Info("Post deleted", "id", idStr, "by", user.Username)
 	return c.JSON(http.StatusOK, map[string]string{"status": "deleted"})
 }

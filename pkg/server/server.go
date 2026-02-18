@@ -13,7 +13,9 @@ import (
 
 	"drigo/app"
 	"drigo/pkg/discord"
+	"drigo/pkg/flight"
 	"drigo/pkg/sqlite"
+	"drigo/pkg/types"
 
 	echojwt "github.com/labstack/echo-jwt/v4"
 )
@@ -24,6 +26,7 @@ type Server struct {
 	bot          discord.Bot
 	config       *Config
 	preloadQueue *PreloadQueue
+	getPostCache flight.Cache[sortOption, []*types.Post]
 }
 
 type Config struct {
@@ -35,6 +38,13 @@ type Config struct {
 }
 
 func New(cfg *Config) *Server {
+	if cfg.DB == nil {
+		log.Fatal("DB is nil")
+	}
+	if cfg.Bot == nil {
+		log.Fatal("Bot is nil")
+	}
+
 	e := echo.New()
 
 	e.Use(middleware.Logger())
@@ -72,7 +82,11 @@ func New(cfg *Config) *Server {
 		db:     cfg.DB,
 		bot:    cfg.Bot,
 		config: cfg,
+		getPostCache: flight.NewCache(func(option sortOption) ([]*types.Post, error) {
+			return cfg.DB.ListPosts(option.limit, option.offset, option.sort)
+		}),
 	}
+
 	s.preloadQueue = NewPreloadQueue(s)
 
 	s.routes()

@@ -10,6 +10,12 @@ import (
 	"github.com/bwmarrin/discordgo"
 )
 
+type sortOption struct {
+	limit  int
+	offset int
+	sort   string
+}
+
 func (s *Server) handleGetPosts(c echo.Context) error {
 	page, _ := strconv.Atoi(c.QueryParam("page"))
 	if page < 1 {
@@ -20,9 +26,9 @@ func (s *Server) handleGetPosts(c echo.Context) error {
 		limit = 10
 	}
 	offset := (page - 1) * limit
-	sort := c.QueryParam("sort") // "id" or "date", default "id"
+	sort := c.QueryParam("sort")
 
-	posts, err := s.db.ListPosts(limit, offset, sort)
+	posts, err := s.getPostCache.Get(sortOption{limit, offset, sort})
 	if err != nil {
 		log.Error("Failed to list posts", "error", err)
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Failed to list posts"})

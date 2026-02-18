@@ -87,21 +87,6 @@ func (s *Server) handlePatchPost(c echo.Context) error {
 	}
 	post.AllowedRoles = allowedRoles
 
-	// Prepare to update images
-	// We want to APPEND new images if provided.
-	// But we need to ensure current images are preserved in the DB update.
-	// UpdatePost (gorm) association handling:
-	// If we pass Images with IDs, it updates/keeps them.
-	// If we pass new Images (ID=0), it creates them.
-	// BUT if we don't include the existing images in the struct, GORM might unlink or delete them depending on Association handling.
-	// My `UpdatePost` in `pkg/sqlite/posts.go` uses `Session(&gorm.Session{FullSaveAssociations: true}).Save(post)`.
-	// If `post.Images` contains both old and new, it should work.
-
-	// Ensure `Unscoped` cleanup or similar isn't removing them if we don't list them?
-	// Actually, `FullSaveAssociations` with `Save` might persist what's in the struct.
-	// So we should Load existing images (already in `post` from ReadPostByExternalID),
-	// and append new ones.
-
 	form := c.Request().MultipartForm
 	files := form.File["images"]
 	if len(files) == 0 {
@@ -138,18 +123,8 @@ func (s *Server) handlePatchPost(c echo.Context) error {
 			})
 		}
 	} else {
-		// No new images.
-		// We still need to help GORM not to delete blobs of existing images if we are doing FullSave.
-		// In `CreatePost`, we did `Omit("Blobs")` to manage blobs manually.
-		// For `UpdatePost`, we might need similar care.
-		// `pkg/sqlite/posts.go` `UpdatePost` implementation handles `Images`?
-		// "Constraint:OnDelete:CASCADE" is on Post.Images.
-
-		// If we are just saving `post`, existing images with IDs should be fine.
-		// However, blobs might be re-saved if we don't unset them.
-
 		for i := range post.Images {
-			post.Images[i].Blobs = nil // Prevent bloating query / re-saving blobs
+			post.Images[i].Blobs = nil
 		}
 	}
 
@@ -158,6 +133,7 @@ func (s *Server) handlePatchPost(c echo.Context) error {
 		log.Error("Failed to update post", "id", post.ID, "error", err)
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Failed to update post"})
 	}
+	s.getPostCache.Reset()
 
 	// Read again to return fully hydrated post
 	updated, err := s.db.ReadPostByExternalID(idStr)

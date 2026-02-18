@@ -297,6 +297,7 @@ func (s *Server) handleCreatePost(c echo.Context) error {
 		log.Error("Failed to create post in db", "error", err)
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Failed to create post"})
 	}
+	s.getPostCache.Reset()
 
 	// Post to Discord Channels
 	channelIDs := strings.Split(channelsStr, ",")
