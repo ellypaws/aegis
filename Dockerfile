@@ -49,7 +49,7 @@ COPY cmd/src/rsrc_windows_amd64.syso cmd/
 # -trimpath for reproducible builds
 # -ldflags='-s -w' to strip debug info
 # The Go version used is determined by the image (alpine latest) which satisfies go.mod
-ARG BUILD_TAGS=""
+ARG BUILD_TAGS="ffstatic"
 RUN CGO_ENABLED=0 go build -trimpath -tags "${BUILD_TAGS}" -ldflags='-s -w' -o drigo ./cmd
 
 # Stage 3: Final Runtime Image
