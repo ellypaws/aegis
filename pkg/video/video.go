@@ -41,7 +41,7 @@ func GeneratePreviewGIF(videoData []byte, fps int, blurry bool) ([]byte, error) 
 	var filter string
 	if blurry {
 		// Low res + blur
-		filter = fmt.Sprintf("fps=%d,scale=64:-2:flags=lanczos,boxblur=10:1", fps)
+		filter = fmt.Sprintf("fps=%d,scale=64:-2:flags=lanczos,boxblur=2:1", fps)
 	} else {
 		// Reasonable preview size
 		filter = fmt.Sprintf("fps=%d,scale=320:-2:flags=lanczos,split[s0][s1];[s0]palettegen[p];[s1][p]paletteuse", fps)
