@@ -60,9 +60,26 @@ export function GalleryGridCard({
     const focusStyle = { objectPosition: `${post.focusX ?? 50}% ${post.focusY ?? 50}%` };
 
     const mediaElement = (() => {
-        if (!url) {
+        if (!url && !hasThumbnail) {
             return (
                 <div className="flex h-full w-full items-center justify-center text-sm font-bold text-zinc-400 dark:text-zinc-500">No preview</div>
+            );
+        }
+
+        if (hasThumbnail) {
+            const thumbUrl = `/thumb/${blobId}`;
+            return (
+                <div className="flex h-full w-full items-center justify-center bg-zinc-50 dark:bg-zinc-900 overflow-hidden">
+                    <ImageWithSpinner
+                        src={thumbUrl}
+                        alt={post.title ?? ""}
+                        className={cn(
+                            "h-full w-full object-cover transition-all duration-500",
+                            !canAccess && "blur-md scale-105"
+                        )}
+                        style={focusStyle}
+                    />
+                </div>
             );
         }
 
@@ -70,14 +87,14 @@ export function GalleryGridCard({
             return (
                 <div className="flex h-full w-full items-center justify-center bg-zinc-50 dark:bg-zinc-900 overflow-hidden">
                     <video
-                        src={url}
+                        src={url || ""}
                         autoPlay
                         loop
                         muted
                         playsInline
                         className={cn(
                             "h-full w-full object-cover transition-all duration-500",
-                            !canAccess && !hasThumbnail && "blur-md scale-105"
+                            !canAccess && "blur-md scale-105"
                         )}
                         style={focusStyle}
                     />
@@ -88,7 +105,7 @@ export function GalleryGridCard({
         return (
             <div className="flex h-full w-full items-center justify-center bg-zinc-50 dark:bg-zinc-900 overflow-hidden">
                 <ImageWithSpinner
-                    src={url}
+                    src={url || ""}
                     srcSet={canAccess && blobId && !isVideo ? buildSrcSet(blobId, token) : undefined}
                     sizes={canAccess && blobId && !isVideo ? GALLERY_CARD_SIZES : undefined}
                     alt={post.title ?? ""}

@@ -5,14 +5,24 @@ import type { Post } from "../types";
 import { buildSrcSet, PANEL_THUMB_SIZES } from "../lib/imageSrcSet";
 
 // Updated to return adequate URL for video playback or thumbnail
-function resolveMediaUrl(post: Post, canAccess: boolean): { url: string | null; isVideo: boolean } {
+function resolveMediaUrl(post: Post, canAccess: boolean): { url: string | null; isVideo: boolean; useThumbnail: boolean } {
     const blob = post.images?.[0]?.blobs?.[0];
     const blobId = blob?.ID;
-    if (!blobId) return { url: null, isVideo: false };
+    if (!blobId) return { url: null, isVideo: false, useThumbnail: false };
 
+    const hasThumbnail = post.images?.[0]?.hasThumbnail;
     const contentType = blob?.contentType || "";
     const isVideo = contentType.startsWith("video/") || /\.(mp4|webm|mov|mkv|avi)$/i.test(blob?.filename || "");
     const token = typeof window !== "undefined" ? localStorage.getItem("jwt") : null;
+
+    // If custom thumbnail exists, always prefer it (as an image)
+    if (hasThumbnail) {
+        return {
+            url: `/thumb/${blobId}`, // The /thumb endpoint should serve the custom thumbnail if present
+            isVideo: false,
+            useThumbnail: true
+        };
+    }
 
     if (isVideo) {
         if (canAccess) {
@@ -22,20 +32,22 @@ function resolveMediaUrl(post: Post, canAccess: boolean): { url: string | null; 
             // w=256 ensures small size.
             return {
                 url: `/images/${blobId}/resize?w=256${token ? `&token=${token}` : ""}`,
-                isVideo: true
+                isVideo: true,
+                useThumbnail: false
             };
         }
-        // If no access, fallback to thumb (likely a generated thumbnail or placeholder)
-        return { url: `/thumb/${blobId}`, isVideo: false };
+        // If no access, fallback to thumb (likely a generated thumbnail or placeholder) (still an image thumb?)
+        return { url: `/thumb/${blobId}`, isVideo: false, useThumbnail: false };
     }
 
     if (canAccess) {
         return {
             url: `/images/${blobId}${token ? `?token=${token}` : ""}`,
-            isVideo: false
+            isVideo: false,
+            useThumbnail: false
         };
     }
-    return { url: `/thumb/${blobId}`, isVideo: false };
+    return { url: `/thumb/${blobId}`, isVideo: false, useThumbnail: false };
 }
 
 import { ImageWithSpinner } from "./ImageWithSpinner";
@@ -65,8 +77,8 @@ export function GalleryPanel({
                 <div className="flex gap-3">
                     {posts.slice(0, 18).map((p) => {
                         const canAccess = canAccessByPost(p);
-                        const { url, isVideo } = resolveMediaUrl(p, canAccess);
-                        const hasThumbnail = p.images?.[0]?.hasThumbnail;
+                        const { url, isVideo, useThumbnail } = resolveMediaUrl(p, canAccess);
+                        const hasCustomThumbnail = p.images?.[0]?.hasThumbnail;
                         const selected = p.postKey === selectedId;
                         const blobId = p.images?.[0]?.blobs?.[0]?.ID;
                         const token = typeof window !== "undefined" ? localStorage.getItem("jwt") : null;
@@ -90,7 +102,7 @@ export function GalleryPanel({
                                 <div className="h-full w-full bg-zinc-50 dark:bg-zinc-900 relative overflow-hidden">
                                     {url ? (
                                         <div className="flex h-full w-full items-center justify-center bg-zinc-50 dark:bg-zinc-900 overflow-hidden relative">
-                                            {isVideo && canAccess ? (
+                                            {isVideo && !useThumbnail && canAccess ? (
                                                 <video
                                                     src={url}
                                                     autoPlay
@@ -105,12 +117,12 @@ export function GalleryPanel({
                                             ) : (
                                                 <ImageWithSpinner
                                                     src={url}
-                                                    srcSet={canAccess && blobId && !isVideo ? buildSrcSet(blobId, token) : undefined}
-                                                    sizes={canAccess && blobId && !isVideo ? PANEL_THUMB_SIZES : undefined}
+                                                    srcSet={canAccess && blobId && !isVideo && !useThumbnail ? buildSrcSet(blobId, token) : undefined}
+                                                    sizes={canAccess && blobId && !isVideo && !useThumbnail ? PANEL_THUMB_SIZES : undefined}
                                                     alt={p.title ?? ""}
                                                     className={cn(
                                                         "h-full w-full object-cover transition-all duration-500",
-                                                        !canAccess && !hasThumbnail && "blur-md scale-105"
+                                                        !canAccess && !hasCustomThumbnail && "blur-md scale-105"
                                                     )}
                                                     style={focusStyle}
                                                 />
@@ -124,7 +136,7 @@ export function GalleryPanel({
                                         url ? (
                                             <>
                                                 <div className="absolute inset-0 bg-white/10 dark:bg-black/30" />
-                                                {!hasThumbnail && (
+                                                {!hasCustomThumbnail && (
                                                     <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 pointer-events-none">
                                                         <Lock className="h-5 w-5 text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.5)]" />
                                                         {roleNames && (
