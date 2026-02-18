@@ -1,7 +1,39 @@
-.git
 .idea
+cache
+
+# Database files
+sqlite.db
+*.db
+
+# Environment files
+*.env
 .env
+
+# Vendor dependencies
+vendor
+
+# Config / local-only artifacts
+*.txt
+*.json
+*.exe
+
+# Images (if not meant to be tracked)
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.webp
+
+# Go test files
+*_test.go
+
+# Git metadata
+.git
+
+# Node modules (never send to build context)
 node_modules
 app/node_modules
+
+# Build artifacts
 dist
 app/dist
