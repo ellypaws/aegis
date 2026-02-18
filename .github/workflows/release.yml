@@ -39,7 +39,7 @@ jobs:
           copy cmd\src\rsrc_windows_amd64.syso cmd
           set CGO_ENABLED=0
           git submodule update --init --recursive
-          go build -trimpath -ldflags='-s -w' -o aegis-${{ github.ref_name }}.exe ./cmd
+          go build -trimpath -ldflags="-s -w" -o aegis-${{ github.ref_name }}.exe ./cmd
         shell: cmd
 
       - name: Upload Artifact
