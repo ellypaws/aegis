@@ -242,7 +242,7 @@ export function MainGalleryView({
                 ) : null}
 
                 {hasMore && !initialLoading ? (
-                    <div className="mt-8 flex justify-center">
+                    <div className="mt-2 mb-4 flex justify-center">
                         <button
                             onClick={onLoadMore}
                             disabled={loading}
