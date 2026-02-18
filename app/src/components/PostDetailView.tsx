@@ -367,7 +367,6 @@ export function PostDetailView({
 
                             <div
                                 className="relative w-full h-full flex items-center justify-center p-4"
-                                onClick={(e) => e.stopPropagation()}
                             >
                                 <AnimatePresence initial={false} custom={direction} mode="popLayout">
                                     <motion.div
@@ -407,6 +406,7 @@ export function PostDetailView({
                                                     alt={activePost?.title ?? ""}
                                                     className="max-h-full max-w-full rounded-md object-contain shadow-2xl"
                                                     draggable={false}
+                                                    onClick={(e) => e.stopPropagation()}
                                                 />
                                             );
                                         })()}
