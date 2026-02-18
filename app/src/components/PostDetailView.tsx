@@ -85,6 +85,9 @@ export function PostDetailView({
     const [showControls, setShowControls] = useState(true);
     const controlsTimeoutRef = useRef<ReturnType<typeof setTimeout>>(null);
 
+    const dragStartX = useRef(0);
+    const hasMultipleImages = images.length > 1;
+
     const handleDragEnd = (_: any, { offset }: any) => {
         const swipe = offset.x; // positive = right, negative = left
 
@@ -167,12 +170,22 @@ export function PostDetailView({
                                                 x: { type: "spring", stiffness: 300, damping: 30 },
                                                 opacity: { duration: 0.2 }
                                             }}
-                                            drag="x"
+                                            drag={hasMultipleImages ? "x" : false}
                                             dragConstraints={{ left: 0, right: 0 }}
                                             dragElastic={1}
                                             onDragEnd={handleDragEnd}
                                             className="flex w-full items-center justify-center cursor-pointer"
-                                            onClick={() => setIsModalOpen(true)}
+                                            onPointerDown={(e) => {
+                                                dragStartX.current = e.clientX;
+                                            }}
+                                            onClick={(e) => {
+                                                const dist = Math.abs(e.clientX - dragStartX.current);
+                                                if (dist > 10) {
+                                                    e.stopPropagation();
+                                                    return;
+                                                }
+                                                setIsModalOpen(true);
+                                            }}
                                         >
                                             {(() => {
                                                 const contentType = currentImage?.blobs?.[0]?.contentType || "";
@@ -368,7 +381,7 @@ export function PostDetailView({
                                             x: { type: "spring", stiffness: 300, damping: 30 },
                                             opacity: { duration: 0.2 }
                                         }}
-                                        drag="x"
+                                        drag={hasMultipleImages ? "x" : false}
                                         dragConstraints={{ left: 0, right: 0 }}
                                         dragElastic={1}
                                         onDragEnd={handleDragEnd}
