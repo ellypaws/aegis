@@ -122,7 +122,7 @@ func main() {
 
 	go func() {
 		if err := srv.Start(); err != nil {
-			log.Errorf("Server failed: %v", err)
+			log.Fatalf("Server failed: %v", err)
 		}
 	}()
 
