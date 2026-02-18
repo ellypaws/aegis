@@ -33,8 +33,11 @@ func (s *Server) handleGetImage(c echo.Context) error {
 		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Invalid image ID"})
 	}
 
+	settings, _ := s.db.GetSettings()
+	publicAccess := settings != nil && settings.PublicAccess
+
 	user := GetUserFromContext(c)
-	if user == nil {
+	if user == nil && !publicAccess {
 		return c.JSON(http.StatusUnauthorized, map[string]string{"error": "Unauthorized"})
 	}
 
@@ -45,20 +48,22 @@ func (s *Server) handleGetImage(c echo.Context) error {
 		return c.JSON(http.StatusNotFound, map[string]string{"error": "Image not found"})
 	}
 
-	if !canAccessPost(user, post) {
+	if !publicAccess && !canAccessPost(user, post) {
 		log.Warn("Access denied for image", "blobID", id, "postID", post.ID, "user", user)
-		roleIDs := make([]string, 0, len(user.Roles))
-		for _, r := range user.Roles {
-			if r != nil {
-				roleIDs = append(roleIDs, r.ID)
+		if user != nil {
+			roleIDs := make([]string, 0, len(user.Roles))
+			for _, r := range user.Roles {
+				if r != nil {
+					roleIDs = append(roleIDs, r.ID)
+				}
 			}
-		}
 
-		allowedIDs := make([]string, 0, len(post.AllowedRoles))
-		for _, ar := range post.AllowedRoles {
-			allowedIDs = append(allowedIDs, ar.RoleID)
+			allowedIDs := make([]string, 0, len(post.AllowedRoles))
+			for _, ar := range post.AllowedRoles {
+				allowedIDs = append(allowedIDs, ar.RoleID)
+			}
+			log.Info("Debug Access", "userRoles", roleIDs, "allowedRoles", allowedIDs, "isAdmin", user.IsAdmin)
 		}
-		log.Info("Debug Access", "userRoles", roleIDs, "allowedRoles", allowedIDs, "isAdmin", user.IsAdmin)
 
 		return c.JSON(http.StatusForbidden, map[string]string{"error": "Access denied"})
 	}
@@ -100,18 +105,20 @@ func (s *Server) handleGetImage(c echo.Context) error {
 		}
 	}
 
-	// Check cache first
-	cacheKey := fmt.Sprintf("exif_%d_%s", id, user.UserID)
-	if cached, err := imageExifCache.Get(cacheKey); err == nil {
-		c.Response().Header().Set("Cache-Control", "private, max-age=86400")
-		c.Response().Header().Set("Content-Type", "image/png")
-		c.Response().Header().Set("Content-Disposition", fmt.Sprintf("%s; filename=%q", disposition, downloadName))
-		c.Response().Header().Set("X-Cache", "hit-memory")
-		return c.Stream(http.StatusOK, "image/png", bytes.NewReader(cached))
+	// Check cache first (only if we have a user to inject EXIF for)
+	if user != nil {
+		cacheKey := fmt.Sprintf("exif_%d_%s", id, user.UserID)
+		if cached, err := imageExifCache.Get(cacheKey); err == nil {
+			c.Response().Header().Set("Cache-Control", "private, max-age=86400")
+			c.Response().Header().Set("Content-Type", "image/png")
+			c.Response().Header().Set("Content-Disposition", fmt.Sprintf("%s; filename=%q", disposition, downloadName))
+			c.Response().Header().Set("X-Cache", "hit-memory")
+			return c.Stream(http.StatusOK, "image/png", bytes.NewReader(cached))
+		}
 	}
 
-	// Not in cache, generate if it's a PNG
-	if contentType == "image/png" {
+	// Not in cache, generate if it's a PNG and we have a user
+	if user != nil && contentType == "image/png" {
 		exifData, err := s.generateAndCacheImageExif(uint(id), user)
 		if err != nil {
 			log.Error("Failed to generate EXIF", "error", err)
@@ -368,10 +375,12 @@ func (s *Server) handleGetThumb(c echo.Context) error {
 
 func (s *Server) serveVideoPreview(c echo.Context, id uint, blob *types.ImageBlob) error {
 	user := GetUserFromContext(c)
+	settings, _ := s.db.GetSettings()
+	publicAccess := settings != nil && settings.PublicAccess
 
 	// Check authorization
-	isAuthorized := false
-	if user != nil {
+	isAuthorized := publicAccess
+	if !isAuthorized && user != nil {
 		post, err := s.db.GetPostByBlobID(id)
 		if err == nil && canAccessPost(user, post) {
 			isAuthorized = true

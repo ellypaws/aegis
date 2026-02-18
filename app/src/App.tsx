@@ -434,7 +434,7 @@ function App() {
                       onBack={() => {
                         navigate("/");
                       }}
-                      user={user}
+                      canAccessPost={canAccessPost}
                     />
                   }
                 />

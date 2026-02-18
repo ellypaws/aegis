@@ -121,11 +121,14 @@ func (s *Server) handleGetResizedImage(c echo.Context) error {
 	}
 
 	user := GetUserFromContext(c)
+	settings, _ := s.db.GetSettings()
+	publicAccess := settings != nil && settings.PublicAccess
+
 	post, err := s.db.GetPostByBlobID(uint(id))
 	if err != nil {
 		return c.JSON(http.StatusNotFound, map[string]string{"error": "Image not found"})
 	}
-	if !canAccessPost(user, post) {
+	if !publicAccess && !canAccessPost(user, post) {
 		return c.JSON(http.StatusForbidden, map[string]string{"error": "Access denied"})
 	}
 

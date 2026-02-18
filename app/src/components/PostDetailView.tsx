@@ -1,17 +1,17 @@
 import { useRef, useMemo } from "react";
 import { cn } from "../lib/utils";
 import { UI } from "../constants";
-import type { Post, DiscordUser } from "../types";
+import type { Post } from "../types";
 import { LockedOverlay } from "./LockedOverlay";
 import { ImageWithSpinner } from "./ImageWithSpinner";
 export function PostDetailView({
     selected,
-    onBack,
-    user,
+    onBack, 
+    canAccessPost,
 }: {
     selected: Post | null;
     onBack: () => void;
-    user: DiscordUser | null;
+    canAccessPost: (p: Post) => boolean;
 }) {
     const imgRef = useRef<HTMLImageElement>(null);
 
@@ -20,17 +20,14 @@ export function PostDetailView({
 
     const canAccess = useMemo(() => {
         if (!activePost) return false;
-        if (user?.isAdmin) return true;
-        const roleIds = activePost.allowedRoles.map(r => r.id);
-        if (roleIds.length === 0) return true;
-        const userRoleIds = user?.roles?.map(r => r.id) || [];
-        return roleIds.some(id => userRoleIds.includes(id));
-    }, [activePost, user]);
+        return canAccessPost(activePost);
+    }, [activePost, canAccessPost]);
 
     const currentAccessLabel = useMemo(() => {
         if (!activePost) return "";
+        if (canAccess) return "Public"; // Simplified label if accessible
         return activePost.allowedRoles.length ? `Requires: ${activePost.allowedRoles.map(r => r.name).join(", ")}` : "Public";
-    }, [activePost]);
+    }, [activePost, canAccess]);
 
     const getDisplayUrl = (p: Post | null, access: boolean) => {
         if (!p) return undefined;
