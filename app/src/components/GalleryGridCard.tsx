@@ -73,10 +73,7 @@ export function GalleryGridCard({
                     <ImageWithSpinner
                         src={thumbUrl}
                         alt={post.title ?? ""}
-                        className={cn(
-                            "h-full w-full object-cover transition-all duration-500",
-                            !canAccess && "blur-md scale-105"
-                        )}
+                        className={"h-full w-full object-cover transition-all duration-500"}
                         style={focusStyle}
                     />
                 </div>
