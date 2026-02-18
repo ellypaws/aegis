@@ -27,10 +27,18 @@ export function DropdownAddToList<T extends { id: string; name: string }>({
     const buttonRef = useRef<HTMLButtonElement | null>(null);
     const [menuStyle, setMenuStyle] = useState<React.CSSProperties>({});
 
+    const menuRef = useRef<HTMLDivElement>(null);
+
     useEffect(() => {
         const onDoc = (e: MouseEvent) => {
             if (!wrapRef.current) return;
-            if (!wrapRef.current.contains(e.target as Node)) setOpen(false);
+            if (
+                wrapRef.current.contains(e.target as Node) ||
+                menuRef.current?.contains(e.target as Node)
+            ) {
+                return;
+            }
+            setOpen(false);
         };
         document.addEventListener("mousedown", onDoc);
         return () => document.removeEventListener("mousedown", onDoc);
@@ -39,7 +47,7 @@ export function DropdownAddToList<T extends { id: string; name: string }>({
     // Update menu position when opening or resizing
     useEffect(() => {
         if (!open || !buttonRef.current) return;
-        
+
         const updatePosition = () => {
             if (!buttonRef.current) return;
             const rect = buttonRef.current.getBoundingClientRect();
@@ -55,7 +63,7 @@ export function DropdownAddToList<T extends { id: string; name: string }>({
         updatePosition();
         window.addEventListener("resize", updatePosition);
         window.addEventListener("scroll", updatePosition, true);
-        
+
         return () => {
             window.removeEventListener("resize", updatePosition);
             window.removeEventListener("scroll", updatePosition, true);
@@ -71,14 +79,15 @@ export function DropdownAddToList<T extends { id: string; name: string }>({
 
     const dropdownMenu = open ? (
         <div
+            ref={menuRef}
             style={menuStyle}
             className="overflow-hidden rounded-2xl border-4 border-zinc-200 bg-white shadow-[6px_6px_0px_rgba(0,0,0,0.18)]"
         >
             <div className="p-2">
-                <input 
-                    value={q} 
-                    onChange={(e) => setQ(e.target.value)} 
-                    placeholder="Search…" 
+                <input
+                    value={q}
+                    onChange={(e) => setQ(e.target.value)}
+                    placeholder="Search…"
                     className={UI.input}
                     onClick={(e) => e.stopPropagation()}
                 />
@@ -97,6 +106,7 @@ export function DropdownAddToList<T extends { id: string; name: string }>({
                                     if (selected) {
                                         onRemove(o.id);
                                     } else {
+                                        setQ(""); // Clear search on select
                                         onAdd(o.id);
                                     }
                                 }}
@@ -144,17 +154,17 @@ export function DropdownAddToList<T extends { id: string; name: string }>({
             </div>
 
             <div className="relative">
-                <button 
+                <button
                     ref={buttonRef}
-                    type="button" 
-                    onClick={() => setOpen(!open)} 
+                    type="button"
+                    onClick={() => setOpen(!open)}
                     className={cn(UI.input, "text-left", "flex items-center justify-between w-full")}
                 >
                     <span className="text-zinc-500 font-bold">{placeholder}</span>
                     <span className="text-zinc-400">▾</span>
                 </button>
             </div>
-            
+
             {dropdownMenu ? createPortal(dropdownMenu, document.body) : null}
         </div>
     );
