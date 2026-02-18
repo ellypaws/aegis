@@ -82,3 +82,19 @@ export function getExtension(mime?: string): string {
 
     return ext || "png";
 }
+
+export function getAvatarUrl(userId: string, hash?: string | null): string {
+    if (!hash) {
+        // Default avatar based on user ID
+        const discriminator = userId.split("").reduce((acc, char) => (acc * 10 + parseInt(char)) % 6, 0);
+        return `https://cdn.discordapp.com/embed/avatars/${discriminator}.png`;
+    }
+    const ext = hash.startsWith("a_") ? "gif" : "png";
+    return `https://cdn.discordapp.com/avatars/${userId}/${hash}.${ext}`;
+}
+
+export function getBannerUrl(userId: string, hash?: string | null): string | null {
+    if (!hash) return null;
+    const ext = hash.startsWith("a_") ? "gif" : "png";
+    return `https://cdn.discordapp.com/banners/${userId}/${hash}.${ext}`;
+}

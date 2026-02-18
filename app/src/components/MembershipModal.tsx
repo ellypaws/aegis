@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { cn } from "../lib/utils";
+import { cn, getAvatarUrl, getBannerUrl } from "../lib/utils";
 import { UI } from "../constants";
 import { useSettings } from "../contexts/SettingsContext";
 import type { DiscordUser } from "../types";
@@ -133,12 +133,12 @@ export function MembershipModal({
                                     {/* User Visuals */}
                                     <div className="relative shrink-0">
                                         <div className="h-14 w-14 overflow-hidden rounded-full border-2 border-white dark:border-zinc-800 shadow-sm relative z-10">
-                                            <img src={u.avatar || "https://cdn.discordapp.com/embed/avatars/0.png"} alt="" className="h-full w-full object-cover bg-zinc-200" />
+                                            <img src={getAvatarUrl(u.userId, u.avatar)} alt="" className="h-full w-full object-cover bg-zinc-200" />
                                         </div>
                                         {/* Banner hint */}
                                         {u.banner && (
                                             <div className="absolute -top-1 -left-1 -right-1 h-8 rounded-t-lg overflow-hidden opacity-0 group-hover:opacity-100 transition-opacity z-0 pointer-events-none">
-                                                <img src={u.banner} className="h-full w-full object-cover blur-[2px]" />
+                                                <img src={getBannerUrl(u.userId, u.banner) || ""} className="h-full w-full object-cover blur-[2px]" />
                                             </div>
                                         )}
                                         {u.isAdmin && (
