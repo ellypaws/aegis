@@ -122,10 +122,10 @@ export function PostDetailView({
                     <motion.div
                         layout
                         transition={{ layout: { type: "spring", stiffness: 300, damping: 30 } }}
-                        className="relative w-full max-w-5xl overflow-hidden isolate transform-gpu p-4 rounded-(--theme-radius) bg-(--theme-card-bg-light) dark:bg-(--theme-card-bg-dark) border-(length:--theme-border-size) border-zinc-400 dark:border-zinc-800 shadow-[6px_6px_0px_rgba(0,0,0,0.18)] dark:shadow-[6px_6px_0px_rgba(255,255,0,0.1)] transition-colors duration-300 backdrop-blur-sm"
+                        className="relative w-full max-w-5xl overflow-hidden isolate transform-gpu transition-colors duration-300 md:p-4 md:rounded-(--theme-radius) md:bg-(--theme-card-bg-light) md:dark:bg-(--theme-card-bg-dark) md:border-(length:--theme-border-size) md:border-zinc-400 md:dark:border-zinc-800 md:shadow-[6px_6px_0px_rgba(0,0,0,0.18)] md:dark:shadow-[6px_6px_0px_rgba(255,255,0,0.1)] md:backdrop-blur-sm"
                         style={{ maskImage: "linear-gradient(white, white)", WebkitMaskImage: "linear-gradient(white, white)" }}
                     >
-                        <div className="flex min-h-[50vh] w-full items-center justify-center relative bg-zinc-100 dark:bg-zinc-900/50 rounded-lg overflow-hidden">
+                        <div className="flex min-h-[50vh] w-full items-center justify-center relative md:bg-zinc-100 md:dark:bg-zinc-900/50 md:rounded-lg overflow-hidden">
                             <AnimatePresence initial={false} custom={direction} mode="popLayout">
                                 {activePost ? (
                                     displayUrl ? (
@@ -208,13 +208,13 @@ export function PostDetailView({
                                 <>
                                     <button
                                         onClick={() => paginate(-1)}
-                                        className="absolute left-4 top-1/2 -translate-y-1/2 rounded-full bg-black/50 p-3 text-white/80 backdrop-blur-md transition-all hover:bg-black/70 hover:text-white hover:scale-110 active:scale-95 border border-white/10 z-20"
+                                        className="absolute left-4 top-1/2 -translate-y-1/2 rounded-full bg-black/50 p-3 text-white/80 backdrop-blur-md transition-all hover:bg-black/70 hover:text-white hover:scale-110 active:scale-95 hidden md:block border border-white/10 z-20"
                                     >
                                         <ChevronLeft className="h-8 w-8" />
                                     </button>
                                     <button
                                         onClick={() => paginate(1)}
-                                        className="absolute right-4 top-1/2 -translate-y-1/2 rounded-full bg-black/50 p-3 text-white/80 backdrop-blur-md transition-all hover:bg-black/70 hover:text-white hover:scale-110 active:scale-95 border border-white/10 z-20"
+                                        className="absolute right-4 top-1/2 -translate-y-1/2 rounded-full bg-black/50 p-3 text-white/80 backdrop-blur-md transition-all hover:bg-black/70 hover:text-white hover:scale-110 active:scale-95 hidden md:block border border-white/10 z-20"
                                     >
                                         <ChevronRight className="h-8 w-8" />
                                     </button>
