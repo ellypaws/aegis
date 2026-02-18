@@ -29,7 +29,16 @@ func (s *Server) handlePatchPost(c echo.Context) error {
 		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Missing id"})
 	}
 
-	post, err := s.db.ReadPostByExternalID(idStr)
+	var post *types.Post
+	if numericID, parseErr := strconv.ParseUint(idStr, 10, 32); parseErr == nil {
+		post, err = s.db.ReadPostWithBlobData(uint(numericID))
+		if err != nil {
+			post, err = s.db.ReadPostByExternalIDWithBlobData(idStr)
+		}
+	} else {
+		post, err = s.db.ReadPostByExternalIDWithBlobData(idStr)
+	}
+
 	if err != nil {
 		log.Error("Failed to find post for patch", "id", idStr, "error", err)
 		return c.JSON(http.StatusNotFound, map[string]string{"error": "Post not found"})
@@ -45,6 +54,9 @@ func (s *Server) handlePatchPost(c echo.Context) error {
 	description := c.FormValue("description")
 	rolesStr := c.FormValue("roles")
 	channelsStr := c.FormValue("channels")
+	removeImageIDsStr := c.FormValue("removeImageIds")
+	mediaOrderStr := c.FormValue("mediaOrder")
+	clearThumbnail := c.FormValue("clearThumbnail") == "1" || strings.EqualFold(c.FormValue("clearThumbnail"), "true")
 
 	// Update scalar fields on the post
 	post.Title = title
@@ -92,41 +104,166 @@ func (s *Server) handlePatchPost(c echo.Context) error {
 	if len(files) == 0 {
 		files = form.File["image"]
 	}
+	thumbFiles := form.File["thumbnail"]
 
-	// If we have new files, verify and append
-	if len(files) > 0 {
-		for _, fileHeader := range files {
-			file, err := fileHeader.Open()
-			if err != nil {
-				log.Error("Failed to open uploaded file", "filename", fileHeader.Filename, "error", err)
-				continue
-			}
+	removedImageIDs := make(map[uint]struct{})
+	for _, idToken := range strings.Split(removeImageIDsStr, ",") {
+		idToken = strings.TrimSpace(idToken)
+		if idToken == "" {
+			continue
+		}
+		parsed, parseErr := strconv.ParseUint(idToken, 10, 32)
+		if parseErr != nil {
+			continue
+		}
+		removedImageIDs[uint(parsed)] = struct{}{}
+	}
 
-			imgBytes, err := io.ReadAll(file)
-			file.Close()
-			if err != nil {
-				log.Error("Failed to read uploaded file", "filename", fileHeader.Filename, "error", err)
-				continue
-			}
+	newImages := make([]types.Image, 0, len(files))
+	for _, fileHeader := range files {
+		file, openErr := fileHeader.Open()
+		if openErr != nil {
+			log.Error("Failed to open uploaded file", "filename", fileHeader.Filename, "error", openErr)
+			continue
+		}
 
-			// Append new image
-			post.Images = append(post.Images, types.Image{
-				PostID: post.ID, // Link to this post
-				Blobs: []types.ImageBlob{
-					{
-						Index:       0,
-						Data:        imgBytes,
-						ContentType: fileHeader.Header.Get("Content-Type"),
-						Filename:    fileHeader.Filename,
-					},
+		imgBytes, readErr := io.ReadAll(file)
+		file.Close()
+		if readErr != nil {
+			log.Error("Failed to read uploaded file", "filename", fileHeader.Filename, "error", readErr)
+			continue
+		}
+
+		newImages = append(newImages, types.Image{
+			PostID: post.ID,
+			Blobs: []types.ImageBlob{
+				{
+					Index:       0,
+					Data:        imgBytes,
+					ContentType: fileHeader.Header.Get("Content-Type"),
+					Filename:    fileHeader.Filename,
 				},
+			},
+		})
+	}
+
+	copyImage := func(src types.Image) types.Image {
+		copied := types.Image{
+			Thumbnail: append([]byte(nil), src.Thumbnail...),
+		}
+		copied.Blobs = make([]types.ImageBlob, 0, len(src.Blobs))
+		for i := range src.Blobs {
+			blob := src.Blobs[i]
+			copied.Blobs = append(copied.Blobs, types.ImageBlob{
+				Index:       blob.Index,
+				Data:        append([]byte(nil), blob.Data...),
+				ContentType: blob.ContentType,
+				Filename:    blob.Filename,
 			})
+		}
+		return copied
+	}
+
+	existingByID := make(map[uint]types.Image, len(post.Images))
+	for i := range post.Images {
+		existingByID[post.Images[i].ID] = post.Images[i]
+	}
+
+	finalImages := make([]types.Image, 0, len(post.Images)+len(newImages))
+	usedExisting := make(map[uint]struct{})
+	usedNew := make(map[int]struct{})
+
+	mediaOrderTokens := strings.Split(mediaOrderStr, ",")
+	if strings.TrimSpace(mediaOrderStr) != "" {
+		for _, token := range mediaOrderTokens {
+			token = strings.TrimSpace(token)
+			if token == "" {
+				continue
+			}
+
+			if strings.HasPrefix(token, "e:") {
+				raw := strings.TrimSpace(strings.TrimPrefix(token, "e:"))
+				parsed, parseErr := strconv.ParseUint(raw, 10, 32)
+				if parseErr != nil {
+					continue
+				}
+				id := uint(parsed)
+				if _, removed := removedImageIDs[id]; removed {
+					continue
+				}
+				img, ok := existingByID[id]
+				if !ok {
+					continue
+				}
+				if _, alreadyUsed := usedExisting[id]; alreadyUsed {
+					continue
+				}
+				finalImages = append(finalImages, copyImage(img))
+				usedExisting[id] = struct{}{}
+				continue
+			}
+
+			if strings.HasPrefix(token, "n:") {
+				raw := strings.TrimSpace(strings.TrimPrefix(token, "n:"))
+				idx, parseErr := strconv.Atoi(raw)
+				if parseErr != nil || idx < 0 || idx >= len(newImages) {
+					continue
+				}
+				if _, alreadyUsed := usedNew[idx]; alreadyUsed {
+					continue
+				}
+				finalImages = append(finalImages, newImages[idx])
+				usedNew[idx] = struct{}{}
+			}
+		}
+
+		for i := range post.Images {
+			img := post.Images[i]
+			if _, removed := removedImageIDs[img.ID]; removed {
+				continue
+			}
+			if _, alreadyUsed := usedExisting[img.ID]; alreadyUsed {
+				continue
+			}
+			finalImages = append(finalImages, copyImage(img))
+		}
+		for i := range newImages {
+			if _, alreadyUsed := usedNew[i]; alreadyUsed {
+				continue
+			}
+			finalImages = append(finalImages, newImages[i])
 		}
 	} else {
 		for i := range post.Images {
-			post.Images[i].Blobs = nil
+			img := post.Images[i]
+			if _, removed := removedImageIDs[img.ID]; removed {
+				continue
+			}
+			finalImages = append(finalImages, copyImage(img))
 		}
+		finalImages = append(finalImages, newImages...)
 	}
+
+	if len(finalImages) == 0 {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Post must contain at least one media item"})
+	}
+
+	if len(thumbFiles) > 0 {
+		thumbFile, openErr := thumbFiles[0].Open()
+		if openErr != nil {
+			return c.JSON(http.StatusBadRequest, map[string]string{"error": "Failed to open thumbnail"})
+		}
+		thumbBytes, readErr := io.ReadAll(thumbFile)
+		thumbFile.Close()
+		if readErr != nil {
+			return c.JSON(http.StatusBadRequest, map[string]string{"error": "Failed to read thumbnail"})
+		}
+		finalImages[0].Thumbnail = thumbBytes
+	} else if clearThumbnail {
+		finalImages[0].Thumbnail = nil
+	}
+
+	post.Images = finalImages
 
 	// UpdatePost in sqlite/posts.go should be robust enough.
 	if err := s.db.UpdatePost(post); err != nil {
@@ -136,7 +273,7 @@ func (s *Server) handlePatchPost(c echo.Context) error {
 	s.getPostCache.Reset()
 
 	// Read again to return fully hydrated post
-	updated, err := s.db.ReadPostByExternalID(idStr)
+	updated, err := s.db.ReadPost(post.ID)
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Error reading updated post"})
 	}

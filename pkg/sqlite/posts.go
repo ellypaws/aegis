@@ -65,6 +65,7 @@ func (s *sqliteDB) CreatePost(p *types.Post) error {
 		// Images (optional) — attach to this post via PostID and create blobs explicitly
 		if len(p.Images) > 0 {
 			for i := range p.Images {
+				p.Images[i].ID = 0
 				p.Images[i].PostID = p.ID
 				// Prevent GORM from auto-creating blobs by omitting association
 				blobs := p.Images[i].Blobs
@@ -73,6 +74,7 @@ func (s *sqliteDB) CreatePost(p *types.Post) error {
 					return err
 				}
 				for j := range blobs {
+					blobs[j].ID = 0
 					blobs[j].ImageID = p.Images[i].ID
 				}
 				if len(blobs) > 0 {
@@ -130,6 +132,24 @@ func (s *sqliteDB) ReadPost(id uint) (*types.Post, error) {
 	return &p, nil
 }
 
+// ReadPostWithBlobData fetches a post by numeric PK with full image/blob payload.
+// Use this for edit flows that must preserve existing binary data.
+func (s *sqliteDB) ReadPostWithBlobData(id uint) (*types.Post, error) {
+	var p types.Post
+	err := s.db.
+		Preload("Author").
+		Preload("Images").
+		Preload("Images.Blobs", func(db *gorm.DB) *gorm.DB {
+			return db.Order("`image_blobs`.`index` ASC")
+		}).
+		Preload("AllowedRoles").
+		First(&p, id).Error
+	if err != nil {
+		return nil, err
+	}
+	return &p, nil
+}
+
 // ReadPostByExternalID fetches by PostKey (external ID).
 func (s *sqliteDB) ReadPostByExternalID(ext string) (*types.Post, error) {
 	var p types.Post
@@ -141,6 +161,25 @@ func (s *sqliteDB) ReadPostByExternalID(ext string) (*types.Post, error) {
 		}).
 		Preload("Images.Blobs", func(db *gorm.DB) *gorm.DB {
 			return db.Select("id", "created_at", "updated_at", "deleted_at", "image_id", "index", "content_type", "filename", "length(data) as size")
+		}).
+		Preload("AllowedRoles").
+		Where("post_key = ?", ext).
+		First(&p).Error
+	if err != nil {
+		return nil, err
+	}
+	return &p, nil
+}
+
+// ReadPostByExternalIDWithBlobData fetches by PostKey (external ID) with full image/blob payload.
+// Use this for edit flows that must preserve existing binary data.
+func (s *sqliteDB) ReadPostByExternalIDWithBlobData(ext string) (*types.Post, error) {
+	var p types.Post
+	err := s.db.
+		Preload("Author").
+		Preload("Images").
+		Preload("Images.Blobs", func(db *gorm.DB) *gorm.DB {
+			return db.Order("`image_blobs`.`index` ASC")
 		}).
 		Preload("AllowedRoles").
 		Where("post_key = ?", ext).
@@ -204,10 +243,10 @@ func (s *sqliteDB) UpdatePost(p *types.Post) error {
 			}
 			for i := range existingImgs {
 				img := existingImgs[i]
-				if err := tx.Where("image_id = ?", img.ID).Delete(&types.ImageBlob{}).Error; err != nil {
+				if err := tx.Unscoped().Where("image_id = ?", img.ID).Delete(&types.ImageBlob{}).Error; err != nil {
 					return err
 				}
-				if err := tx.Delete(&types.Image{}, img.ID).Error; err != nil {
+				if err := tx.Unscoped().Delete(&types.Image{}, img.ID).Error; err != nil {
 					return err
 				}
 			}
@@ -215,6 +254,7 @@ func (s *sqliteDB) UpdatePost(p *types.Post) error {
 			// Add new images
 			for i := range p.Images {
 				img := &p.Images[i]
+				img.ID = 0
 				img.PostID = p.ID
 				blobs := img.Blobs
 				img.Blobs = nil
@@ -240,10 +280,10 @@ func (s *sqliteDB) UpdatePost(p *types.Post) error {
 			}
 			for i := range imgs {
 				img := imgs[i]
-				if err := tx.Where("image_id = ?", img.ID).Delete(&types.ImageBlob{}).Error; err != nil {
+				if err := tx.Unscoped().Where("image_id = ?", img.ID).Delete(&types.ImageBlob{}).Error; err != nil {
 					return err
 				}
-				if err := tx.Delete(&types.Image{}, img.ID).Error; err != nil {
+				if err := tx.Unscoped().Delete(&types.Image{}, img.ID).Error; err != nil {
 					return err
 				}
 			}
@@ -368,20 +408,31 @@ func (s *sqliteDB) PatchPost(id uint, patch PostPatch) error {
 			}
 			for i := range imgs {
 				img := imgs[i]
-				if err := tx.Where("image_id = ?", img.ID).Delete(&types.ImageBlob{}).Error; err != nil {
+				if err := tx.Unscoped().Where("image_id = ?", img.ID).Delete(&types.ImageBlob{}).Error; err != nil {
 					return err
 				}
-				if err := tx.Delete(&types.Image{}, img.ID).Error; err != nil {
+				if err := tx.Unscoped().Delete(&types.Image{}, img.ID).Error; err != nil {
 					return err
 				}
 			}
 		} else if patch.ReplaceImages != nil {
 			// replace current images for this post with the provided ones
 			// first remove any existing images for this post
-			if err := tx.Where("post_id = ?", p.ID).Delete(&types.Image{}).Error; err != nil {
+			var existingImgs []types.Image
+			if err := tx.Where("post_id = ?", p.ID).Find(&existingImgs).Error; err != nil {
 				return err
 			}
+			for i := range existingImgs {
+				img := existingImgs[i]
+				if err := tx.Unscoped().Where("image_id = ?", img.ID).Delete(&types.ImageBlob{}).Error; err != nil {
+					return err
+				}
+				if err := tx.Unscoped().Delete(&types.Image{}, img.ID).Error; err != nil {
+					return err
+				}
+			}
 			for _, img := range patch.ReplaceImages {
+				img.ID = 0
 				img.PostID = p.ID
 				blobs := img.Blobs
 				img.Blobs = nil
@@ -389,6 +440,7 @@ func (s *sqliteDB) PatchPost(id uint, patch PostPatch) error {
 					return err
 				}
 				for i := range blobs {
+					blobs[i].ID = 0
 					blobs[i].ImageID = img.ID
 				}
 				if len(blobs) > 0 {

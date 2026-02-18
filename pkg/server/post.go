@@ -173,6 +173,7 @@ func (s *Server) handleCreatePost(c echo.Context) error {
 
 	form := c.Request().MultipartForm
 	files := form.File["images"] // Expecting "images" key for multiple files
+	thumbFiles := form.File["thumbnail"]
 
 	// Fallback to "image" if "images" is empty (backward compatibility)
 	if len(files) == 0 {
@@ -260,6 +261,19 @@ func (s *Server) handleCreatePost(c echo.Context) error {
 				},
 			},
 		})
+	}
+
+	if len(thumbFiles) > 0 && len(postImages) > 0 {
+		thumbFile, err := thumbFiles[0].Open()
+		if err != nil {
+			return c.JSON(http.StatusBadRequest, map[string]string{"error": "Failed to open thumbnail"})
+		}
+		thumbBytes, err := io.ReadAll(thumbFile)
+		thumbFile.Close()
+		if err != nil {
+			return c.JSON(http.StatusBadRequest, map[string]string{"error": "Failed to read thumbnail"})
+		}
+		postImages[0].Thumbnail = thumbBytes
 	}
 
 	if len(postImages) == 0 {

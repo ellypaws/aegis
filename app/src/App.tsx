@@ -248,15 +248,8 @@ function App() {
       });
     }
 
-    // We can also send thumbnail if needed, but AuthorPanel currently handles it as separate logic or
-    // maybe we incorporate it. AuthorPanel logic has thumbnail.
-    // If we want to support thumbnail:
     if (postInput.thumbnail) {
-      // Backend doesn't explicitly support "thumbnail" file upload yet in standard CreatePost flow?
-      // Wait, Image struct has Thumbnail []byte. But CreatePost (post.go) parses "image" or "images".
-      // It doesn't seem to parse "thumbnail".
-      // Let's omit for now or send it if backend supports it.
-      // The backend I wrote above doesn't look for "thumbnail".
+      formData.append("thumbnail", postInput.thumbnail);
     }
 
     const token = localStorage.getItem("jwt");
@@ -287,7 +280,7 @@ function App() {
     }
   }
 
-  async function handleUpdate(postKey: string, postInput: Omit<AuthorPanelPostInput, "images"> & { images?: File[] }) {
+  async function handleUpdate(postKey: string, postInput: Omit<AuthorPanelPostInput, "images"> & { images?: File[]; removeImageIds?: number[]; mediaOrder?: string[]; clearThumbnail?: boolean }) {
     const formData = new FormData();
     formData.append("title", postInput.title);
     formData.append("description", postInput.description);
@@ -300,6 +293,19 @@ function App() {
       postInput.images.forEach((file) => {
         formData.append("images", file);
       });
+    }
+
+    if (postInput.thumbnail) {
+      formData.append("thumbnail", postInput.thumbnail);
+    }
+    if (postInput.clearThumbnail) {
+      formData.append("clearThumbnail", "1");
+    }
+    if (postInput.removeImageIds && postInput.removeImageIds.length > 0) {
+      formData.append("removeImageIds", postInput.removeImageIds.join(","));
+    }
+    if (postInput.mediaOrder && postInput.mediaOrder.length > 0) {
+      formData.append("mediaOrder", postInput.mediaOrder.join(","));
     }
 
     const token = localStorage.getItem("jwt");

@@ -6,7 +6,7 @@ import { MOCK_GUILD } from "../data/mock";
 import { Patterns } from "./Patterns";
 import { DropdownAddToList } from "./DropdownAddToList";
 import { RolePill, ChannelPill } from "./Pills";
-import { ImagePlus, X, FileVideo } from "lucide-react";
+import { ImagePlus, X, FileVideo, ChevronLeft, ChevronRight } from "lucide-react";
 
 const { useRef } = React;
 
@@ -51,6 +51,9 @@ export type AuthorPanelPostInput = {
     channelIds: string[];
     images: File[];
     thumbnail?: File;
+    removeImageIds?: number[];
+    mediaOrder?: string[];
+    clearThumbnail?: boolean;
     postDate: string;
     focusX?: number;
     focusY?: number;
@@ -60,7 +63,7 @@ export function AuthorPanel({ user, onCreate, editingPost, onUpdate, onCancelEdi
     user: DiscordUser;
     onCreate?: (postInput: AuthorPanelPostInput) => void;
     editingPost?: Post | null;
-    onUpdate?: (postKey: string, postInput: Omit<AuthorPanelPostInput, "images"> & { images?: File[] }) => void;
+    onUpdate?: (postKey: string, postInput: Omit<AuthorPanelPostInput, "images"> & { images?: File[]; removeImageIds?: number[]; mediaOrder?: string[]; clearThumbnail?: boolean }) => void;
     onCancelEdit?: () => void;
 }) {
     const isEditing = !!editingPost;
@@ -89,15 +92,21 @@ export function AuthorPanel({ user, onCreate, editingPost, onUpdate, onCancelEdi
     });
 
     // Multi-file state
-    const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
+    type NewMediaItem = { key: string; file: File };
+    const [newMediaItems, setNewMediaItems] = useState<NewMediaItem[]>([]);
+    const [mediaOrder, setMediaOrder] = useState<string[]>([]);
+    const [removedRemoteImageIds, setRemovedRemoteImageIds] = useState<number[]>([]);
+
     const [thumbFile, setThumbFile] = useState<File | null>(null);
+    const [existingThumbUrl, setExistingThumbUrl] = useState<string | null>(null);
+    const [clearThumbnail, setClearThumbnail] = useState(false);
 
     // Previews
-    type PreviewItem = { url: string; isVideo: boolean; file: File };
+    type PreviewItem = { key: string; url: string; isVideo: boolean; file: File };
     const [filePreviews, setFilePreviews] = useState<PreviewItem[]>([]);
 
     // Remote previews for editing mode (existing images)
-    type RemotePreview = { url: string; isVideo: boolean; id: number };
+    type RemotePreview = { url: string; isVideo: boolean; id: number; blobId?: number; hasThumbnail?: boolean };
     const [remotePreviews, setRemotePreviews] = useState<RemotePreview[]>([]);
 
     const [previewThumb, setPreviewThumb] = useState<string | null>(null);
@@ -112,6 +121,25 @@ export function AuthorPanel({ user, onCreate, editingPost, onUpdate, onCancelEdi
     const [focusX, setFocusX] = useState(50);
     const [focusY, setFocusY] = useState(50);
     const fullPreviewRef = useRef<HTMLDivElement>(null);
+    const [previewSize, setPreviewSize] = useState(() => {
+        try {
+            const stored = localStorage.getItem("author_media_preview_size");
+            const parsed = stored ? Number(stored) : NaN;
+            if (Number.isFinite(parsed)) {
+                return Math.min(160, Math.max(56, parsed));
+            }
+        } catch {
+            // ignore storage parse errors
+        }
+        return 64;
+    });
+    const [draggedMediaToken, setDraggedMediaToken] = useState<string | null>(null);
+
+    const selectedFiles = useMemo(() => newMediaItems.map((m) => m.file), [newMediaItems]);
+
+    useEffect(() => {
+        localStorage.setItem("author_media_preview_size", String(previewSize));
+    }, [previewSize]);
 
     // Seed form fields when editingPost changes
     useEffect(() => {
@@ -124,8 +152,11 @@ export function AuthorPanel({ user, onCreate, editingPost, onUpdate, onCancelEdi
             setChannelIds(editingPost.channelId ? editingPost.channelId.split(",").map(s => s.trim()).filter(Boolean) : []);
             setFocusX(editingPost.focusX ?? 50);
             setFocusY(editingPost.focusY ?? 50);
-            setSelectedFiles([]);
+            setNewMediaItems([]);
+            setMediaOrder([]);
+            setRemovedRemoteImageIds([]);
             setThumbFile(null);
+            setClearThumbnail(false);
 
             // Show current media as remote previews
             const token = localStorage.getItem("jwt");
@@ -139,12 +170,22 @@ export function AuthorPanel({ user, onCreate, editingPost, onUpdate, onCancelEdi
                         remotes.push({
                             url: `/images/${blob.ID}${token ? `?token=${token}` : ""}`,
                             isVideo: !!isVideo,
-                            id: img.ID
+                            id: img.ID,
+                            blobId: blob.ID,
+                            hasThumbnail: !!img.hasThumbnail,
                         });
                     }
                 });
             }
             setRemotePreviews(remotes);
+            setMediaOrder(remotes.map((r) => `e:${r.id}`));
+
+            const firstWithThumb = remotes.find((r) => r.hasThumbnail && !!r.blobId);
+            if (firstWithThumb?.blobId) {
+                setExistingThumbUrl(`/thumb/${firstWithThumb.blobId}${token ? `?token=${token}` : ""}`);
+            } else {
+                setExistingThumbUrl(null);
+            }
 
             setPreviewThumb(null);
             setIsThumbVideo(false);
@@ -154,9 +195,11 @@ export function AuthorPanel({ user, onCreate, editingPost, onUpdate, onCancelEdi
     // Handle file changes -> generate previews
     useEffect(() => {
         const newPreviews: PreviewItem[] = [];
-        selectedFiles.forEach(file => {
+        newMediaItems.forEach(item => {
+            const file = item.file;
             if (isMediaFile(file)) {
                 newPreviews.push({
+                    key: item.key,
                     url: URL.createObjectURL(file),
                     isVideo: isVideoFile(file),
                     file: file
@@ -168,7 +211,7 @@ export function AuthorPanel({ user, onCreate, editingPost, onUpdate, onCancelEdi
         return () => {
             newPreviews.forEach(p => safeRevoke(p.url));
         };
-    }, [selectedFiles]);
+    }, [newMediaItems]);
 
     // Cleanup thumb
     useEffect(() => {
@@ -208,6 +251,7 @@ export function AuthorPanel({ user, onCreate, editingPost, onUpdate, onCancelEdi
         const file = e.dataTransfer.files?.[0];
         if (file && isImageFile(file)) {
             setThumbFile(file);
+            setClearThumbnail(false);
         }
     }, []);
 
@@ -245,9 +289,27 @@ export function AuthorPanel({ user, onCreate, editingPost, onUpdate, onCancelEdi
             .catch(err => console.error("Failed to load upload config", err));
     }, []);
 
+    const availableRemoteIds = useMemo(() => new Set(remotePreviews.map((p) => p.id)), [remotePreviews]);
+    const availableNewKeys = useMemo(() => new Set(newMediaItems.map((p) => p.key)), [newMediaItems]);
+    const effectiveMediaCount = useMemo(() => {
+        let count = 0;
+        mediaOrder.forEach((token) => {
+            if (token.startsWith("e:")) {
+                const parsed = Number(token.slice(2));
+                if (Number.isFinite(parsed) && availableRemoteIds.has(parsed)) count += 1;
+                return;
+            }
+            if (token.startsWith("n:")) {
+                const key = token.slice(2);
+                if (availableNewKeys.has(key)) count += 1;
+            }
+        });
+        return count;
+    }, [mediaOrder, availableRemoteIds, availableNewKeys]);
+
     // Validation
     const canSubmit = isEditing
-        ? allowedRoleIds.length > 0
+        ? allowedRoleIds.length > 0 && effectiveMediaCount > 0
         : selectedFiles.length > 0 && allowedRoleIds.length > 0;
 
     const roleOptions = useMemo(() => {
@@ -267,13 +329,54 @@ export function AuthorPanel({ user, onCreate, editingPost, onUpdate, onCancelEdi
     }, [config]);
 
     const handleSubmit = () => {
+        const validOrderedTokens = mediaOrder.filter((token) => {
+            if (token.startsWith("e:")) {
+                const parsed = Number(token.slice(2));
+                return Number.isFinite(parsed) && remotePreviews.some((r) => r.id === parsed);
+            }
+            if (token.startsWith("n:")) {
+                const key = token.slice(2);
+                return newMediaItems.some((item) => item.key === key);
+            }
+            return false;
+        });
+
+        const newKeysInOrder: string[] = [];
+        validOrderedTokens.forEach((token) => {
+            if (!token.startsWith("n:")) return;
+            const key = token.slice(2);
+            if (!newKeysInOrder.includes(key)) {
+                newKeysInOrder.push(key);
+            }
+        });
+
+        const orderedNewFiles = newKeysInOrder
+            .map((key) => newMediaItems.find((item) => item.key === key)?.file)
+            .filter((file): file is File => !!file);
+
+        const newIndexByKey = new Map<string, number>();
+        newKeysInOrder.forEach((key, idx) => newIndexByKey.set(key, idx));
+        const mediaOrderForBackend = validOrderedTokens
+            .map((token) => {
+                if (token.startsWith("e:")) return token;
+                if (token.startsWith("n:")) {
+                    const idx = newIndexByKey.get(token.slice(2));
+                    if (idx !== undefined) return `n:${idx}`;
+                }
+                return "";
+            })
+            .filter(Boolean);
+
         const payload: AuthorPanelPostInput = {
             title: title.trim(),
             description: desc.trim(),
             allowedRoleIds,
             channelIds,
-            images: selectedFiles,
+            images: isEditing ? orderedNewFiles : selectedFiles,
             thumbnail: thumbFile || undefined,
+            removeImageIds: isEditing ? removedRemoteImageIds : undefined,
+            mediaOrder: isEditing ? mediaOrderForBackend : undefined,
+            clearThumbnail: isEditing ? (clearThumbnail && !thumbFile) : undefined,
             postDate: postDate ? new Date(postDate).toISOString() : new Date().toISOString(),
             focusX,
             focusY,
@@ -283,7 +386,7 @@ export function AuthorPanel({ user, onCreate, editingPost, onUpdate, onCancelEdi
             // Fix type compatibility: explicit cast or fresh object
             const updatePayload: Omit<AuthorPanelPostInput, "images"> & { images?: File[] } = {
                 ...payload,
-                images: selectedFiles.length > 0 ? selectedFiles : undefined
+                images: payload.images.length > 0 ? payload.images : undefined
             };
             onUpdate(editingPost.postKey, updatePayload);
         } else if (onCreate && selectedFiles.length > 0) {
@@ -292,8 +395,12 @@ export function AuthorPanel({ user, onCreate, editingPost, onUpdate, onCancelEdi
             setTitle("");
             setDesc("");
             setPostDate(toDatetimeLocal(new Date()));
-            setSelectedFiles([]);
+            setNewMediaItems([]);
+            setMediaOrder([]);
+            setRemovedRemoteImageIds([]);
             setThumbFile(null);
+            setExistingThumbUrl(null);
+            setClearThumbnail(false);
             setFocusX(50);
             setFocusY(50);
             setRemotePreviews([]);
@@ -303,11 +410,70 @@ export function AuthorPanel({ user, onCreate, editingPost, onUpdate, onCancelEdi
     };
 
     const addFiles = (files: File[]) => {
-        setSelectedFiles(prev => [...prev, ...files]);
+        const accepted = files.filter(isMediaFile);
+        if (accepted.length === 0) return;
+        const addedItems = accepted.map((file, idx) => ({
+            key: `${Date.now()}-${idx}-${Math.random().toString(36).slice(2, 10)}`,
+            file,
+        }));
+        setNewMediaItems((prev) => [...prev, ...addedItems]);
+        setMediaOrder((prev) => [...prev, ...addedItems.map((item) => `n:${item.key}`)]);
     };
 
-    const removeFile = (index: number) => {
-        setSelectedFiles(prev => prev.filter((_, i) => i !== index));
+    const removeMediaToken = (token: string) => {
+        if (token.startsWith("e:")) {
+            const parsed = Number(token.slice(2));
+            if (Number.isFinite(parsed)) {
+                const remoteID = parsed as number;
+                setRemotePreviews((prev) => prev.filter((item) => item.id !== remoteID));
+                setRemovedRemoteImageIds((prev) => (prev.includes(remoteID) ? prev : [...prev, remoteID]));
+            }
+        }
+        if (token.startsWith("n:")) {
+            const key = token.slice(2);
+            setNewMediaItems((prev) => prev.filter((item) => item.key !== key));
+        }
+        setMediaOrder((prev) => prev.filter((item) => item !== token));
+    };
+
+    const moveMediaToken = (token: string, direction: -1 | 1) => {
+        setMediaOrder((prev) => {
+            const idx = prev.indexOf(token);
+            if (idx < 0) return prev;
+            const target = idx + direction;
+            if (target < 0 || target >= prev.length) return prev;
+            const next = [...prev];
+            const tmp = next[idx];
+            next[idx] = next[target];
+            next[target] = tmp;
+            return next;
+        });
+    };
+
+    const reorderMediaToken = (sourceToken: string, targetToken: string) => {
+        if (!sourceToken || !targetToken || sourceToken === targetToken) return;
+        setMediaOrder((prev) => {
+            const sourceIndex = prev.indexOf(sourceToken);
+            const targetIndex = prev.indexOf(targetToken);
+            if (sourceIndex < 0 || targetIndex < 0 || sourceIndex === targetIndex) return prev;
+            const next = [...prev];
+            const [moved] = next.splice(sourceIndex, 1);
+            next.splice(targetIndex, 0, moved);
+            return next;
+        });
+    };
+
+    const handleCancelEdit = () => {
+        setNewMediaItems([]);
+        setMediaOrder([]);
+        setRemovedRemoteImageIds([]);
+        setThumbFile(null);
+        setRemotePreviews([]);
+        setExistingThumbUrl(null);
+        setClearThumbnail(false);
+        if (fullInputRef.current) fullInputRef.current.value = "";
+        if (thumbInputRef.current) thumbInputRef.current.value = "";
+        onCancelEdit?.();
     };
 
     // Determine what to show in the main preview area
@@ -317,14 +483,21 @@ export function AuthorPanel({ user, onCreate, editingPost, onUpdate, onCancelEdi
     // To keep it simple, we'll show the FIRST item in the big box for focus, and a strip below for all items.
 
     const activePreview = useMemo(() => {
-        if (filePreviews.length > 0) {
-            return { ...filePreviews[0], isRemote: false };
+        const first = mediaOrder[0];
+        if (!first) return null;
+        if (first.startsWith("n:")) {
+            const key = first.slice(2);
+            const found = filePreviews.find((p) => p.key === key);
+            if (found) return { ...found, isRemote: false };
+            return null;
         }
-        if (remotePreviews.length > 0) {
-            return { ...remotePreviews[0], isRemote: true };
+        if (first.startsWith("e:")) {
+            const id = Number(first.slice(2));
+            const found = remotePreviews.find((p) => p.id === id);
+            if (found) return { ...found, isRemote: true };
         }
         return null;
-    }, [filePreviews, remotePreviews]);
+    }, [filePreviews, remotePreviews, mediaOrder]);
 
     // We only support focus picking on the VERY FIRST image for now (to keep UI simple and consistent with backend focus field which is per post, not per image yet?)
     // Wait, backend has focusX/focusY per POST, but we have multiple images now.
@@ -374,7 +547,7 @@ export function AuthorPanel({ user, onCreate, editingPost, onUpdate, onCancelEdi
                         {isEditing && onCancelEdit && (
                             <button
                                 type="button"
-                                onClick={onCancelEdit}
+                                onClick={handleCancelEdit}
                                 className={cn(UI.button, UI.btnYellow)}
                             >
                                 Cancel
@@ -432,7 +605,10 @@ export function AuthorPanel({ user, onCreate, editingPost, onUpdate, onCancelEdi
                                         ref={thumbInputRef}
                                         type="file"
                                         accept="image/*"
-                                        onChange={(e) => setThumbFile(e.target.files?.[0] ?? null)}
+                                        onChange={(e) => {
+                                            setThumbFile(e.target.files?.[0] ?? null);
+                                            setClearThumbnail(false);
+                                        }}
                                         className={cn(
                                             UI.input,
                                             "file:mr-3 file:rounded-xl file:border-4 file:border-green-300 file:bg-green-200 file:px-3 file:py-1.5 file:text-xs file:font-black file:uppercase file:tracking-wide file:text-green-900",
@@ -492,7 +668,7 @@ export function AuthorPanel({ user, onCreate, editingPost, onUpdate, onCancelEdi
                             <div className="flex items-center justify-between gap-3 pt-2">
                                 <div className="text-xs font-bold text-zinc-500">
                                     {isEditing
-                                        ? "Roles required. New media appends to existing."
+                                        ? "Roles required. Reorder, remove, or add media before saving."
                                         : "At least one file required. Roles required."}
                                 </div>
                                 <button
@@ -605,7 +781,7 @@ export function AuthorPanel({ user, onCreate, editingPost, onUpdate, onCancelEdi
                                     <DropOverlay visible={dragThumb} />
                                     <div className={UI.label}>Thumbnail Preview</div>
                                     <div className="mt-2 aspect-square overflow-hidden rounded-2xl border-4 border-zinc-200 bg-zinc-50">
-                                        {previewThumb ? (
+                                        {(previewThumb || (!clearThumbnail && existingThumbUrl)) ? (
                                             isThumbVideo ? (
                                                 <video
                                                     src={previewThumb}
@@ -615,51 +791,138 @@ export function AuthorPanel({ user, onCreate, editingPost, onUpdate, onCancelEdi
                                                     playsInline
                                                 />
                                             ) : (
-                                                <img src={previewThumb} className="h-full w-full object-cover" alt="" />
+                                                <img src={previewThumb || existingThumbUrl || ""} className="h-full w-full object-cover" alt="" />
                                             )
                                         ) : (
                                             <div className="flex h-full w-full items-center justify-center text-xs font-bold text-zinc-400">Optional</div>
                                         )}
                                     </div>
                                     {thumbFile ? <div className="mt-2 text-xs font-bold text-zinc-500 dark:text-zinc-400">{thumbFile.name}</div> : null}
+                                    {isEditing && (previewThumb || existingThumbUrl) && (
+                                        <button
+                                            type="button"
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                setThumbFile(null);
+                                                if (thumbInputRef.current) thumbInputRef.current.value = "";
+                                                setPreviewThumb(null);
+                                                setIsThumbVideo(false);
+                                                setClearThumbnail(true);
+                                            }}
+                                            className={cn("mt-2", UI.button, UI.btnYellow, "px-2 py-1 text-[10px]")}
+                                        >
+                                            Remove Thumbnail
+                                        </button>
+                                    )}
                                 </div>
                             </div>
 
                             {/* File List / Gallery Strip */}
-                            {(filePreviews.length > 0 || remotePreviews.length > 0) && (
+                            {mediaOrder.length > 0 && (
                                 <div className={cn("p-3", UI.card)}>
-                                    <div className={UI.label}>Attached Media</div>
-                                    <div className="mt-2 flex gap-2 overflow-x-auto pb-2 scrollbar-thin scrollbar-thumb-zinc-300 dark:scrollbar-thumb-zinc-600">
-                                        {/* Existing Remote Files (Cannot remove in this simpler UI yet, need endpoint support for delete) */}
-                                        {remotePreviews.map((p, i) => (
-                                            <div key={`remote-${i}`} className="relative h-16 w-16 flex-shrink-0 overflow-hidden rounded-lg border-2 border-blue-200">
-                                                {p.isVideo ? (
-                                                    <video src={p.url} className="h-full w-full object-cover" />
-                                                ) : (
-                                                    <img src={p.url} className="h-full w-full object-cover" alt="" />
-                                                )}
-                                                <div className="absolute inset-0 flex items-center justify-center bg-black/20 text-[8px] font-bold text-white uppercase">Saved</div>
-                                            </div>
-                                        ))}
-                                        {/* New Files */}
-                                        {filePreviews.map((p, i) => (
-                                            <div key={`new-${i}`} className="relative h-16 w-16 flex-shrink-0 overflow-hidden rounded-lg border-2 border-green-200 group">
-                                                {p.isVideo ? (
-                                                    <div className="h-full w-full bg-zinc-900 flex items-center justify-center">
-                                                        <FileVideo className="h-6 w-6 text-white" />
-                                                    </div>
-                                                ) : (
-                                                    <img src={p.url} className="h-full w-full object-cover" alt="" />
-                                                )}
-                                                <button
-                                                    type="button"
-                                                    onClick={() => removeFile(i)}
-                                                    className="absolute top-0 right-0 p-0.5 bg-red-500 text-white rounded-bl-lg opacity-0 group-hover:opacity-100 transition-opacity"
+                                    <div className="flex items-end justify-between gap-3">
+                                        <div className={UI.label}>Attached Media</div>
+                                        <label className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-wide text-zinc-500">
+                                            <span>Preview Size</span>
+                                            <input
+                                                type="range"
+                                                min={56}
+                                                max={160}
+                                                step={4}
+                                                value={previewSize}
+                                                onChange={(e) => setPreviewSize(Number(e.target.value))}
+                                                className="w-24"
+                                            />
+                                        </label>
+                                    </div>
+                                    <div
+                                        className="mt-2 flex gap-2 overflow-x-auto pb-2 scrollbar-thin scrollbar-thumb-zinc-300 dark:scrollbar-thumb-zinc-600"
+                                        onDragOver={(e) => {
+                                            if (!draggedMediaToken) return;
+                                            e.preventDefault();
+                                        }}
+                                    >
+                                        {mediaOrder.map((token, i) => {
+                                            const isRemote = token.startsWith("e:");
+                                            const remoteId = isRemote ? Number(token.slice(2)) : null;
+                                            const newKey = !isRemote && token.startsWith("n:") ? token.slice(2) : null;
+                                            const remote = isRemote && Number.isFinite(remoteId) ? remotePreviews.find((p) => p.id === remoteId) : null;
+                                            const local = newKey ? filePreviews.find((p) => p.key === newKey) : null;
+
+                                            if (!remote && !local) return null;
+
+                                            const isVideo = remote ? remote.isVideo : !!local?.isVideo;
+                                            const src = remote ? remote.url : (local?.url || "");
+
+                                            return (
+                                                <div
+                                                    key={token}
+                                                    draggable
+                                                    onDragStart={(e) => {
+                                                        setDraggedMediaToken(token);
+                                                        e.dataTransfer.effectAllowed = "move";
+                                                    }}
+                                                    onDragEnd={() => setDraggedMediaToken(null)}
+                                                    onDragOver={(e) => {
+                                                        if (!draggedMediaToken || draggedMediaToken === token) return;
+                                                        e.preventDefault();
+                                                        e.dataTransfer.dropEffect = "move";
+                                                    }}
+                                                    onDrop={(e) => {
+                                                        e.preventDefault();
+                                                        if (!draggedMediaToken) return;
+                                                        reorderMediaToken(draggedMediaToken, token);
+                                                        setDraggedMediaToken(null);
+                                                    }}
+                                                    className={cn(
+                                                        "relative shrink-0 overflow-hidden rounded-lg border-2 group cursor-grab active:cursor-grabbing",
+                                                        remote ? "border-blue-200" : "border-green-200",
+                                                        draggedMediaToken === token && "opacity-60"
+                                                    )}
+                                                    style={{ width: `${previewSize}px`, height: `${previewSize}px` }}
                                                 >
-                                                    <X className="h-3 w-3" />
-                                                </button>
-                                            </div>
-                                        ))}
+                                                    {isVideo ? (
+                                                        remote ? (
+                                                            <video src={src} className="h-full w-full object-cover" />
+                                                        ) : (
+                                                            <div className="h-full w-full bg-zinc-900 flex items-center justify-center">
+                                                                <FileVideo className="h-6 w-6 text-white" />
+                                                            </div>
+                                                        )
+                                                    ) : (
+                                                        <img src={src} className="h-full w-full object-cover" alt="" />
+                                                    )}
+                                                    {remote ? (
+                                                        <div className="absolute bottom-0 left-0 right-0 flex items-center justify-center bg-black/30 text-[8px] font-bold text-white uppercase">Saved</div>
+                                                    ) : null}
+                                                    <div className="absolute top-0 left-0 right-0 flex justify-between opacity-0 group-hover:opacity-100 transition-opacity">
+                                                        <button
+                                                            type="button"
+                                                            disabled={i === 0}
+                                                            onClick={() => moveMediaToken(token, -1)}
+                                                            className="m-0.5 rounded bg-black/60 p-0.5 text-white disabled:opacity-40"
+                                                        >
+                                                            <ChevronLeft className="h-3 w-3" />
+                                                        </button>
+                                                        <button
+                                                            type="button"
+                                                            disabled={i === mediaOrder.length - 1}
+                                                            onClick={() => moveMediaToken(token, 1)}
+                                                            className="m-0.5 rounded bg-black/60 p-0.5 text-white disabled:opacity-40"
+                                                        >
+                                                            <ChevronRight className="h-3 w-3" />
+                                                        </button>
+                                                    </div>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => removeMediaToken(token)}
+                                                        className="absolute bottom-0 right-0 p-0.5 bg-red-500 text-white rounded-tl-lg opacity-0 group-hover:opacity-100 transition-opacity"
+                                                    >
+                                                        <X className="h-3 w-3" />
+                                                    </button>
+                                                </div>
+                                            );
+                                        })}
                                     </div>
                                 </div>
                             )}
@@ -671,7 +934,7 @@ export function AuthorPanel({ user, onCreate, editingPost, onUpdate, onCancelEdi
                                         <span className="text-zinc-400">Guild:</span> {config?.guild_name || MOCK_GUILD.name}
                                     </div>
                                     <div>
-                                        <span className="text-zinc-400">Media count:</span> {remotePreviews.length + filePreviews.length}
+                                        <span className="text-zinc-400">Media count:</span> {effectiveMediaCount}
                                     </div>
                                     <div className="flex flex-wrap gap-2">
                                         <span className="text-zinc-400">Channels:</span>

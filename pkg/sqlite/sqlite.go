@@ -23,7 +23,9 @@ type DB interface {
 	// Post operations
 	CreatePost(p *types.Post) error
 	ReadPost(id uint) (*types.Post, error)
+	ReadPostWithBlobData(id uint) (*types.Post, error)
 	ReadPostByExternalID(ext string) (*types.Post, error)
+	ReadPostByExternalIDWithBlobData(ext string) (*types.Post, error)
 	UpdatePost(p *types.Post) error
 	DeletePost(id uint) error
 	PatchPost(id uint, patch PostPatch) error
