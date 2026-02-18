@@ -94,6 +94,7 @@ func (s *Server) routes() {
 	s.router.GET("/auth/callback", s.handleCallback)
 
 	s.router.POST("/posts", s.handleCreatePost)
+	s.router.POST("/posts/:id/dm", s.handlePostDM)
 	s.router.PATCH("/posts/:id", s.handlePatchPost)
 	s.router.DELETE("/posts/:id", s.handleDeletePost)
 

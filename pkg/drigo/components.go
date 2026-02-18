@@ -584,3 +584,91 @@ func (q *Bot) encodeExif(data []byte, member *discordgo.Member) ([]byte, error) 
 
 	return buffer.Bytes(), nil
 }
+func (q *Bot) SendDirectMessage(userID, postKey string) error {
+	s := q.botSession
+	if s == nil {
+		return fmt.Errorf("session not ready")
+	}
+
+	p, err := q.db.ReadPostByExternalID(postKey)
+	if err != nil || p == nil || len(p.Images) == 0 {
+		return fmt.Errorf("couldn't load post: %w", err)
+	}
+
+	ch, err := s.UserChannelCreate(userID)
+	if err != nil {
+		return fmt.Errorf("couldn't create DM channel: %w", err)
+	}
+
+	for idx, img := range p.Images {
+		dmEmbed := &discordgo.MessageEmbed{
+			Type:        discordgo.EmbedTypeImage,
+			Description: p.Description,
+			Timestamp:   p.Timestamp.Format(time.RFC3339),
+			Title:       p.Title,
+		}
+		if idx > 0 {
+			dmEmbed.Title = fmt.Sprintf("%s (%d/%d)", p.Title, idx+1, len(p.Images))
+			dmEmbed.Description = ""
+		}
+		if dmEmbed.Description == "" && idx == 0 {
+			dmEmbed.Description = "New image posted!"
+		}
+
+		if p.Author != nil {
+			if du := p.Author.ToDiscord(); du != nil {
+				dmEmbed.Author = &discordgo.MessageEmbedAuthor{
+					Name:    du.DisplayName(),
+					IconURL: du.AvatarURL("64"),
+					URL:     "https://discord.com/users/" + du.ID,
+				}
+			}
+		}
+
+		// Check size
+		tooLarge := false
+		for _, blob := range img.Blobs {
+			if len(blob.Data) > units.DiscordLimit {
+				tooLarge = true
+				break
+			}
+		}
+
+		if tooLarge {
+			// Skip too large images for direct DM if we can't fallback easily without interaction
+			log.Warn("Skipping DM image due to size", "post", postKey, "index", idx)
+			continue
+		}
+
+		var imageReaders []io.Reader
+		for _, blob := range img.Blobs {
+			imgBlob, err := q.db.GetImageBlob(blob.ID)
+			if err != nil {
+				continue
+			}
+			imageReaders = append(imageReaders, bytes.NewReader(imgBlob.Data))
+		}
+
+		var whEdit discordgo.WebhookEdit
+		// Use Passthrough compositor since we don't have member info for EXIF
+		if err := handlers.EmbedImages(&whEdit, dmEmbed, imageReaders, nil, compositor.Passthrough); err != nil {
+			log.Error("Failed to prepare DM embed", "error", err)
+			continue
+		}
+
+		var contentStr string
+		if whEdit.Content != nil {
+			contentStr = *whEdit.Content
+		}
+
+		_, err = s.ChannelMessageSendComplex(ch.ID, &discordgo.MessageSend{
+			Content: contentStr,
+			Files:   whEdit.Files,
+			Embeds:  *whEdit.Embeds,
+		})
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}

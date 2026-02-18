@@ -10,6 +10,8 @@ type Queue interface {
 	Registrar
 
 	Stop()
+
+	SendDirectMessage(userID, postID string) error
 }
 
 type Handler = func(*discordgo.Session, *discordgo.InteractionCreate) error

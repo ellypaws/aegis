@@ -52,6 +52,7 @@ type Bot interface {
 	Start() error
 	Session() *discordgo.Session
 	Ready() <-chan struct{}
+	SendDM(userID, postID string) error
 }
 
 func New(cfg *Config) (Bot, error) {
@@ -101,6 +102,10 @@ func (b *botImpl) Ready() <-chan struct{} {
 		return closed
 	}
 	return b.ready
+}
+
+func (b *botImpl) SendDM(userID, postID string) error {
+	return b.config.DrigoBot.SendDirectMessage(userID, postID)
 }
 
 func (b *botImpl) registerHandlers() {
