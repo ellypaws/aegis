@@ -1,5 +1,5 @@
 import React from "react";
-import { Lock, ShieldCheck } from "lucide-react";
+import { Lock, ShieldCheck, Images } from "lucide-react";
 import { cn } from "../lib/utils";
 import { buildSrcSet, GALLERY_CARD_SIZES } from "../lib/imageSrcSet";
 import { ImageWithSpinner } from "./ImageWithSpinner";
@@ -34,7 +34,9 @@ export function GalleryGridCard({
 }) {
     const roleNames = post.allowedRoles.map(r => r.name).join(", ");
     const hasTitle = !!post.title?.trim();
-    const blobId = post.image?.blobs?.[0]?.ID;
+    // Use first image (cover)
+    const coverImage = post.images?.[0];
+    const blobId = coverImage?.blobs?.[0]?.ID;
     const token = typeof window !== 'undefined' ? localStorage.getItem("jwt") : null;
     let url = null;
 
@@ -46,34 +48,15 @@ export function GalleryGridCard({
         }
     }
 
-    const contentType = post.image?.blobs?.[0]?.contentType || "";
+    const contentType = coverImage?.blobs?.[0]?.contentType || "";
     const isVideo = contentType.startsWith("video/");
-
-    // If it's a video, the 'full' URL for the grid card should actually be the thumbnail/preview
-    // (which is a GIF from the backend). 
-    // BUT MainGalleryView might want the full video URL for the lightbox.
-    // In GridCard, we just show the preview.
-    // If we have a dedicated thumbnail, use it.
-    // If not, use /thumb endpoint which now handles video generation.
-    // So actually, for the grid card PREVIEW, we always want the thumbnail endpoint 
-    // IF we are not showing the full image directly.
-    // Wait, the existing logic:
-    // Authorized -> /images/ID (Full)
-    // Unauthorized -> /thumb/ID (Thumb/Blur)
-
-    // For video:
-    // Authorized -> We typically don't want to load a 500MB video in the grid. We want the preview GIF.
-    // So for Video items, even if authorized, we should prefer the /thumb endpoint for the GRID view,
-    // UNLESS we want to autoplay the video? The requirement says "video in the frontend as we already serve them...".
-    // Usually grid = preview.
+    const hasMultiple = (post.images?.length || 0) > 1;
 
     if (isVideo) {
-        // Use the resize endpoint which now supports WebM output from FFmpeg
-        // We use width 500 for grid cards to get a reasonable quality/size
         url = `/images/${blobId}/resize?w=500${token ? `&token=${token}` : ""}`;
     }
 
-    const hasThumbnail = post.image?.hasThumbnail;
+    const hasThumbnail = coverImage?.hasThumbnail;
     const focusStyle = { objectPosition: `${post.focusX ?? 50}% ${post.focusY ?? 50}%` };
 
     const mediaElement = (() => {
@@ -119,6 +102,41 @@ export function GalleryGridCard({
         );
     })();
 
+    const content = (
+        <div className="aspect-square relative overflow-hidden bg-zinc-50 dark:bg-zinc-900">
+            {mediaElement}
+            {!canAccess ? (
+                url ? (
+                    <>
+                        <div className="absolute inset-0 bg-white/10 dark:bg-black/30" />
+                        {!hasThumbnail && (
+                            <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 pointer-events-none">
+                                <Lock className="h-8 w-8 text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.5)]" />
+                                {roleNames && (
+                                    <span className="inline-flex items-center gap-1 rounded-full bg-black/50 px-3 py-1 text-[11px] font-bold uppercase tracking-wider text-white backdrop-blur-sm">
+                                        <ShieldCheck className="h-3 w-3" />
+                                        {roleNames}
+                                    </span>
+                                )}
+                            </div>
+                        )}
+                    </>
+                ) : (
+                    <div className="absolute inset-0 flex items-center justify-center">
+                        <span className="px-3 text-center text-[11px] font-black uppercase text-zinc-500 dark:text-zinc-300">🔒 {roleNames}</span>
+                    </div>
+                )
+            ) : null}
+            {hasTitle && <TitleOverlay title={post.title!} />}
+            {hasMultiple && (
+                <div className="absolute top-2 right-2 rounded-full bg-black/50 px-2 py-1 text-[10px] font-bold text-white uppercase backdrop-blur-sm flex items-center gap-1">
+                    <Images className="h-3 w-3" />
+                    <span>{post.images.length}</span>
+                </div>
+            )}
+        </div>
+    );
+
     if (variant === "flexible") {
         return (
             <button
@@ -161,6 +179,12 @@ export function GalleryGridCard({
                         )
                     ) : null}
                     {hasTitle && <TitleOverlay title={post.title!} />}
+                    {hasMultiple && (
+                        <div className="absolute top-2 right-2 rounded-full bg-black/50 px-2 py-1 text-[10px] font-bold text-white uppercase backdrop-blur-sm flex items-center gap-1">
+                            <Images className="h-3 w-3" />
+                            <span>{post.images.length}</span>
+                        </div>
+                    )}
                 </div>
             </button>
         );
@@ -178,32 +202,7 @@ export function GalleryGridCard({
             )}
             title={post.title ?? "Untitled"}
         >
-            <div className="aspect-square relative overflow-hidden">
-                {mediaElement}
-                {!canAccess ? (
-                    url ? (
-                        <>
-                            <div className="absolute inset-0 bg-white/10 dark:bg-black/30" />
-                            {!hasThumbnail && (
-                                <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 pointer-events-none">
-                                    <Lock className="h-8 w-8 text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.5)]" />
-                                    {roleNames && (
-                                        <span className="inline-flex items-center gap-1 rounded-full bg-black/50 px-3 py-1 text-[11px] font-bold uppercase tracking-wider text-white backdrop-blur-sm">
-                                            <ShieldCheck className="h-3 w-3" />
-                                            {roleNames}
-                                        </span>
-                                    )}
-                                </div>
-                            )}
-                        </>
-                    ) : (
-                        <div className="absolute inset-0 flex items-center justify-center">
-                            <span className="px-3 text-center text-[11px] font-black uppercase text-zinc-500 dark:text-zinc-300">🔒 {roleNames}</span>
-                        </div>
-                    )
-                ) : null}
-                {hasTitle && <TitleOverlay title={post.title!} />}
-            </div>
+            {content}
         </button>
     );
 }

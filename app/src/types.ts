@@ -69,7 +69,7 @@ export type Post = {
     authorId: number;
     author: DiscordUser;
     allowedRoles: DiscordRole[];
-    image: Image;
+    images: Image[];
 };
 
 export interface Theme {

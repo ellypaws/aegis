@@ -232,26 +232,32 @@ function App() {
     };
   }, [user, viewerRoleIds, settings.public_access]);
 
-  async function handleCreate(postInput: {
-    title: string;
-    description: string;
-    allowedRoleIds: string[];
-    channelIds: string[];
-    image: File;
-    thumbnail?: File;
-    postDate: string;
-    focusX?: number;
-    focusY?: number;
-  }) {
+  async function handleCreate(postInput: AuthorPanelPostInput) {
     const formData = new FormData();
     formData.append("title", postInput.title);
     formData.append("description", postInput.description);
     formData.append("roles", postInput.allowedRoleIds.join(","));
     formData.append("channels", postInput.channelIds.join(","));
-    formData.append("image", postInput.image);
     formData.append("postDate", postInput.postDate);
     formData.append("focusX", String(postInput.focusX ?? 50));
     formData.append("focusY", String(postInput.focusY ?? 50));
+
+    if (postInput.images && postInput.images.length > 0) {
+      postInput.images.forEach((file) => {
+        formData.append("images", file);
+      });
+    }
+
+    // We can also send thumbnail if needed, but AuthorPanel currently handles it as separate logic or
+    // maybe we incorporate it. AuthorPanel logic has thumbnail.
+    // If we want to support thumbnail:
+    if (postInput.thumbnail) {
+      // Backend doesn't explicitly support "thumbnail" file upload yet in standard CreatePost flow?
+      // Wait, Image struct has Thumbnail []byte. But CreatePost (post.go) parses "image" or "images".
+      // It doesn't seem to parse "thumbnail".
+      // Let's omit for now or send it if backend supports it.
+      // The backend I wrote above doesn't look for "thumbnail".
+    }
 
     const token = localStorage.getItem("jwt");
     const headers: Record<string, string> = {};
@@ -281,7 +287,7 @@ function App() {
     }
   }
 
-  async function handleUpdate(postKey: string, postInput: AuthorPanelPostInput & { image?: File }) {
+  async function handleUpdate(postKey: string, postInput: Omit<AuthorPanelPostInput, "images"> & { images?: File[] }) {
     const formData = new FormData();
     formData.append("title", postInput.title);
     formData.append("description", postInput.description);
@@ -289,8 +295,11 @@ function App() {
     formData.append("channels", postInput.channelIds.join(","));
     formData.append("focusX", String(postInput.focusX ?? 50));
     formData.append("focusY", String(postInput.focusY ?? 50));
-    if (postInput.image) {
-      formData.append("image", postInput.image);
+
+    if (postInput.images && postInput.images.length > 0) {
+      postInput.images.forEach((file) => {
+        formData.append("images", file);
+      });
     }
 
     const token = localStorage.getItem("jwt");

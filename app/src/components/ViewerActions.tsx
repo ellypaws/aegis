@@ -12,7 +12,7 @@ export function ViewerActions({ post, canAccess }: { post: Post; canAccess: bool
         return () => clearTimeout(t);
     }, [toast]);
 
-    const blob = post.image?.blobs?.[0];
+    const blob = post.images?.[0]?.blobs?.[0];
     const token = localStorage.getItem("jwt");
     const fullUrl = blob ? `/images/${blob.ID}${token ? `?token=${token}` : ""}` : "";
     const downloadUrl = fullUrl ? fullUrl + (fullUrl.includes("?") ? "&" : "?") + "download=1" : "";

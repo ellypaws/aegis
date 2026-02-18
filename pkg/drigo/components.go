@@ -119,7 +119,7 @@ func (q *Bot) showImage(s *discordgo.Session, i *discordgo.InteractionCreate) er
 	}
 
 	p, err := q.db.ReadPostByExternalID(postKey)
-	if err != nil || p == nil || p.Image == nil {
+	if err != nil || p == nil || len(p.Images) == 0 {
 		return handlers.ErrorFollowupEphemeral(s, i.Interaction, "Couldn't load the image for this post.", err)
 	}
 
@@ -162,7 +162,7 @@ func (q *Bot) showImage(s *discordgo.Session, i *discordgo.InteractionCreate) er
 	if _, err := s.InteractionResponseEdit(i.Interaction, webhookEdit); err != nil {
 		var restErr *discordgo.RESTError
 		if errors.As(err, &restErr) && restErr.Message != nil && restErr.Message.Code == discordgo.ErrCodeRequestEntityTooLarge {
-			url, fbEmbed, err := q.fallbackToLink(i, p)
+			url, fbEmbed, err := q.fallbackToLink(i, p, 0)
 			if err != nil {
 				return handlers.ErrorFollowupEphemeral(s, i.Interaction,
 					"The image was too large to send and no fallback storage is configured.", err)
@@ -186,8 +186,21 @@ func (q *Bot) showImage(s *discordgo.Session, i *discordgo.InteractionCreate) er
 }
 
 func (q *Bot) prepareEmbed(member *discordgo.Member, p *types.Post, webhookEdit *discordgo.WebhookEdit, embed *discordgo.MessageEmbed) error {
-	if p.Image.HasVideo() {
-		if err := handlers.EmbedImages(webhookEdit, embed, p.Image.Readers(), nil, compositor.Passthrough); err != nil {
+	if len(p.Images) == 0 {
+		return fmt.Errorf("no images in post")
+	}
+	// Only embed the first image for public/embed view
+	firstImage := p.Images[0]
+
+	if len(p.Images) > 1 {
+		if embed.Footer == nil {
+			embed.Footer = &discordgo.MessageEmbedFooter{}
+		}
+		embed.Footer.Text = fmt.Sprintf(" +%d more image(s) available on the server", len(p.Images)-1)
+	}
+
+	if firstImage.HasVideo() {
+		if err := handlers.EmbedImages(webhookEdit, embed, firstImage.Readers(), nil, compositor.Passthrough); err != nil {
 			return fmt.Errorf("error creating image embed: %w", err)
 		}
 		return nil
@@ -196,7 +209,7 @@ func (q *Bot) prepareEmbed(member *discordgo.Member, p *types.Post, webhookEdit 
 	memberExif := types.ToMemberExif(member)
 	encoder := exif.NewEncoder(memberExif)
 	var images []io.Reader
-	for _, blob := range p.Image.Blobs {
+	for _, blob := range firstImage.Blobs {
 		imgBlob, err := q.db.GetImageBlob(blob.ID)
 		if err != nil {
 			return fmt.Errorf("error getting image blob: %w", err)
@@ -284,7 +297,7 @@ func (q *Bot) sendDM(s *discordgo.Session, i *discordgo.InteractionCreate) error
 		return handlers.ErrorFollowupEphemeral(s, i.Interaction, "I couldn't link this button to a post.")
 	}
 	p, err := q.db.ReadPostByExternalID(postKey)
-	if err != nil || p == nil || p.Image == nil {
+	if err != nil || p == nil || len(p.Images) == 0 {
 		return handlers.ErrorFollowupEphemeral(s, i.Interaction, "Couldn't load the image for this post.", err)
 	}
 
@@ -309,41 +322,64 @@ func (q *Bot) sendDM(s *discordgo.Session, i *discordgo.InteractionCreate) error
 			"I couldn't open your DMs. Please allow DMs from this server and try again.", err)
 	}
 
-	if len(p.Image.Blobs) == 0 {
+	if len(p.Images) == 0 {
 		return handlers.ErrorFollowupEphemeral(s, i.Interaction, "No image data available to DM.")
 	}
 
-	dmEmbed := &discordgo.MessageEmbed{
-		Type:        discordgo.EmbedTypeImage,
-		Description: p.Description,
-		Timestamp:   p.Timestamp.Format(time.RFC3339),
-		Title:       p.Title,
-	}
-	if dmEmbed.Description == "" {
-		dmEmbed.Description = "New image posted!"
-	}
-	if p.Author != nil {
-		if du := p.Author.ToDiscord(); du != nil {
-			dmEmbed.Author = &discordgo.MessageEmbedAuthor{
-				Name:    du.DisplayName(),
-				IconURL: du.AvatarURL("64"),
-				URL:     "https://discord.com/users/" + du.ID,
+	// Iterate over all images and send them one by one (or grouped if feasible, but one-by-one is safer for large files)
+	for idx, img := range p.Images {
+		// Re-use prepare logic or custom logic?
+		// We can't reuse prepareEmbed fully because it modifies a single webhookEdit.
+		// Construct a new embed for each image, or just send files.
+
+		dmEmbed := &discordgo.MessageEmbed{
+			Type:        discordgo.EmbedTypeImage,
+			Description: p.Description,
+			Timestamp:   p.Timestamp.Format(time.RFC3339),
+			Title:       p.Title,
+		}
+		if idx > 0 {
+			dmEmbed.Title = fmt.Sprintf("%s (%d/%d)", p.Title, idx+1, len(p.Images))
+			dmEmbed.Description = "" // Only show description on first one? Or all? Let's hide on subsequent to reduce noise
+		}
+		if dmEmbed.Description == "" && idx == 0 {
+			dmEmbed.Description = "New image posted!"
+		}
+
+		if p.Author != nil {
+			if du := p.Author.ToDiscord(); du != nil {
+				dmEmbed.Author = &discordgo.MessageEmbedAuthor{
+					Name:    du.DisplayName(),
+					IconURL: du.AvatarURL("64"),
+					URL:     "https://discord.com/users/" + du.ID,
+				}
 			}
 		}
-	}
 
-	for _, blob := range p.Image.Blobs {
-		if len(blob.Data) > units.DiscordLimit {
-			url, fbEmbed, ferr := q.fallbackToLink(i, p)
+		// Check size for this image
+		tooLarge := false
+		for _, blob := range img.Blobs {
+			if len(blob.Data) > units.DiscordLimit {
+				tooLarge = true
+				break
+			}
+		}
+
+		if tooLarge {
+			url, fbEmbed, ferr := q.fallbackToLink(i, p, idx)
 			if ferr != nil {
-				return handlers.ErrorFollowupEphemeral(s, i.Interaction, "Failed to upload image for fallback.", ferr)
+				// If one fails, we continue trying others? Or stop?
+				// Let's warn and continue
+				log.Error("Failed to upload image for fallback", "index", idx, "error", ferr)
+				continue
 			}
 
-			content := fmt.Sprintf("📎 Your image was too large to send directly. Here's a link: %s", url)
-			if strings.Contains(utils.ContentType(blob.Data), "video/") {
-				content = fmt.Sprintf("📎 Your video is ready. Here's a link: %s", url)
+			content := fmt.Sprintf("📎 Image %d/%d was too large. Link: %s", idx+1, len(p.Images), url)
+			if len(img.Blobs) > 0 && strings.Contains(utils.ContentType(img.Blobs[0].Data), "video/") {
+				content = fmt.Sprintf("📎 Video %d/%d available. Link: %s", idx+1, len(p.Images), url)
 			}
-			msg, sendErr := s.ChannelMessageSendComplex(ch.ID, &discordgo.MessageSend{
+
+			_, sendErr := s.ChannelMessageSendComplex(ch.ID, &discordgo.MessageSend{
 				Content: content,
 				Embeds:  []*discordgo.MessageEmbed{fbEmbed},
 				Components: []discordgo.MessageComponent{
@@ -351,87 +387,77 @@ func (q *Bot) sendDM(s *discordgo.Session, i *discordgo.InteractionCreate) error
 				},
 			})
 			if sendErr != nil {
-				return handlers.ErrorFollowupEphemeral(s, i.Interaction, "Uploaded, but failed to DM you the link.", sendErr)
+				log.Error("Failed to send fallback DM", "error", sendErr)
 			}
-
-			if _, editErr := s.InteractionResponseEdit(i.Interaction, &discordgo.WebhookEdit{
-				Content: utils.Pointer("Sent a link! Check your DMs 📬"),
-				Components: &[]discordgo.MessageComponent{
-					discordgo.ActionsRow{
-						Components: []discordgo.MessageComponent{discordgo.Button{
-							Label:    "Go to DM",
-							Style:    discordgo.LinkButton,
-							Disabled: false,
-							Emoji:    &discordgo.ComponentEmoji{Name: "📩"},
-							URL:      fmt.Sprintf("https://discord.com/channels/@me/%s/%s", ch.ID, msg.ID),
-							CustomID: "",
-							SKUID:    "",
-							ID:       0,
-						}},
-						ID: 0,
-					}},
-			}); editErr != nil {
-				return handlers.ErrorFollowupEphemeral(s, i.Interaction, "DM sent, but I couldn't update the response.", editErr)
-			}
-			return nil
+			continue
 		}
-	}
 
-	var webhookEdit discordgo.WebhookEdit
-	err = q.prepareEmbed(member, p, &webhookEdit, dmEmbed)
-	if err != nil {
-		return handlers.ErrorFollowupEphemeral(s, i.Interaction, "Failed to prepare embed", err)
-	}
+		// Normal send
+		// Need to construct a temporary pseudo-post or helper to reuse prepareEmbed logic?
+		// Or just duplicate the logic here to keep it simple since we are inside a loop
+		memberExif := types.ToMemberExif(member)
+		encoder := exif.NewEncoder(memberExif)
+		var imageReaders []io.Reader
 
-	message, err := s.ChannelMessageSendComplex(ch.ID, &discordgo.MessageSend{
-		Content:    "📩 Here's your image — thanks for your support!",
-		Files:      webhookEdit.Files,
-		Embeds:     *webhookEdit.Embeds,
-		Components: []discordgo.MessageComponent{handlers.Components[handlers.DeleteButton]},
-	})
-	if err != nil {
-		var restErr *discordgo.RESTError
-		if errors.As(err, &restErr) && restErr.Message != nil && restErr.Message.Code == discordgo.ErrCodeRequestEntityTooLarge {
-			url, fbEmbed, err := q.fallbackToLink(i, p)
+		// If image has blobs loaded
+		if len(img.Blobs) == 0 {
+			// Reload blobs if missing? (Should be preloaded though)
+			// Assuming they are present as per ReadPost
+		}
+
+		for _, blob := range img.Blobs {
+			// We might need to fetch blob data if it wasn't fully loaded?
+			// ReadPost loads "length(data) as size" but mostly we need actual data here?
+			// Wait, ReadPost `Select`s specific fields.
+			// `Preload("Images.Blobs", ...)` selects `id, ..., length(data)`. It does NOT select `data`!
+			// We need to fetch the actual data here using `q.db.GetImageBlob(blob.ID)` like in `prepareEmbed`.
+			imgBlob, err := q.db.GetImageBlob(blob.ID)
 			if err != nil {
-				return handlers.ErrorFollowupEphemeral(s, i.Interaction, "Failed to upload image for fallback.", err)
+				log.Error("Failed to get blob data", "id", blob.ID, "error", err)
+				continue
 			}
 
-			msg, sendErr := s.ChannelMessageSendComplex(ch.ID, &discordgo.MessageSend{
-				Content: fmt.Sprintf("📎 Your image was too large to send directly. Here's a link: %s", url),
-				Embeds:  []*discordgo.MessageEmbed{fbEmbed},
-				Components: []discordgo.MessageComponent{
-					handlers.Components[handlers.DeleteButton],
-				},
-			})
-			if sendErr != nil {
-				return handlers.ErrorFollowupEphemeral(s, i.Interaction, "Uploaded, but failed to DM you the link.", sendErr)
+			if img.HasVideo() {
+				// Video pass through
+				imageReaders = append(imageReaders, bytes.NewReader(imgBlob.Data))
+			} else {
+				if imgBlob.ContentType == "image/png" {
+					var buffer bytes.Buffer
+					if err := encoder.EncodeReader(&buffer, bytes.NewReader(imgBlob.Data)); err != nil {
+						log.Error("Failed to encode png", "error", err)
+						imageReaders = append(imageReaders, bytes.NewReader(imgBlob.Data)) // fallback to original
+					} else {
+						imageReaders = append(imageReaders, &buffer)
+					}
+				} else {
+					imageReaders = append(imageReaders, bytes.NewReader(imgBlob.Data))
+				}
 			}
-
-			if _, editErr := s.InteractionResponseEdit(i.Interaction, &discordgo.WebhookEdit{
-				Content: utils.Pointer("Sent a link! Check your DMs 📬"),
-				Components: &[]discordgo.MessageComponent{
-					discordgo.ActionsRow{
-						Components: []discordgo.MessageComponent{discordgo.Button{
-							Label:    "Go to DM",
-							Style:    discordgo.LinkButton,
-							Disabled: false,
-							Emoji:    &discordgo.ComponentEmoji{Name: "📩"},
-							URL:      fmt.Sprintf("https://discord.com/channels/@me/%s/%s", ch.ID, msg.ID),
-							CustomID: "",
-							SKUID:    "",
-							ID:       0,
-						}},
-						ID: 0,
-					}},
-			}); editErr != nil {
-				return handlers.ErrorFollowupEphemeral(s, i.Interaction, "DM sent, but I couldn't update the response.", editErr)
-			}
-			return nil
 		}
-		return handlers.ErrorFollowupEphemeral(s, i.Interaction, "Failed to send you a DM.", err)
+
+		var whEdit discordgo.WebhookEdit
+		if err := handlers.EmbedImages(&whEdit, dmEmbed, imageReaders, nil, compositor.Compositor(memberExif)); err != nil {
+			log.Error("Failed to prepare DM embed", "error", err)
+			continue
+		}
+
+		var contentStr string
+		if whEdit.Content != nil {
+			contentStr = *whEdit.Content
+		}
+
+		_, err = s.ChannelMessageSendComplex(ch.ID, &discordgo.MessageSend{
+			Content:    contentStr,
+			Files:      whEdit.Files,
+			Embeds:     *whEdit.Embeds,
+			Components: []discordgo.MessageComponent{handlers.Components[handlers.DeleteButton]},
+		})
+		if err != nil {
+			log.Error("Failed to send DM", "error", err)
+		}
 	}
 
+	// Update the interaction response to say "Sent!"
 	_, err = s.InteractionResponseEdit(i.Interaction, &discordgo.WebhookEdit{
 		Content: utils.Pointer("Sent! Check your DMs 📬"),
 		Components: &[]discordgo.MessageComponent{
@@ -441,30 +467,29 @@ func (q *Bot) sendDM(s *discordgo.Session, i *discordgo.InteractionCreate) error
 					Style:    discordgo.LinkButton,
 					Disabled: false,
 					Emoji:    &discordgo.ComponentEmoji{Name: "📩"},
-					URL:      fmt.Sprintf("https://discord.com/channels/@me/%s/%s", ch.ID, message.ID),
+					URL:      fmt.Sprintf("https://discord.com/channels/@me/%s", ch.ID),
 					CustomID: "",
-					SKUID:    "",
-					ID:       0,
 				}},
-				ID: 0,
 			}},
 	})
-	if err != nil {
-		return handlers.ErrorFollowupEphemeral(s, i.Interaction, "DM sent, but I couldn't update the response.", err)
-	}
 
 	return nil
 }
 
 // fallbackToLink performs the upload of the image to the configured bucket and returns a public URL and a basic embed.
 // Message sending/editing is intentionally left to the caller so this can be used by both showImage and sendDM paths.
-func (q *Bot) fallbackToLink(i *discordgo.InteractionCreate, p *types.Post) (url string, embed *discordgo.MessageEmbed, err error) {
-	if p == nil || p.Image == nil {
+func (q *Bot) fallbackToLink(i *discordgo.InteractionCreate, p *types.Post, imgIndex int) (url string, embed *discordgo.MessageEmbed, err error) {
+	if p == nil || len(p.Images) == 0 {
 		log.Error("fallbackToLink called with nil image")
 		return "", nil, fmt.Errorf("no image found to upload")
 	}
 
-	log.Debug("Falling back to link for post", "postKey", p.PostKey)
+	if imgIndex < 0 || imgIndex >= len(p.Images) {
+		imgIndex = 0
+	}
+	targetImg := p.Images[imgIndex]
+
+	log.Debug("Falling back to link for post", "postKey", p.PostKey, "index", imgIndex)
 
 	if q.bucket == nil {
 		log.Error("fallbackToLink called but no bucket configured")
@@ -472,16 +497,16 @@ func (q *Bot) fallbackToLink(i *discordgo.InteractionCreate, p *types.Post) (url
 	}
 
 	var data []byte
-	if len(p.Image.Blobs) > 0 {
-		if p.Image.Blobs[0].Data != nil {
-			data = p.Image.Blobs[0].Data
+	if len(targetImg.Blobs) > 0 {
+		if targetImg.Blobs[0].Data != nil {
+			data = targetImg.Blobs[0].Data
 		} else {
-			if blob, err := q.db.GetImageBlob(p.Image.Blobs[0].ID); err == nil {
+			if blob, err := q.db.GetImageBlob(targetImg.Blobs[0].ID); err == nil {
 				data = blob.Data
 			}
 		}
-	} else if len(p.Image.Thumbnail) > 0 {
-		data = p.Image.Thumbnail
+	} else if len(targetImg.Thumbnail) > 0 {
+		data = targetImg.Thumbnail
 	}
 	if len(data) == 0 {
 		return "", nil, fmt.Errorf("no image data available to upload")

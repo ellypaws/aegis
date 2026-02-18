@@ -50,9 +50,12 @@ func (p *Post) ToDomain() *DomainPost {
 		}
 	}
 	// Images
-	thumb, imgs := p.Image.GetImages()
-	dp.Thumbnail = thumb
-	dp.Images = imgs
+	if len(p.Images) > 0 {
+		thumb, imgs := p.Images[0].GetImages()
+		dp.Thumbnail = thumb
+		dp.Images = imgs
+	}
+
 	return dp
 }
 
@@ -92,7 +95,12 @@ func (p *Post) FromDomain(dp *DomainPost) {
 	}
 
 	// Images
-	p.Image.SetImages(dp.Thumbnail, dp.Images)
+	if len(dp.Images) > 0 {
+		img := Image{}
+		img.SetImages(dp.Thumbnail, dp.Images)
+		p.Images = []Image{img}
+	}
+
 }
 
 func timeFromUnix(u int64) (t time.Time) {

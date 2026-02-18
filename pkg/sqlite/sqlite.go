@@ -62,6 +62,9 @@ func Connect(path string, ctx context.Context) (DB, error) {
 		return nil, err
 	}
 
+	// Drop potential unique index on images.post_id to allow multiple images per post
+	_ = gdb.Exec("DROP INDEX IF EXISTS idx_images_post_id").Error
+
 	// Order matters for constraints/indexes and FKs;
 	// migrate base tables first, then Post, then child tables.
 	err = gdb.AutoMigrate(

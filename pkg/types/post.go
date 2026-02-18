@@ -42,6 +42,6 @@ type Post struct {
 	// Many-to-many; join table: post_allowed_roles
 	AllowedRoles []Allowed `gorm:"many2many:post_allowed_roles" json:"allowedRoles"`
 
-	// One-to-one image payload (with child blobs)
-	Image *Image `gorm:"constraint:OnDelete:CASCADE" json:"image"`
+	// One-to-many images payload
+	Images []Image `gorm:"constraint:OnDelete:CASCADE" json:"images"`
 }

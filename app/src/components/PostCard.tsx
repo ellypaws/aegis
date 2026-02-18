@@ -22,7 +22,7 @@ export function PostCard({
     // But if we want to be safe or if permissions change, we could add token.
     // However, for unauthorized view, we definitely just use the url.
 
-    const blobId = post.image?.blobs?.[0]?.ID;
+    const blobId = post.images?.[0]?.blobs?.[0]?.ID;
     let url = blobId ? `/thumb/${blobId}` : null;
 
     const w = size === "sm" ? "w-24" : "w-28";

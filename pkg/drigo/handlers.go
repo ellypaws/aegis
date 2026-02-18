@@ -98,12 +98,12 @@ func (q *Bot) handleModalSubmit(s *discordgo.Session, i *discordgo.InteractionCr
 		Description: pending.Description,
 		Timestamp:   now,
 		IsPremium:   true,
-		Image: &types.Image{
+		Images: []types.Image{{
 			Thumbnail: append([]byte(nil), pending.Thumbnail...),
 			Blobs: []types.ImageBlob{
 				{Index: 0, Data: append([]byte(nil), pending.Full...), Filename: pending.Filename, ContentType: pending.ContentType},
 			},
-		},
+		}},
 	}
 
 	if pending.Author != nil {
@@ -404,10 +404,10 @@ func (q *Bot) handlePostImage(s *discordgo.Session, i *discordgo.InteractionCrea
 		Description: descVal,
 		Timestamp:   now,
 		IsPremium:   true,
-		Image: &types.Image{
+		Images: []types.Image{{
 			Thumbnail: append([]byte(nil), thumbBytes...),
 			Blobs:     []types.ImageBlob{{Index: 0, Data: append([]byte(nil), fullBytes...), Filename: filename, ContentType: attachments[optionMap[fullImage].Value.(string)].Attachment.ContentType}},
-		},
+		}},
 	}
 	if user != nil {
 		author := &types.User{}

@@ -16,7 +16,7 @@ type Image struct {
 	gorm.Model
 
 	// Enforce one Image per Post via unique index on PostID
-	PostID    uint   `gorm:"uniqueIndex" json:"postId"`
+	PostID    uint   `gorm:"index" json:"postId"`
 	Thumbnail []byte `gorm:"type:blob" json:"thumbnail"`
 
 	// Computed field

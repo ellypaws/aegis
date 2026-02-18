@@ -35,7 +35,12 @@ func (s *Server) handlePatchPost(c echo.Context) error {
 		return c.JSON(http.StatusNotFound, map[string]string{"error": "Post not found"})
 	}
 
-	// Read form values — this handler accepts multipart/form-data
+	// Parse multipart form (32MB max memory)
+	if err := c.Request().ParseMultipartForm(32 << 20); err != nil {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Failed to parse multipart form"})
+	}
+
+	// Read form values
 	title := c.FormValue("title")
 	description := c.FormValue("description")
 	rolesStr := c.FormValue("roles")
@@ -54,10 +59,7 @@ func (s *Server) handlePatchPost(c echo.Context) error {
 		post.FocusY = &v
 	}
 
-	// Parse postDate if provided
-	// (We don't update timestamp on edit by default, but if the form sends it we can)
-
-	// Handle Roles — rebuild AllowedRoles from the comma-separated role IDs
+	// Handle Roles
 	var allowedRoles []types.Allowed
 	for _, rid := range strings.Split(rolesStr, ",") {
 		rid = strings.TrimSpace(rid)
@@ -85,46 +87,73 @@ func (s *Server) handlePatchPost(c echo.Context) error {
 	}
 	post.AllowedRoles = allowedRoles
 
-	// Clear the preloaded Image so UpdatePost won't try to re-save old blobs.
-	// If the user uploads a new image we set a fresh Image below.
-	// If not, setting nil tells UpdatePost to leave the existing image untouched.
-	// But we do NOT want UpdatePost's nil-Image branch to DELETE the old image,
-	// so we save the existing imageID and restore it only when no new image is provided.
-	existingImage := post.Image
-	post.Image = nil
+	// Prepare to update images
+	// We want to APPEND new images if provided.
+	// But we need to ensure current images are preserved in the DB update.
+	// UpdatePost (gorm) association handling:
+	// If we pass Images with IDs, it updates/keeps them.
+	// If we pass new Images (ID=0), it creates them.
+	// BUT if we don't include the existing images in the struct, GORM might unlink or delete them depending on Association handling.
+	// My `UpdatePost` in `pkg/sqlite/posts.go` uses `Session(&gorm.Session{FullSaveAssociations: true}).Save(post)`.
+	// If `post.Images` contains both old and new, it should work.
 
-	// Optional new image — if a new file is provided we replace it
-	fileHeader, fileErr := c.FormFile("image")
-	if fileErr == nil && fileHeader != nil {
-		file, err := fileHeader.Open()
-		if err != nil {
-			return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Failed to open image"})
-		}
-		defer file.Close()
+	// Ensure `Unscoped` cleanup or similar isn't removing them if we don't list them?
+	// Actually, `FullSaveAssociations` with `Save` might persist what's in the struct.
+	// So we should Load existing images (already in `post` from ReadPostByExternalID),
+	// and append new ones.
 
-		imgBytes, err := io.ReadAll(file)
-		if err != nil {
-			return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Failed to read image"})
-		}
+	form := c.Request().MultipartForm
+	files := form.File["images"]
+	if len(files) == 0 {
+		files = form.File["image"]
+	}
 
-		// Fresh Image with ID=0 so UpdatePost creates a new row
-		// (UpdatePost's nil-Image branch already removes old images for this post)
-		post.Image = &types.Image{
-			Blobs: []types.ImageBlob{
-				{Index: 0, Data: imgBytes, ContentType: fileHeader.Header.Get("Content-Type"), Filename: fileHeader.Filename},
-			},
+	// If we have new files, verify and append
+	if len(files) > 0 {
+		for _, fileHeader := range files {
+			file, err := fileHeader.Open()
+			if err != nil {
+				log.Error("Failed to open uploaded file", "filename", fileHeader.Filename, "error", err)
+				continue
+			}
+
+			imgBytes, err := io.ReadAll(file)
+			file.Close()
+			if err != nil {
+				log.Error("Failed to read uploaded file", "filename", fileHeader.Filename, "error", err)
+				continue
+			}
+
+			// Append new image
+			post.Images = append(post.Images, types.Image{
+				PostID: post.ID, // Link to this post
+				Blobs: []types.ImageBlob{
+					{
+						Index:       0,
+						Data:        imgBytes,
+						ContentType: fileHeader.Header.Get("Content-Type"),
+						Filename:    fileHeader.Filename,
+					},
+				},
+			})
 		}
 	} else {
-		// No new image — restore the existing image pointer so UpdatePost
-		// keeps it (the Image has a valid ID, no Blobs mutation needed).
-		// We still nil out Blobs to prevent the re-create problem.
-		if existingImage != nil {
-			existingImage.Blobs = nil
-			post.Image = existingImage
+		// No new images.
+		// We still need to help GORM not to delete blobs of existing images if we are doing FullSave.
+		// In `CreatePost`, we did `Omit("Blobs")` to manage blobs manually.
+		// For `UpdatePost`, we might need similar care.
+		// `pkg/sqlite/posts.go` `UpdatePost` implementation handles `Images`?
+		// "Constraint:OnDelete:CASCADE" is on Post.Images.
+
+		// If we are just saving `post`, existing images with IDs should be fine.
+		// However, blobs might be re-saved if we don't unset them.
+
+		for i := range post.Images {
+			post.Images[i].Blobs = nil // Prevent bloating query / re-saving blobs
 		}
 	}
 
-	// Save via UpdatePost which handles associations
+	// UpdatePost in sqlite/posts.go should be robust enough.
 	if err := s.db.UpdatePost(post); err != nil {
 		log.Error("Failed to update post", "id", post.ID, "error", err)
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Failed to update post"})

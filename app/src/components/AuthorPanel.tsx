@@ -6,7 +6,7 @@ import { MOCK_GUILD } from "../data/mock";
 import { Patterns } from "./Patterns";
 import { DropdownAddToList } from "./DropdownAddToList";
 import { RolePill, ChannelPill } from "./Pills";
-import { ImagePlus } from "lucide-react";
+import { ImagePlus, X, FileVideo } from "lucide-react";
 
 const { useRef } = React;
 
@@ -49,7 +49,7 @@ export type AuthorPanelPostInput = {
     description: string;
     allowedRoleIds: string[];
     channelIds: string[];
-    image: File;
+    images: File[];
     thumbnail?: File;
     postDate: string;
     focusX?: number;
@@ -60,7 +60,7 @@ export function AuthorPanel({ user, onCreate, editingPost, onUpdate, onCancelEdi
     user: DiscordUser;
     onCreate?: (postInput: AuthorPanelPostInput) => void;
     editingPost?: Post | null;
-    onUpdate?: (postKey: string, postInput: AuthorPanelPostInput & { image?: File }) => void;
+    onUpdate?: (postKey: string, postInput: Omit<AuthorPanelPostInput, "images"> & { images?: File[] }) => void;
     onCancelEdit?: () => void;
 }) {
     const isEditing = !!editingPost;
@@ -88,12 +88,19 @@ export function AuthorPanel({ user, onCreate, editingPost, onUpdate, onCancelEdi
         try { return JSON.parse(localStorage.getItem("author_channelIds") || "[]"); } catch { return []; }
     });
 
-    const [fullFile, setFullFile] = useState<File | null>(null);
+    // Multi-file state
+    const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
     const [thumbFile, setThumbFile] = useState<File | null>(null);
 
-    const [previewFull, setPreviewFull] = useState<string | null>(null);
+    // Previews
+    type PreviewItem = { url: string; isVideo: boolean; file: File };
+    const [filePreviews, setFilePreviews] = useState<PreviewItem[]>([]);
+
+    // Remote previews for editing mode (existing images)
+    type RemotePreview = { url: string; isVideo: boolean; id: number };
+    const [remotePreviews, setRemotePreviews] = useState<RemotePreview[]>([]);
+
     const [previewThumb, setPreviewThumb] = useState<string | null>(null);
-    const [isFullVideo, setIsFullVideo] = useState(false);
     const [isThumbVideo, setIsThumbVideo] = useState(false);
 
     const fullInputRef = useRef<HTMLInputElement>(null);
@@ -117,39 +124,90 @@ export function AuthorPanel({ user, onCreate, editingPost, onUpdate, onCancelEdi
             setChannelIds(editingPost.channelId ? editingPost.channelId.split(",").map(s => s.trim()).filter(Boolean) : []);
             setFocusX(editingPost.focusX ?? 50);
             setFocusY(editingPost.focusY ?? 50);
-            setFullFile(null);
+            setSelectedFiles([]);
             setThumbFile(null);
 
-            // Show the current media as preview
-            const blob = editingPost.image?.blobs?.[0];
-            if (blob) {
-                const token = localStorage.getItem("jwt");
-                setPreviewFull(`/images/${blob.ID}${token ? `?token=${token}` : ""}`);
-                // Check if the blob is a video based on contentType or filename
-                const isVideo = blob.contentType?.startsWith("video/") ||
-                    blob.filename?.match(/\.(mp4|webm|mov|avi|mkv)$/i);
-                setIsFullVideo(!!isVideo);
-            } else {
-                setPreviewFull(null);
-                setIsFullVideo(false);
+            // Show current media as remote previews
+            const token = localStorage.getItem("jwt");
+            const remotes: RemotePreview[] = [];
+
+            if (editingPost.images && editingPost.images.length > 0) {
+                editingPost.images.forEach(img => {
+                    const blob = img.blobs?.[0];
+                    if (blob) {
+                        const isVideo = blob.contentType?.startsWith("video/") || blob.filename?.match(/\.(mp4|webm|mov|avi|mkv)$/i);
+                        remotes.push({
+                            url: `/images/${blob.ID}${token ? `?token=${token}` : ""}`,
+                            isVideo: !!isVideo,
+                            id: img.ID
+                        });
+                    }
+                });
             }
+            setRemotePreviews(remotes);
+
             setPreviewThumb(null);
             setIsThumbVideo(false);
         }
     }, [editingPost]);
 
-    const handleDrop = useCallback((e: React.DragEvent, setter: (f: File | null) => void, acceptVideo: boolean = false) => {
+    // Handle file changes -> generate previews
+    useEffect(() => {
+        const newPreviews: PreviewItem[] = [];
+        selectedFiles.forEach(file => {
+            if (isMediaFile(file)) {
+                newPreviews.push({
+                    url: URL.createObjectURL(file),
+                    isVideo: isVideoFile(file),
+                    file: file
+                });
+            }
+        });
+        setFilePreviews(newPreviews);
+
+        return () => {
+            newPreviews.forEach(p => safeRevoke(p.url));
+        };
+    }, [selectedFiles]);
+
+    // Cleanup thumb
+    useEffect(() => {
+        if (previewThumb) safeRevoke(previewThumb);
+        if (!thumbFile) {
+            setPreviewThumb(null);
+            setIsThumbVideo(false);
+            return;
+        }
+        const u = URL.createObjectURL(thumbFile);
+        setPreviewThumb(u);
+        setIsThumbVideo(isVideoFile(thumbFile));
+        return () => safeRevoke(u);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [thumbFile]);
+
+    const handleDrop = useCallback((e: React.DragEvent, setter: (files: File[]) => void, acceptVideo: boolean = false) => {
         e.preventDefault();
         e.stopPropagation();
         setDragFull(false);
         setDragThumb(false);
-        const file = e.dataTransfer.files?.[0];
-        if (file) {
-            if (acceptVideo && isMediaFile(file)) {
-                setter(file);
-            } else if (!acceptVideo && isImageFile(file)) {
-                setter(file);
+
+        const droppedFiles = Array.from(e.dataTransfer.files);
+        if (droppedFiles.length > 0) {
+            const validFiles = droppedFiles.filter(f => acceptVideo ? isMediaFile(f) : isImageFile(f));
+            if (validFiles.length > 0) {
+                setter(validFiles);
             }
+        }
+    }, []);
+
+    // For thumbnail (single file)
+    const handleThumbDrop = useCallback((e: React.DragEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setDragThumb(false);
+        const file = e.dataTransfer.files?.[0];
+        if (file && isImageFile(file)) {
+            setThumbFile(file);
         }
     }, []);
 
@@ -187,42 +245,10 @@ export function AuthorPanel({ user, onCreate, editingPost, onUpdate, onCancelEdi
             .catch(err => console.error("Failed to load upload config", err));
     }, []);
 
-    useEffect(() => {
-        // Don't revoke remote URLs (edit mode current-image preview)
-        if (previewFull && previewFull.startsWith("blob:")) safeRevoke(previewFull);
-        if (!fullFile) {
-            // In edit mode, keep remote preview; in create mode clear
-            if (!isEditing) {
-                setPreviewFull(null);
-                setIsFullVideo(false);
-            }
-            return;
-        }
-        const u = URL.createObjectURL(fullFile);
-        setPreviewFull(u);
-        setIsFullVideo(isVideoFile(fullFile));
-        return () => safeRevoke(u);
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [fullFile]);
-
-    useEffect(() => {
-        if (previewThumb) safeRevoke(previewThumb);
-        if (!thumbFile) {
-            setPreviewThumb(null);
-            setIsThumbVideo(false);
-            return;
-        }
-        const u = URL.createObjectURL(thumbFile);
-        setPreviewThumb(u);
-        setIsThumbVideo(isVideoFile(thumbFile));
-        return () => safeRevoke(u);
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [thumbFile]);
-
-    // In create mode, full image required. In edit mode, image is optional (keep existing).
+    // Validation
     const canSubmit = isEditing
         ? allowedRoleIds.length > 0
-        : !!fullFile && allowedRoleIds.length > 0;
+        : selectedFiles.length > 0 && allowedRoleIds.length > 0;
 
     const roleOptions = useMemo(() => {
         if (config?.roles) {
@@ -241,44 +267,69 @@ export function AuthorPanel({ user, onCreate, editingPost, onUpdate, onCancelEdi
     }, [config]);
 
     const handleSubmit = () => {
-        if (isEditing && editingPost && onUpdate) {
-            onUpdate(editingPost.postKey, {
-                title: title.trim(),
-                description: desc.trim(),
-                allowedRoleIds,
-                channelIds,
-                image: fullFile!,
-                thumbnail: thumbFile || undefined,
-                postDate: postDate ? new Date(postDate).toISOString() : new Date().toISOString(),
-                focusX,
-                focusY,
-            });
-        } else if (onCreate && fullFile) {
-            onCreate({
-                title: title.trim(),
-                description: desc.trim(),
-                allowedRoleIds,
-                channelIds,
-                image: fullFile,
-                thumbnail: thumbFile || undefined,
-                postDate: postDate ? new Date(postDate).toISOString() : new Date().toISOString(),
-                focusX,
-                focusY,
-            });
+        const payload: AuthorPanelPostInput = {
+            title: title.trim(),
+            description: desc.trim(),
+            allowedRoleIds,
+            channelIds,
+            images: selectedFiles,
+            thumbnail: thumbFile || undefined,
+            postDate: postDate ? new Date(postDate).toISOString() : new Date().toISOString(),
+            focusX,
+            focusY,
+        };
 
-            // Clear form (keep roles & channels). Previews will revoke via effects.
+        if (isEditing && editingPost && onUpdate) {
+            // Fix type compatibility: explicit cast or fresh object
+            const updatePayload: Omit<AuthorPanelPostInput, "images"> & { images?: File[] } = {
+                ...payload,
+                images: selectedFiles.length > 0 ? selectedFiles : undefined
+            };
+            onUpdate(editingPost.postKey, updatePayload);
+        } else if (onCreate && selectedFiles.length > 0) {
+            onCreate(payload);
+            // Reset form
             setTitle("");
             setDesc("");
             setPostDate(toDatetimeLocal(new Date()));
-            setFullFile(null);
+            setSelectedFiles([]);
             setThumbFile(null);
             setFocusX(50);
             setFocusY(50);
-            // Reset file input elements so displayed text clears
+            setRemotePreviews([]);
             if (fullInputRef.current) fullInputRef.current.value = "";
             if (thumbInputRef.current) thumbInputRef.current.value = "";
         }
     };
+
+    const addFiles = (files: File[]) => {
+        setSelectedFiles(prev => [...prev, ...files]);
+    };
+
+    const removeFile = (index: number) => {
+        setSelectedFiles(prev => prev.filter((_, i) => i !== index));
+    };
+
+    // Determine what to show in the main preview area
+    // If editing and no new files, show existing remotes.
+    // If new files selected, show new files.
+    // Actually, maybe show a grid/carousel? 
+    // To keep it simple, we'll show the FIRST item in the big box for focus, and a strip below for all items.
+
+    const activePreview = useMemo(() => {
+        if (filePreviews.length > 0) {
+            return { ...filePreviews[0], isRemote: false };
+        }
+        if (remotePreviews.length > 0) {
+            return { ...remotePreviews[0], isRemote: true };
+        }
+        return null;
+    }, [filePreviews, remotePreviews]);
+
+    // We only support focus picking on the VERY FIRST image for now (to keep UI simple and consistent with backend focus field which is per post, not per image yet?)
+    // Wait, backend has focusX/focusY per POST, but we have multiple images now.
+    // Does the focus apply to the first image (cover)? 
+    // Yes, let's assume focus applies to the cover image.
 
     return (
         <div className={cn("relative transition-all duration-300", UI.card, "backdrop-blur-sm")}>
@@ -312,7 +363,7 @@ export function AuthorPanel({ user, onCreate, editingPost, onUpdate, onCancelEdi
                                     {isEditing ? (
                                         <>Editing <span className="text-zinc-900 dark:text-zinc-100">{editingPost?.title || "Untitled"}</span>. Update fields and save.</>
                                     ) : (
-                                        <>Pick a <span className="text-zinc-900 dark:text-zinc-100">full media</span> + optional <span className="text-zinc-900 dark:text-zinc-100">thumbnail</span>.</>
+                                        <>Pick <span className="text-zinc-900 dark:text-zinc-100">media files</span> + optional <span className="text-zinc-900 dark:text-zinc-100">thumbnail</span>.</>
                                     )}
                                 </div>
                             )}
@@ -339,21 +390,25 @@ export function AuthorPanel({ user, onCreate, editingPost, onUpdate, onCancelEdi
                 {isOpen && (
                     <div className="mt-5 grid gap-4 lg:grid-cols-2 animate-in fade-in slide-in-from-top-4 duration-300">
                         <div className="space-y-3">
+                            {/* File Inputs */}
                             <div className="grid gap-3 md:grid-cols-2">
                                 <label
                                     className="space-y-1 block cursor-pointer group relative"
                                     onDragEnter={(e) => { e.preventDefault(); setDragFull(true); }}
                                     onDragOver={handleDragOver}
                                     onDragLeave={(e) => { e.preventDefault(); setDragFull(false); }}
-                                    onDrop={(e) => handleDrop(e, setFullFile, true)}
+                                    onDrop={(e) => handleDrop(e, addFiles, true)}
                                 >
                                     <DropOverlay visible={dragFull} />
-                                    <div className={UI.label}>{isEditing ? "Replace media (optional)" : "Full media *"}</div>
+                                    <div className={UI.label}>{isEditing ? "Add more media" : "Media Files *"}</div>
                                     <input
                                         ref={fullInputRef}
                                         type="file"
                                         accept="image/*,video/*"
-                                        onChange={(e) => setFullFile(e.target.files?.[0] ?? null)}
+                                        multiple
+                                        onChange={(e) => {
+                                            if (e.target.files) addFiles(Array.from(e.target.files));
+                                        }}
                                         className={cn(
                                             UI.input,
                                             "file:mr-3 file:rounded-xl file:border-4 file:border-blue-300 file:bg-blue-200 file:px-3 file:py-1.5 file:text-xs file:font-black file:uppercase file:tracking-wide file:text-blue-900",
@@ -369,7 +424,7 @@ export function AuthorPanel({ user, onCreate, editingPost, onUpdate, onCancelEdi
                                     onDragEnter={(e) => { e.preventDefault(); setDragThumb(true); }}
                                     onDragOver={handleDragOver}
                                     onDragLeave={(e) => { e.preventDefault(); setDragThumb(false); }}
-                                    onDrop={(e) => handleDrop(e, setThumbFile, false)}
+                                    onDrop={handleThumbDrop}
                                 >
                                     <DropOverlay visible={dragThumb} />
                                     <div className={UI.label}>Thumbnail (optional)</div>
@@ -390,6 +445,7 @@ export function AuthorPanel({ user, onCreate, editingPost, onUpdate, onCancelEdi
                                 </label>
                             </div>
 
+                            {/* Metadata Inputs */}
                             <div className="grid gap-3 md:grid-cols-2">
                                 <label className="space-y-1">
                                     <div className={UI.label}>Title (optional)</div>
@@ -429,15 +485,15 @@ export function AuthorPanel({ user, onCreate, editingPost, onUpdate, onCancelEdi
                                 onRemove={(id) => setChannelIds((s) => s.filter((x) => x !== id))}
                                 renderSelected={(id) => {
                                     const c = channelOptions.find(o => o.id === id);
-                                    return <ChannelPill name={c?.name || id} />;
+                                    return <ChannelPill name={c?.name || c} />;
                                 }}
                             />
 
                             <div className="flex items-center justify-between gap-3 pt-2">
                                 <div className="text-xs font-bold text-zinc-500">
                                     {isEditing
-                                        ? "Roles required. New media optional (keeps current)."
-                                        : "Full media required. Roles required. Thumbnail optional."}
+                                        ? "Roles required. New media appends to existing."
+                                        : "At least one file required. Roles required."}
                                 </div>
                                 <button
                                     type="button"
@@ -454,31 +510,32 @@ export function AuthorPanel({ user, onCreate, editingPost, onUpdate, onCancelEdi
                             </div>
                         </div>
 
+                        {/* Previews and file list */}
                         <div className="space-y-3">
                             <div className="grid gap-3 md:grid-cols-2">
+                                {/* Main Focus Preview */}
                                 <div
                                     className={cn(
                                         "p-3 transition relative",
                                         UI.cardBlue,
-                                        previewFull && !isFullVideo ? "cursor-crosshair" : "cursor-pointer hover:opacity-90 active:scale-95"
+                                        activePreview && !activePreview.isVideo ? "cursor-crosshair" : "cursor-pointer hover:opacity-90 active:scale-95"
                                     )}
-                                    onClick={() => { if (!previewFull) fullInputRef.current?.click(); }}
-                                    onDragEnter={(e) => { if (!previewFull) { e.preventDefault(); setDragFull(true); } }}
-                                    onDragOver={(e) => { if (!previewFull) handleDragOver(e); }}
-                                    onDragLeave={(e) => { if (!previewFull) { e.preventDefault(); setDragFull(false); } }}
-                                    onDrop={(e) => { if (!previewFull) handleDrop(e, setFullFile, true); }}
+                                    onDragEnter={(e) => { e.preventDefault(); setDragFull(true); }}
+                                    onDragOver={(e) => { handleDragOver(e); }}
+                                    onDragLeave={(e) => { e.preventDefault(); setDragFull(false); }}
+                                    onDrop={(e) => handleDrop(e, addFiles, true)}
                                 >
-                                    {!previewFull && <DropOverlay visible={dragFull} />}
-                                    <div className={UI.label}>Full Preview</div>
+                                    {!activePreview && <DropOverlay visible={dragFull} />}
+                                    <div className={UI.label}>Cover Preview (First Item)</div>
                                     <div
                                         ref={fullPreviewRef}
                                         className={cn(
                                             "mt-2 aspect-square overflow-hidden rounded-2xl border-4 border-zinc-200 bg-zinc-50 relative select-none",
-                                            previewFull && !isFullVideo ? "cursor-crosshair" : "cursor-pointer"
+                                            activePreview && !activePreview.isVideo ? "cursor-crosshair" : "cursor-pointer"
                                         )}
                                         onMouseDown={(e) => {
                                             const rect = fullPreviewRef.current?.getBoundingClientRect();
-                                            if (!rect || !previewFull || isFullVideo) return;
+                                            if (!rect || !activePreview || activePreview.isVideo) return;
                                             e.stopPropagation();
                                             const x = Math.min(100, Math.max(0, ((e.clientX - rect.left) / rect.width) * 100));
                                             const y = Math.min(100, Math.max(0, ((e.clientY - rect.top) / rect.height) * 100));
@@ -498,13 +555,13 @@ export function AuthorPanel({ user, onCreate, editingPost, onUpdate, onCancelEdi
                                             window.addEventListener("mousemove", onMove);
                                             window.addEventListener("mouseup", onUp);
                                         }}
-                                        onClick={(e) => { if (previewFull) e.stopPropagation(); }}
+                                        onClick={(e) => { if (activePreview) e.stopPropagation(); else fullInputRef.current?.click(); }}
                                     >
-                                        {previewFull ? (
+                                        {activePreview ? (
                                             <>
-                                                {isFullVideo ? (
+                                                {activePreview.isVideo ? (
                                                     <video
-                                                        src={previewFull}
+                                                        src={activePreview.url}
                                                         className="h-full w-full object-cover"
                                                         controls
                                                         controlsList="nodownload"
@@ -512,8 +569,7 @@ export function AuthorPanel({ user, onCreate, editingPost, onUpdate, onCancelEdi
                                                     />
                                                 ) : (
                                                     <>
-                                                        <img src={previewFull} className="h-full w-full object-cover" style={{ objectPosition: `${focusX}% ${focusY}%` }} alt="" draggable={false} />
-                                                        {/* Focus point marker */}
+                                                        <img src={activePreview.url} className="h-full w-full object-cover" style={{ objectPosition: `${focusX}% ${focusY}%` }} alt="" draggable={false} />
                                                         <div
                                                             className="absolute pointer-events-none"
                                                             style={{ left: `${focusX}%`, top: `${focusY}%`, transform: "translate(-50%, -50%)" }}
@@ -527,24 +583,24 @@ export function AuthorPanel({ user, onCreate, editingPost, onUpdate, onCancelEdi
                                             </>
                                         ) : (
                                             <div className="flex h-full w-full items-center justify-center text-xs font-bold text-zinc-400">
-                                                {isEditing ? "Current media" : "Pick a file"}
+                                                {isEditing ? "No media" : "Pick a file"}
                                             </div>
                                         )}
                                     </div>
-                                    {previewFull && !isFullVideo && (
+                                    {activePreview && !activePreview.isVideo && (
                                         <div className="mt-1 text-[10px] font-bold text-zinc-400 tabular-nums">
                                             Focus: {focusX.toFixed(1)}% × {focusY.toFixed(1)}%
                                         </div>
                                     )}
-                                    {fullFile ? <div className="mt-2 text-xs font-bold text-zinc-500 dark:text-zinc-400">{fullFile.name}</div> : null}
                                 </div>
+
                                 <div
                                     className={cn("p-3 cursor-pointer hover:opacity-90 active:scale-95 transition relative", UI.cardGreen)}
                                     onClick={() => thumbInputRef.current?.click()}
                                     onDragEnter={(e) => { e.preventDefault(); setDragThumb(true); }}
                                     onDragOver={handleDragOver}
                                     onDragLeave={(e) => { e.preventDefault(); setDragThumb(false); }}
-                                    onDrop={(e) => handleDrop(e, setThumbFile, false)}
+                                    onDrop={handleThumbDrop}
                                 >
                                     <DropOverlay visible={dragThumb} />
                                     <div className={UI.label}>Thumbnail Preview</div>
@@ -569,11 +625,53 @@ export function AuthorPanel({ user, onCreate, editingPost, onUpdate, onCancelEdi
                                 </div>
                             </div>
 
+                            {/* File List / Gallery Strip */}
+                            {(filePreviews.length > 0 || remotePreviews.length > 0) && (
+                                <div className={cn("p-3", UI.card)}>
+                                    <div className={UI.label}>Attached Media</div>
+                                    <div className="mt-2 flex gap-2 overflow-x-auto pb-2 scrollbar-thin scrollbar-thumb-zinc-300 dark:scrollbar-thumb-zinc-600">
+                                        {/* Existing Remote Files (Cannot remove in this simpler UI yet, need endpoint support for delete) */}
+                                        {remotePreviews.map((p, i) => (
+                                            <div key={`remote-${i}`} className="relative h-16 w-16 flex-shrink-0 overflow-hidden rounded-lg border-2 border-blue-200">
+                                                {p.isVideo ? (
+                                                    <video src={p.url} className="h-full w-full object-cover" />
+                                                ) : (
+                                                    <img src={p.url} className="h-full w-full object-cover" alt="" />
+                                                )}
+                                                <div className="absolute inset-0 flex items-center justify-center bg-black/20 text-[8px] font-bold text-white uppercase">Saved</div>
+                                            </div>
+                                        ))}
+                                        {/* New Files */}
+                                        {filePreviews.map((p, i) => (
+                                            <div key={`new-${i}`} className="relative h-16 w-16 flex-shrink-0 overflow-hidden rounded-lg border-2 border-green-200 group">
+                                                {p.isVideo ? (
+                                                    <div className="h-full w-full bg-zinc-900 flex items-center justify-center">
+                                                        <FileVideo className="h-6 w-6 text-white" />
+                                                    </div>
+                                                ) : (
+                                                    <img src={p.url} className="h-full w-full object-cover" alt="" />
+                                                )}
+                                                <button
+                                                    type="button"
+                                                    onClick={() => removeFile(i)}
+                                                    className="absolute top-0 right-0 p-0.5 bg-red-500 text-white rounded-bl-lg opacity-0 group-hover:opacity-100 transition-opacity"
+                                                >
+                                                    <X className="h-3 w-3" />
+                                                </button>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+
                             <div className={cn("p-4", UI.card)}>
                                 <div className={UI.sectionTitle}>{isEditing ? "Updated values" : "What gets posted"}</div>
                                 <div className="mt-2 space-y-2 text-sm font-bold text-zinc-700 dark:text-zinc-300">
                                     <div>
                                         <span className="text-zinc-400">Guild:</span> {config?.guild_name || MOCK_GUILD.name}
+                                    </div>
+                                    <div>
+                                        <span className="text-zinc-400">Media count:</span> {remotePreviews.length + filePreviews.length}
                                     </div>
                                     <div className="flex flex-wrap gap-2">
                                         <span className="text-zinc-400">Channels:</span>

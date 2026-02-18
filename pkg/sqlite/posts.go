@@ -58,29 +58,31 @@ func (s *sqliteDB) CreatePost(p *types.Post) error {
 			p.Author = &dbUser
 		}
 
-		if err := tx.Omit("Author", "Image", "AllowedRoles").Create(p).Error; err != nil {
+		if err := tx.Omit("Author", "Images", "AllowedRoles").Create(p).Error; err != nil {
 			return err
 		}
 
-		// Image (optional) — attach to this post via PostID and create blobs explicitly
-		if p.Image != nil {
-			p.Image.PostID = p.ID
-			// Prevent GORM from auto-creating blobs by omitting association
-			blobs := p.Image.Blobs
-			p.Image.Blobs = nil
-			if err := tx.Omit("Blobs").Create(p.Image).Error; err != nil {
-				return err
-			}
-			for i := range blobs {
-				blobs[i].ImageID = p.Image.ID
-			}
-			if len(blobs) > 0 {
-				if err := tx.Create(&blobs).Error; err != nil {
+		// Images (optional) — attach to this post via PostID and create blobs explicitly
+		if len(p.Images) > 0 {
+			for i := range p.Images {
+				p.Images[i].PostID = p.ID
+				// Prevent GORM from auto-creating blobs by omitting association
+				blobs := p.Images[i].Blobs
+				p.Images[i].Blobs = nil
+				if err := tx.Omit("Blobs").Create(&p.Images[i]).Error; err != nil {
 					return err
 				}
+				for j := range blobs {
+					blobs[j].ImageID = p.Images[i].ID
+				}
+				if len(blobs) > 0 {
+					if err := tx.Create(&blobs).Error; err != nil {
+						return err
+					}
+				}
+				// restore in-memory linkage
+				p.Images[i].Blobs = blobs
 			}
-			// restore in-memory linkage
-			p.Image.Blobs = blobs
 		}
 
 		// Allowed roles (optional). Ensure each role row exists; then attach.
@@ -113,10 +115,11 @@ func (s *sqliteDB) ReadPost(id uint) (*types.Post, error) {
 	var p types.Post
 	err := s.db.
 		Preload("Author").
-		Preload("Image", func(db *gorm.DB) *gorm.DB {
+		Preload("Author").
+		Preload("Images", func(db *gorm.DB) *gorm.DB {
 			return db.Select("id", "created_at", "updated_at", "deleted_at", "post_id", "(CASE WHEN length(thumbnail) > 0 THEN 1 ELSE 0 END) as has_thumbnail")
 		}).
-		Preload("Image.Blobs", func(db *gorm.DB) *gorm.DB {
+		Preload("Images.Blobs", func(db *gorm.DB) *gorm.DB {
 			return db.Select("id", "created_at", "updated_at", "deleted_at", "image_id", "index", "content_type", "filename", "length(data) as size")
 		}).
 		Preload("AllowedRoles").
@@ -132,10 +135,11 @@ func (s *sqliteDB) ReadPostByExternalID(ext string) (*types.Post, error) {
 	var p types.Post
 	err := s.db.
 		Preload("Author").
-		Preload("Image", func(db *gorm.DB) *gorm.DB {
+		Preload("Author").
+		Preload("Images", func(db *gorm.DB) *gorm.DB {
 			return db.Select("id", "created_at", "updated_at", "deleted_at", "post_id", "(CASE WHEN length(thumbnail) > 0 THEN 1 ELSE 0 END) as has_thumbnail")
 		}).
-		Preload("Image.Blobs", func(db *gorm.DB) *gorm.DB {
+		Preload("Images.Blobs", func(db *gorm.DB) *gorm.DB {
 			return db.Select("id", "created_at", "updated_at", "deleted_at", "image_id", "index", "content_type", "filename", "length(data) as size")
 		}).
 		Preload("AllowedRoles").
@@ -190,36 +194,44 @@ func (s *sqliteDB) UpdatePost(p *types.Post) error {
 			p.Author = &dbUser
 		}
 
-		// Image (optional) — ensure the image row belongs to this post and replace blobs
-		if p.Image != nil {
-			// Work on a local copy of blobs to avoid autosave
-			blobs := p.Image.Blobs
-			p.Image.Blobs = nil
-			if p.Image.ID == 0 {
-				p.Image.PostID = p.ID
-				if err := tx.Omit("Blobs").Create(p.Image).Error; err != nil {
+		// Images (optional) — ensure the image rows belong to this post and replace blobs
+		if len(p.Images) > 0 {
+			// First, remove all existing images for this post to handle replacements cleanly
+			// (Optimization: could diff IDs but full replacement is safer and simpler for execution)
+			var existingImgs []types.Image
+			if err := tx.Where("post_id = ?", p.ID).Find(&existingImgs).Error; err != nil {
+				return err
+			}
+			for i := range existingImgs {
+				img := existingImgs[i]
+				if err := tx.Where("image_id = ?", img.ID).Delete(&types.ImageBlob{}).Error; err != nil {
 					return err
 				}
-			} else {
-				p.Image.PostID = p.ID
-				if err := tx.Omit("Blobs").Save(p.Image).Error; err != nil {
+				if err := tx.Delete(&types.Image{}, img.ID).Error; err != nil {
 					return err
 				}
 			}
-			// Only replace blobs if new ones are provided; if nil, leave existing blobs untouched
-			if len(blobs) > 0 {
-				if err := tx.Where("image_id = ?", p.Image.ID).Delete(&types.ImageBlob{}).Error; err != nil {
+
+			// Add new images
+			for i := range p.Images {
+				img := &p.Images[i]
+				img.PostID = p.ID
+				blobs := img.Blobs
+				img.Blobs = nil
+				if err := tx.Omit("Blobs").Create(img).Error; err != nil {
 					return err
 				}
-				for i := range blobs {
-					blobs[i].ImageID = p.Image.ID
-					blobs[i].ID = 0 // ensure fresh insert
+				for j := range blobs {
+					blobs[j].ImageID = img.ID
+					blobs[j].ID = 0 // ensure fresh insert
 				}
-				if err := tx.Create(&blobs).Error; err != nil {
-					return err
+				if len(blobs) > 0 {
+					if err := tx.Create(&blobs).Error; err != nil {
+						return err
+					}
 				}
+				img.Blobs = blobs
 			}
-			p.Image.Blobs = blobs
 		} else {
 			// Remove any existing image for this post
 			var imgs []types.Image
@@ -238,7 +250,7 @@ func (s *sqliteDB) UpdatePost(p *types.Post) error {
 		}
 
 		// Update post core fields (omit associations, handled above)
-		if err := tx.Omit("Author", "Image", "AllowedRoles").Save(p).Error; err != nil {
+		if err := tx.Omit("Author", "Images", "AllowedRoles").Save(p).Error; err != nil {
 			return err
 		}
 
@@ -282,8 +294,8 @@ type PostPatch struct {
 	ReplaceAllowedRoles []*types.Allowed // if set, replaces AllowedRoles with these
 	ClearAllowedRoles   bool             // if true, clears AllowedRoles
 
-	ReplaceImage *types.Image // if non-nil, sets/replaces the Image (blobs fully replaced)
-	ClearImage   bool         // if true, removes the Image
+	ReplaceImages []types.Image // if non-nil, sets/replaces the Images (blobs fully replaced)
+	ClearImages   bool          // if true, removes the Images
 }
 
 // PatchPost applies partial updates to a post by PK.
@@ -347,8 +359,8 @@ func (s *sqliteDB) PatchPost(id uint, patch PostPatch) error {
 			}
 		}
 
-		// Image
-		if patch.ClearImage {
+		// Images
+		if patch.ClearImages {
 			// delete image and child blobs if present for this post
 			var imgs []types.Image
 			if err := tx.Where("post_id = ?", p.ID).Find(&imgs).Error; err != nil {
@@ -363,28 +375,29 @@ func (s *sqliteDB) PatchPost(id uint, patch PostPatch) error {
 					return err
 				}
 			}
-		} else if patch.ReplaceImage != nil {
-			// replace current image for this post with the provided one
+		} else if patch.ReplaceImages != nil {
+			// replace current images for this post with the provided ones
 			// first remove any existing images for this post
 			if err := tx.Where("post_id = ?", p.ID).Delete(&types.Image{}).Error; err != nil {
 				return err
 			}
-			img := patch.ReplaceImage
-			img.PostID = p.ID
-			blobs := img.Blobs
-			img.Blobs = nil
-			if err := tx.Omit("Blobs").Create(img).Error; err != nil {
-				return err
-			}
-			for i := range blobs {
-				blobs[i].ImageID = img.ID
-			}
-			if len(blobs) > 0 {
-				if err := tx.Create(&blobs).Error; err != nil {
+			for _, img := range patch.ReplaceImages {
+				img.PostID = p.ID
+				blobs := img.Blobs
+				img.Blobs = nil
+				if err := tx.Omit("Blobs").Create(&img).Error; err != nil {
 					return err
 				}
+				for i := range blobs {
+					blobs[i].ImageID = img.ID
+				}
+				if len(blobs) > 0 {
+					if err := tx.Create(&blobs).Error; err != nil {
+						return err
+					}
+				}
+				// img.Blobs = blobs // (loop variable, no need to update back)
 			}
-			img.Blobs = blobs
 		}
 
 		return nil

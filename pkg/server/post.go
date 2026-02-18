@@ -161,28 +161,28 @@ func (s *Server) handleCreatePost(c echo.Context) error {
 		return c.JSON(http.StatusUnauthorized, map[string]string{"error": "Unauthorized"})
 	}
 
+	// Parse multipart form (32MB max memory)
+	if err := c.Request().ParseMultipartForm(32 << 20); err != nil {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Failed to parse multipart form"})
+	}
+
 	title := c.FormValue("title")
 	description := c.FormValue("description")
 	rolesStr := c.FormValue("roles")
 	channelsStr := c.FormValue("channels")
 
-	fileHeader, err := c.FormFile("image")
-	if err != nil {
-		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Missing image"})
+	form := c.Request().MultipartForm
+	files := form.File["images"] // Expecting "images" key for multiple files
+
+	// Fallback to "image" if "images" is empty (backward compatibility)
+	if len(files) == 0 {
+		files = form.File["image"]
 	}
 
-	file, err := fileHeader.Open()
-	if err != nil {
-		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Failed to open image"})
-	}
-	defer file.Close()
-
-	imgBytes, err := io.ReadAll(file)
-	if err != nil {
-		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Failed to read image"})
+	if len(files) == 0 {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Missing images"})
 	}
 
-	// Create Post
 	postKey := ksuid.New().String()
 	now := time.Now().UTC()
 
@@ -233,21 +233,50 @@ func (s *Server) handleCreatePost(c echo.Context) error {
 		focusY = v
 	}
 
-	post := &types.Post{
-		PostKey:     postKey,
-		ChannelID:   channelsStr,
-		GuildID:     s.config.GuildID,
-		Title:       title,
-		Description: description,
-		Timestamp:   now,
-		IsPremium:   true,
-		FocusX:      &focusX,
-		FocusY:      &focusY,
-		Image: &types.Image{
+	// Process Images
+	var postImages []types.Image
+
+	for _, fileHeader := range files {
+		file, err := fileHeader.Open()
+		if err != nil {
+			log.Error("Failed to open uploaded file", "filename", fileHeader.Filename, "error", err)
+			continue
+		}
+
+		imgBytes, err := io.ReadAll(file)
+		file.Close()
+		if err != nil {
+			log.Error("Failed to read uploaded file", "filename", fileHeader.Filename, "error", err)
+			continue
+		}
+
+		postImages = append(postImages, types.Image{
 			Blobs: []types.ImageBlob{
-				{Index: 0, Data: imgBytes, ContentType: fileHeader.Header.Get("Content-Type"), Filename: fileHeader.Filename},
+				{
+					Index:       0,
+					Data:        imgBytes,
+					ContentType: fileHeader.Header.Get("Content-Type"),
+					Filename:    fileHeader.Filename,
+				},
 			},
-		},
+		})
+	}
+
+	if len(postImages) == 0 {
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Failed to process any images"})
+	}
+
+	post := &types.Post{
+		PostKey:      postKey,
+		ChannelID:    channelsStr,
+		GuildID:      s.config.GuildID,
+		Title:        title,
+		Description:  description,
+		Timestamp:    now,
+		IsPremium:    true,
+		FocusX:       &focusX,
+		FocusY:       &focusY,
+		Images:       postImages,
 		AllowedRoles: allowedRoles,
 	}
 
@@ -256,7 +285,6 @@ func (s *Server) handleCreatePost(c echo.Context) error {
 		post.AuthorID = u.ID
 		post.Author = u
 	} else {
-		// Create incomplete user struct if not exists?
 		post.Author = &types.User{
 			UserID:   user.UserID,
 			Username: user.Username,
@@ -273,27 +301,35 @@ func (s *Server) handleCreatePost(c echo.Context) error {
 	// Post to Discord Channels
 	channelIDs := strings.Split(channelsStr, ",")
 
-	// Prepare Embed
+	// Embed for first image
+	firstFile := files[0]
+	// firstImg := postImages[0]
+
 	embed := &discordgo.MessageEmbed{
 		Title:       title,
 		Type:        discordgo.EmbedTypeImage,
 		Timestamp:   now.Format(time.RFC3339),
 		Description: description,
 		Image: &discordgo.MessageEmbedImage{
-			URL: "attachment://" + fileHeader.Filename,
+			URL: "attachment://" + firstFile.Filename,
+		},
+		Footer: &discordgo.MessageEmbedFooter{
+			Text: fmt.Sprintf(" +%d more", len(postImages)-1),
 		},
 	}
+	if len(postImages) <= 1 {
+		embed.Footer = nil
+	}
+
 	if embed.Description == "" {
-		embed.Description = "New image posted!"
+		embed.Description = "New post!"
 	}
 	if post.Author != nil {
 		embed.Author = &discordgo.MessageEmbedAuthor{
 			Name: post.Author.Username,
-			// IconURL: ... we'd need avatar URL
 		}
 	}
 
-	// Allowed roles text
 	var sb strings.Builder
 	sb.WriteString("> Allowed roles:\n")
 	for _, r := range post.AllowedRoles {
@@ -322,12 +358,14 @@ func (s *Server) handleCreatePost(c echo.Context) error {
 			continue
 		}
 
-		// Send message with file
-		files := []*discordgo.File{
+		// Send message with FIRST file only
+		blobData := postImages[0].Blobs[0].Data
+
+		discordFiles := []*discordgo.File{
 			{
-				Name:        fileHeader.Filename,
-				ContentType: fileHeader.Header.Get("Content-Type"),
-				Reader:      bytes.NewReader(imgBytes),
+				Name:        firstFile.Filename,
+				ContentType: postImages[0].Blobs[0].ContentType,
+				Reader:      bytes.NewReader(blobData),
 			},
 		}
 
@@ -335,7 +373,7 @@ func (s *Server) handleCreatePost(c echo.Context) error {
 			Content:    sb.String(),
 			Embeds:     []*discordgo.MessageEmbed{embed},
 			Components: components,
-			Files:      files,
+			Files:      discordFiles,
 		})
 		if err != nil {
 			log.Error("Failed to send to channel", "channel", chID, "error", err)

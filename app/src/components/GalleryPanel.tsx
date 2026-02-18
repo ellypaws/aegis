@@ -4,21 +4,38 @@ import { UI } from "../constants";
 import type { Post } from "../types";
 import { buildSrcSet, PANEL_THUMB_SIZES } from "../lib/imageSrcSet";
 
-function resolveImageUrl(post: Post, canAccess: boolean): string | null {
-    const blobId = post.image?.blobs?.[0]?.ID;
-    if (!blobId) return null;
+// Updated to return adequate URL for video playback or thumbnail
+function resolveMediaUrl(post: Post, canAccess: boolean): { url: string | null; isVideo: boolean } {
+    const blob = post.images?.[0]?.blobs?.[0];
+    const blobId = blob?.ID;
+    if (!blobId) return { url: null, isVideo: false };
 
-    const contentType = post.image?.blobs?.[0]?.contentType || "";
-    if (contentType.startsWith("video/")) {
-        // Always use thumbnail/preview for video in panel
-        return `/thumb/${blobId}`;
+    const contentType = blob?.contentType || "";
+    const isVideo = contentType.startsWith("video/") || /\.(mp4|webm|mov|mkv|avi)$/i.test(blob?.filename || "");
+    const token = typeof window !== "undefined" ? localStorage.getItem("jwt") : null;
+
+    if (isVideo) {
+        if (canAccess) {
+            // For video, we want a small preview. resize endpoint with w=256 should work if backend supports video resizing/transcoding
+            // If not, we might need full URL. Assuming `resize` handles video -> webm/gif or we use full url.
+            // Given previous conversation mentions resize outputs WebM, let's try that.
+            // w=256 ensures small size.
+            return {
+                url: `/images/${blobId}/resize?w=256${token ? `&token=${token}` : ""}`,
+                isVideo: true
+            };
+        }
+        // If no access, fallback to thumb (likely a generated thumbnail or placeholder)
+        return { url: `/thumb/${blobId}`, isVideo: false };
     }
 
     if (canAccess) {
-        const token = typeof window !== "undefined" ? localStorage.getItem("jwt") : null;
-        return `/images/${blobId}${token ? `?token=${token}` : ""}`;
+        return {
+            url: `/images/${blobId}${token ? `?token=${token}` : ""}`,
+            isVideo: false
+        };
     }
-    return `/thumb/${blobId}`;
+    return { url: `/thumb/${blobId}`, isVideo: false };
 }
 
 import { ImageWithSpinner } from "./ImageWithSpinner";
@@ -48,10 +65,10 @@ export function GalleryPanel({
                 <div className="flex gap-3">
                     {posts.slice(0, 18).map((p) => {
                         const canAccess = canAccessByPost(p);
-                        const url = resolveImageUrl(p, canAccess);
-                        const hasThumbnail = p.image?.hasThumbnail;
+                        const { url, isVideo } = resolveMediaUrl(p, canAccess);
+                        const hasThumbnail = p.images?.[0]?.hasThumbnail;
                         const selected = p.postKey === selectedId;
-                        const blobId = p.image?.blobs?.[0]?.ID;
+                        const blobId = p.images?.[0]?.blobs?.[0]?.ID;
                         const token = typeof window !== "undefined" ? localStorage.getItem("jwt") : null;
                         const roleNames = p.allowedRoles.map(r => r.name).join(", ");
                         const focusStyle = { objectPosition: `${p.focusX ?? 50}% ${p.focusY ?? 50}%` };
@@ -73,17 +90,31 @@ export function GalleryPanel({
                                 <div className="h-full w-full bg-zinc-50 dark:bg-zinc-900 relative overflow-hidden">
                                     {url ? (
                                         <div className="flex h-full w-full items-center justify-center bg-zinc-50 dark:bg-zinc-900 overflow-hidden relative">
-                                            <ImageWithSpinner
-                                                src={url}
-                                                srcSet={canAccess && blobId ? buildSrcSet(blobId, token) : undefined}
-                                                sizes={canAccess && blobId ? PANEL_THUMB_SIZES : undefined}
-                                                alt={p.title ?? ""}
-                                                className={cn(
-                                                    "h-full w-full object-cover transition-all duration-500",
-                                                    !canAccess && !hasThumbnail && "blur-md scale-105"
-                                                )}
-                                                style={focusStyle}
-                                            />
+                                            {isVideo && canAccess ? (
+                                                <video
+                                                    src={url}
+                                                    autoPlay
+                                                    loop
+                                                    muted
+                                                    playsInline
+                                                    className={cn(
+                                                        "h-full w-full object-cover transition-all duration-500",
+                                                    )}
+                                                    style={focusStyle}
+                                                />
+                                            ) : (
+                                                <ImageWithSpinner
+                                                    src={url}
+                                                    srcSet={canAccess && blobId && !isVideo ? buildSrcSet(blobId, token) : undefined}
+                                                    sizes={canAccess && blobId && !isVideo ? PANEL_THUMB_SIZES : undefined}
+                                                    alt={p.title ?? ""}
+                                                    className={cn(
+                                                        "h-full w-full object-cover transition-all duration-500",
+                                                        !canAccess && !hasThumbnail && "blur-md scale-105"
+                                                    )}
+                                                    style={focusStyle}
+                                                />
+                                            )}
                                         </div>
                                     ) : (
                                         <div className="flex h-full w-full items-center justify-center text-[10px] font-bold text-zinc-400 dark:text-zinc-500">No img</div>
@@ -132,4 +163,3 @@ export function GalleryPanel({
         </div>
     );
 }
-
