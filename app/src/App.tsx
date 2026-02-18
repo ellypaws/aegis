@@ -1,12 +1,21 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Routes, Route, useNavigate, useLocation, matchPath } from "react-router-dom";
+import {
+  Routes,
+  Route,
+  useNavigate,
+  useLocation,
+  matchPath,
+} from "react-router-dom";
 import { intersect, cn } from "./lib/utils";
 import { UI } from "./constants";
 import { MOCK_GUILD } from "./data/mock";
 import type { DiscordUser, Guild, Post, ViewMode } from "./types";
 import { DiagonalSlitHeader } from "./components/DiagonalSlitHeader";
 import { LoginModal } from "./components/LoginModal";
-import { AuthorPanel, type AuthorPanelPostInput } from "./components/AuthorPanel";
+import {
+  AuthorPanel,
+  type AuthorPanelPostInput,
+} from "./components/AuthorPanel";
 import { TopBar } from "./components/TopBar";
 import { MainGalleryView } from "./components/MainGalleryView";
 import { PostDetailView } from "./components/PostDetailView";
@@ -72,11 +81,17 @@ function App() {
     const token = localStorage.getItem("jwt");
     if (token) {
       try {
-        const base64Url = token.split('.')[1];
-        const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
-        const jsonPayload = decodeURIComponent(window.atob(base64).split('').map(function (c) {
-          return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
-        }).join(''));
+        const base64Url = token.split(".")[1];
+        const base64 = base64Url.replace(/-/g, "+").replace(/_/g, "/");
+        const jsonPayload = decodeURIComponent(
+          window
+            .atob(base64)
+            .split("")
+            .map(function (c) {
+              return "%" + ("00" + c.charCodeAt(0).toString(16)).slice(-2);
+            })
+            .join(""),
+        );
 
         const claims = JSON.parse(jsonPayload);
         const u: DiscordUser = {
@@ -90,21 +105,23 @@ function App() {
           bot: false,
           system: false,
           publicFlags: 0,
-          roles: claims.roles ? claims.roles.map((r: any) => ({
-            id: r.id,
-            name: r.name,
-            color: r.color,
-            managed: r.managed,
-            mentionable: r.mentionable,
-            hoist: r.hoist,
-            position: r.position,
-            permissions: r.permissions,
-            icon: r.icon,
-            unicodeEmoji: r.unicodeEmoji,
-            flags: r.flags
-          })) : [],
+          roles: claims.roles
+            ? claims.roles.map((r: any) => ({
+                id: r.id,
+                name: r.name,
+                color: r.color,
+                managed: r.managed,
+                mentionable: r.mentionable,
+                hoist: r.hoist,
+                position: r.position,
+                permissions: r.permissions,
+                icon: r.icon,
+                unicodeEmoji: r.unicodeEmoji,
+                flags: r.flags,
+              }))
+            : [],
           isAdmin: claims.adm,
-          isAuthor: claims.adm
+          isAuthor: claims.adm,
         };
         setUser(u);
       } catch (e) {
@@ -119,35 +136,41 @@ function App() {
   const [hasMore, setHasMore] = useState(true);
   const limit = 9;
 
-  const loadPosts = useCallback((pageNum: number, reset: boolean = false, sort: SortMode = sortMode) => {
-    setLoading(true);
-    const token = localStorage.getItem("jwt");
-    const headers: Record<string, string> = {};
-    if (token) {
-      headers["Authorization"] = `Bearer ${token}`;
-    }
+  const loadPosts = useCallback(
+    (pageNum: number, reset: boolean = false, sort: SortMode = sortMode) => {
+      setLoading(true);
+      const token = localStorage.getItem("jwt");
+      const headers: Record<string, string> = {};
+      if (token) {
+        headers["Authorization"] = `Bearer ${token}`;
+      }
 
-    // If reset and we need all currently-visible items, compute the right limit
-    const fetchLimit = reset && pageNum === 1 ? Math.max(limit, posts.length) : limit;
+      // If reset and we need all currently-visible items, compute the right limit
+      const fetchLimit =
+        reset && pageNum === 1 ? Math.max(limit, posts.length) : limit;
 
-    fetch(`/posts?page=${pageNum}&limit=${fetchLimit}&sort=${sort}`, { headers })
-      .then(res => res.json())
-      .then(data => {
-        const items: Post[] = Array.isArray(data) ? data : [];
-        const newPosts = reset ? items : [...posts, ...items];
-        setPosts(newPosts);
-        // Update cache for this sort mode
-        sortCacheRef.current[sort] = newPosts;
-        setHasMore(items.length === fetchLimit);
-        setLoading(false);
-        setInitialLoading(false);
+      fetch(`/posts?page=${pageNum}&limit=${fetchLimit}&sort=${sort}`, {
+        headers,
       })
-      .catch(err => {
-        console.error("Failed to fetch posts", err);
-        setLoading(false);
-        setInitialLoading(false);
-      });
-  }, [sortMode, posts.length]);
+        .then((res) => res.json())
+        .then((data) => {
+          const items: Post[] = Array.isArray(data) ? data : [];
+          const newPosts = reset ? items : [...posts, ...items];
+          setPosts(newPosts);
+          // Update cache for this sort mode
+          sortCacheRef.current[sort] = newPosts;
+          setHasMore(items.length === fetchLimit);
+          setLoading(false);
+          setInitialLoading(false);
+        })
+        .catch((err) => {
+          console.error("Failed to fetch posts", err);
+          setLoading(false);
+          setInitialLoading(false);
+        });
+    },
+    [sortMode, posts.length],
+  );
 
   // Initial Fetch
   useEffect(() => {
@@ -184,6 +207,16 @@ function App() {
     return posts?.find((p) => p.postKey === selectedId) ?? selectedPost;
   }, [posts, selectedId, selectedPost]);
 
+  useEffect(() => {
+    if (!selectedId) {
+      setSelectedPost(null);
+      return;
+    }
+    if (selectedPost && selectedPost.postKey !== selectedId) {
+      setSelectedPost(null);
+    }
+  }, [selectedId, selectedPost]);
+
   // If we have a selectedId but it's not in the loaded posts list, fetch it individually
   useEffect(() => {
     if (!selectedId || selected) return;
@@ -195,19 +228,22 @@ function App() {
     if (token) headers["Authorization"] = `Bearer ${token}`;
 
     fetch(`/posts/${selectedId}`, { headers })
-      .then(res => {
+      .then((res) => {
         if (!res.ok) return null;
         return res.json();
       })
-      .then(post => {
+      .then((post) => {
         if (post) {
           setSelectedPost(post);
         }
       })
-      .catch(err => console.error("Failed to fetch individual post", err));
+      .catch((err) => console.error("Failed to fetch individual post", err));
   }, [selectedId, selected, selectedPost]);
 
-  const viewerRoleIds = useMemo(() => (user?.roles ?? []).map((r) => r.id), [user]);
+  const viewerRoleIds = useMemo(
+    () => (user?.roles ?? []).map((r) => r.id),
+    [user],
+  );
 
   const filteredPosts = useMemo(() => {
     const base = posts.slice();
@@ -215,7 +251,8 @@ function App() {
     const s = q.trim().toLowerCase();
     if (!s) return byTag;
     return byTag.filter((p) => {
-      const hay = `${p.title ?? ""} ${(p.description ?? "").slice(0, 120)}`.toLowerCase();
+      const hay =
+        `${p.title ?? ""} ${(p.description ?? "").slice(0, 120)}`.toLowerCase();
       return hay.includes(s);
     });
   }, [posts, tagFilter, q]);
@@ -226,7 +263,7 @@ function App() {
     return (p: Post) => {
       if (user?.isAdmin) return true; // Admin/Author access
       if (settings.public_access) return true; // Global Public Access
-      const postRoleIds = p.allowedRoles.map(r => r.id);
+      const postRoleIds = p.allowedRoles.map((r) => r.id);
       if (postRoleIds.length === 0) return true;
       return intersect(postRoleIds, viewerRoleIds);
     };
@@ -280,7 +317,15 @@ function App() {
     }
   }
 
-  async function handleUpdate(postKey: string, postInput: Omit<AuthorPanelPostInput, "images"> & { images?: File[]; removeImageIds?: number[]; mediaOrder?: string[]; clearThumbnail?: boolean }) {
+  async function handleUpdate(
+    postKey: string,
+    postInput: Omit<AuthorPanelPostInput, "images"> & {
+      images?: File[];
+      removeImageIds?: number[];
+      mediaOrder?: string[];
+      clearThumbnail?: boolean;
+    },
+  ) {
     const formData = new FormData();
     formData.append("title", postInput.title);
     formData.append("description", postInput.description);
@@ -364,8 +409,13 @@ function App() {
 
   return (
     <>
-      <SettingsModal open={settingsOpen} onClose={() => setSettingsOpen(false)} />
-      {membershipOpen && <MembershipModal onClose={() => setMembershipOpen(false)} />}
+      <SettingsModal
+        open={settingsOpen}
+        onClose={() => setSettingsOpen(false)}
+      />
+      {membershipOpen && (
+        <MembershipModal onClose={() => setMembershipOpen(false)} />
+      )}
       <div className={UI.page}>
         <LoginModal
           open={loginOpen}
@@ -379,7 +429,10 @@ function App() {
           <DiagonalSlitHeader
             posts={posts}
             onClickRandom={() => {
-              const pick = filteredPosts[Math.floor(Math.random() * Math.max(1, filteredPosts.length))];
+              const pick =
+                filteredPosts[
+                  Math.floor(Math.random() * Math.max(1, filteredPosts.length))
+                ];
               if (pick) {
                 navigate(`/post/${pick.postKey}`);
               }
@@ -407,6 +460,7 @@ function App() {
           {user?.isAdmin ? (
             <div className="mt-6">
               <AuthorPanel
+                key={editingPost?.postKey ?? "create"}
                 user={user}
                 onCreate={handleCreate}
                 editingPost={editingPost}
@@ -418,7 +472,11 @@ function App() {
 
           <div className="mt-6 flex flex-col gap-4 lg:flex-row relative items-start">
             {/* Left: MAIN */}
-            <div className={cn("transition-all duration-500 w-full lg:w-[calc(100%-22rem)]")}>
+            <div
+              className={cn(
+                "transition-all duration-500 w-full lg:w-[calc(100%-22rem)]",
+              )}
+            >
               <Routes>
                 <Route
                   path="/"
@@ -459,14 +517,13 @@ function App() {
 
             {/* Right: SIDEBAR - Do not show on 404? or default? */}
             {view !== "not-found" && (
-              <div
-                className={cn(
-                  "w-full lg:w-80"
-                )}
-              >
+              <div className={cn("w-full lg:w-80")}>
                 <div className="sticky top-4">
                   {view === "gallery" ? (
-                    <ProfileSidebar user={user} onLogin={() => setLoginOpen(true)} />
+                    <ProfileSidebar
+                      user={user}
+                      onLogin={() => setLoginOpen(true)}
+                    />
                   ) : (
                     <RightSidebar
                       posts={filteredPosts}
@@ -478,7 +535,11 @@ function App() {
                       selected={selected}
                       user={user}
                       onEditPost={(post) => {
-                        setEditingPost(post);
+                        setEditingPost({
+                          ...post,
+                          allowedRoles: [...(post.allowedRoles ?? [])],
+                          images: [...(post.images ?? [])],
+                        });
                         window.scrollTo({ top: 0, behavior: "smooth" });
                       }}
                       onDeletePost={handleDelete}
