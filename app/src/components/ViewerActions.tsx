@@ -12,22 +12,31 @@ export function ViewerActions({ post, canAccess }: { post: Post; canAccess: bool
         return () => clearTimeout(t);
     }, [toast]);
 
-    const blob = post.images?.[0]?.blobs?.[0];
     const token = localStorage.getItem("jwt");
-    const fullUrl = blob ? `/images/${blob.ID}${token ? `?token=${token}` : ""}` : "";
-    const downloadUrl = fullUrl ? fullUrl + (fullUrl.includes("?") ? "&" : "?") + "download=1" : "";
-    const ext = getExtension(blob?.contentType);
 
-    const file: DownloadFile = {
-        url: downloadUrl,
-        name: blob?.filename || `${post.title || "image"}.${ext}`,
-        mime: (blob?.contentType === "application/octet-stream" ? "image/png" : blob?.contentType) || "image/png",
-        size: blob?.size || 0,
-    };
+    const files: DownloadFile[] = (post.images || []).flatMap((img, i) => {
+        const blob = img.blobs?.[0];
+        if (!blob) return [];
+
+        const fullUrl = `/images/${blob.ID}${token ? `?token=${token}` : ""}`;
+        const downloadUrl = fullUrl + (fullUrl.includes("?") ? "&" : "?") + "download=1";
+        const ext = getExtension(blob.contentType);
+
+        return [{
+            url: downloadUrl,
+            name: blob.filename || `${post.title || "image"}-${i + 1}.${ext}`,
+            mime: (blob.contentType === "application/octet-stream" ? "image/png" : blob.contentType) || "image/png",
+            size: blob.size || 0,
+        }];
+    });
+
+    // Fallback for posts without images (though unlikely in this context)
+    const blob = post.images?.[0]?.blobs?.[0];
+    const fullUrl = blob ? `/images/${blob.ID}${token ? `?token=${token}` : ""}` : "";
 
     return (
         <div className="space-y-3">
-            <DownloadButton file={file} enabled={canAccess} />
+            <DownloadButton files={files} enabled={canAccess} />
 
             <div className="flex gap-2 isolate">
                 <div className="relative flex-1 hover:grow-[1.5] transition-[flex-grow] duration-300 ease-in-out min-w-0">
