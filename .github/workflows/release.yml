@@ -14,19 +14,33 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
 
       - name: Setup Go
         uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
 
+      - name: Build Frontend
+        run: |
+          cd app
+          bun install
+          bun run build
+        shell: bash
+
       - name: Build Daemon
         run: |
-          cp cmd/src/rsrc_windows_amd64.syso cmd || copy cmd\src\rsrc_windows_amd64.syso cmd
-          export CGO_ENABLED=0 || set CGO_ENABLED=0
+          copy cmd\src\rsrc_windows_amd64.syso cmd
+          set CGO_ENABLED=0
           git submodule update --init --recursive
-          go build -o aegis-${{ github.ref_name }}.exe ./cmd
-        shell: bash
+          go build -trimpath -ldflags='-s -w' -o aegis-${{ github.ref_name }}.exe ./cmd
+        shell: cmd
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
