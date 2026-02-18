@@ -49,13 +49,13 @@ COPY cmd/src/rsrc_windows_amd64.syso cmd/
 # -trimpath for reproducible builds
 # -ldflags='-s -w' to strip debug info
 # The Go version used is determined by the image (alpine latest) which satisfies go.mod
-RUN CGO_ENABLED=0 go build -trimpath -ldflags='-s -w' -o drigo ./cmd
+ARG BUILD_TAGS=""
+RUN CGO_ENABLED=0 go build -trimpath -tags "${BUILD_TAGS}" -ldflags='-s -w' -o drigo ./cmd
 
 # Stage 3: Final Runtime Image
 FROM alpine:latest
 
 WORKDIR /app
-
 # Install runtime dependencies if needed (e.g. ca-certificates)
 RUN apk add --no-cache ca-certificates
 

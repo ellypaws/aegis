@@ -13,9 +13,11 @@ import (
 	ffmpeg "github.com/u2takey/ffmpeg-go"
 )
 
-// Ensure ffmpeg is available
+var ffmpegBinary = "ffmpeg"
+
+// CheckFFmpeg ensures ffmpeg is available
 func CheckFFmpeg() error {
-	_, err := exec.LookPath("ffmpeg")
+	_, err := exec.LookPath(ffmpegBinary)
 	return err
 }
 
@@ -34,11 +36,6 @@ func GeneratePreviewGIF(videoData []byte, fps int, blurry bool) ([]byte, error) 
 	outName := filepath.Join(os.TempDir(), fmt.Sprintf("drigo_preview_%s.gif", ksuid.New().String()))
 	defer os.Remove(outName)
 
-	// Build ffmpeg filter
-	// We want to sample generic keyframes or just fps.
-	// vf: "fps=X,scale=320:-1:flags=lanczos"
-	// If blurry: "fps=X,scale=64:-1:flags=lanczos,boxblur=10:1"
-
 	var filter string
 	if blurry {
 		// Low res + blur
@@ -48,23 +45,12 @@ func GeneratePreviewGIF(videoData []byte, fps int, blurry bool) ([]byte, error) 
 		filter = fmt.Sprintf("fps=%d,scale=320:-2:flags=lanczos,split[s0][s1];[s0]palettegen[p];[s1][p]paletteuse", fps)
 	}
 
-	// Basic command construction
-	// Note: palettegen/paletteuse gives better GIF quality but might be slower.
-	// For blurry, we don't care about quality as much, direct mapping is fine.
-
 	var args []string
 	args = append(args, "-y", "-i", tmpName, "-vf", filter)
 
-	if !blurry {
-		// For authorized (clear) GIF, we use the complex filter for quality if possible,
-		// but to keep it simple and robust:
-		// Let's use a simpler filter first to ensure it works.
-		// "fps=%d,scale=320:-1:flags=lanczos"
-	}
-
 	args = append(args, outName)
 
-	cmd := exec.Command("ffmpeg", args...)
+	cmd := exec.Command(ffmpegBinary, args...)
 
 	// Capture stderr for debugging
 	var stderr bytes.Buffer
@@ -101,8 +87,6 @@ func ResizeToWebM(data []byte, width int) ([]byte, error) {
 	// Defer removal is good practice, but we read it right after.
 	defer os.Remove(outName)
 
-	// Build ffmpeg command using ffmpeg-go
-	// We remove 'deadlines' option as it caused issues for the user.
 	err := ffmpeg.Input(tmpName).
 		Output(outName, ffmpeg.KwArgs{
 			"vf":       fmt.Sprintf("scale=%d:-2:flags=lanczos", width),

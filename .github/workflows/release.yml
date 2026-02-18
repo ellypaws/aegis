@@ -10,7 +10,35 @@ permissions:
 
 jobs:
   build:
-    runs-on: windows-latest
+    strategy:
+      matrix:
+        include:
+          - os: windows-latest
+            goos: windows
+            goarch: amd64
+            ext: .exe
+            variant: standard
+            tags: ""
+          - os: windows-latest
+            goos: windows
+            goarch: amd64
+            ext: .exe
+            variant: static
+            tags: "ffstatic"
+          - os: ubuntu-latest
+            goos: linux
+            goarch: amd64
+            ext: ""
+            variant: standard
+            tags: ""
+          - os: ubuntu-latest
+            goos: linux
+            goarch: amd64
+            ext: ""
+            variant: static
+            tags: "ffstatic"
+
+    runs-on: ${{ matrix.os }}
 
     steps:
       - uses: actions/checkout@v4
@@ -34,19 +62,47 @@ jobs:
           bun run build
         shell: bash
 
-      - name: Build Daemon
+      - name: Build Backend
         run: |
-          copy cmd\src\rsrc_windows_amd64.syso cmd
-          set CGO_ENABLED=0
+          # Copy resource file if on windows
+          if [ "${{ matrix.goos }}" == "windows" ]; then
+             cp cmd/src/rsrc_windows_amd64.syso cmd/
+          fi
+          
+          # Initialize submodules (just in case)
           git submodule update --init --recursive
-          go build -trimpath -ldflags="-s -w" -o aegis-${{ github.ref_name }}.exe ./cmd
-        shell: cmd
+          
+          # Download dependencies including static ffmpeg if needed
+          go mod download
+          if [ -n "${{ matrix.tags }}" ]; then
+             go get github.com/go-ffstatic/ffstatic
+             # Ensure platform specific packages are present
+             if [ "${{ matrix.goos }}" == "windows" ]; then
+                go get github.com/go-ffstatic/windows-amd64
+             elif [ "${{ matrix.goos }}" == "linux" ]; then
+                go get github.com/go-ffstatic/linux-amd64
+             fi
+          fi
+
+          export CGO_ENABLED=0
+          export GOOS=${{ matrix.goos }}
+          export GOARCH=${{ matrix.goarch }}
+          
+          OUTPUT_NAME=aegis-${{ matrix.goos }}-${{ matrix.variant }}-${{ github.ref_name }}${{ matrix.ext }}
+          
+          TAGS_FLAG=""
+          if [ -n "${{ matrix.tags }}" ]; then
+             TAGS_FLAG="-tags ${{ matrix.tags }}"
+          fi
+
+          go build -trimpath $TAGS_FLAG -ldflags="-s -w" -o $OUTPUT_NAME ./cmd
+        shell: bash
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: aegis-${{ github.ref_name }}.exe
-          path: aegis-${{ github.ref_name }}.exe
+          name: aegis-${{ matrix.goos }}-${{ matrix.variant }}-${{ github.ref_name }}${{ matrix.ext }}
+          path: aegis-${{ matrix.goos }}-${{ matrix.variant }}-${{ github.ref_name }}${{ matrix.ext }}
 
   release:
     needs: build
@@ -62,6 +118,6 @@ jobs:
       - name: Create Release
         uses: softprops/action-gh-release@v1
         with:
-          files: aegis-*.exe
+          files: aegis-*
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
