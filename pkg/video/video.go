@@ -10,6 +10,7 @@ import (
 
 	"github.com/charmbracelet/log"
 	"github.com/segmentio/ksuid"
+	ffmpeg "github.com/u2takey/ffmpeg-go"
 )
 
 // Ensure ffmpeg is available
@@ -83,4 +84,47 @@ func GeneratePreviewGIF(videoData []byte, fps int, blurry bool) ([]byte, error) 
 	}
 
 	return gifData, nil
+}
+
+// ResizeToWebM reshapes a video or animated GIF to WebM with the given width,
+// preserving the original frame rate.
+func ResizeToWebM(data []byte, width int) ([]byte, error) {
+	// Write input data to a temp file
+	tmpName := filepath.Join(os.TempDir(), fmt.Sprintf("drigo_input_%s", ksuid.New().String()))
+	if err := os.WriteFile(tmpName, data, 0644); err != nil {
+		return nil, fmt.Errorf("failed to write temp input file: %w", err)
+	}
+	defer os.Remove(tmpName)
+
+	// Create a temporary output file
+	outName := filepath.Join(os.TempDir(), fmt.Sprintf("drigo_output_%s.webm", ksuid.New().String()))
+	// Defer removal is good practice, but we read it right after.
+	defer os.Remove(outName)
+
+	// Build ffmpeg command using ffmpeg-go
+	// We remove 'deadlines' option as it caused issues for the user.
+	err := ffmpeg.Input(tmpName).
+		Output(outName, ffmpeg.KwArgs{
+			"vf":       fmt.Sprintf("scale=%d:-2:flags=lanczos", width),
+			"c:v":      "libvpx-vp9",
+			"b:v":      "0",
+			"crf":      "30",
+			"an":       "",  // No audio
+			"cpu-used": "2", // Speed/Quality balance
+		}).
+		OverWriteOutput().
+		ErrorToStdOut().
+		Run()
+
+	if err != nil {
+		return nil, fmt.Errorf("ffmpeg-go run failed: %w", err)
+	}
+
+	// Read the generated WebM
+	webmData, err := os.ReadFile(outName)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read generated webm: %w", err)
+	}
+
+	return webmData, nil
 }

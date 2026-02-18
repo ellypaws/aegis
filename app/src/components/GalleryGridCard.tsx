@@ -68,12 +68,56 @@ export function GalleryGridCard({
     // Usually grid = preview.
 
     if (isVideo) {
-        // Force use the thumbnail/preview endpoint for the grid card image
-        url = `/thumb/${blobId}`;
+        // Use the resize endpoint which now supports WebM output from FFmpeg
+        // We use width 500 for grid cards to get a reasonable quality/size
+        url = `/images/${blobId}/resize?w=500${token ? `&token=${token}` : ""}`;
     }
 
     const hasThumbnail = post.image?.hasThumbnail;
     const focusStyle = { objectPosition: `${post.focusX ?? 50}% ${post.focusY ?? 50}%` };
+
+    const mediaElement = (() => {
+        if (!url) {
+            return (
+                <div className="flex h-full w-full items-center justify-center text-sm font-bold text-zinc-400 dark:text-zinc-500">No preview</div>
+            );
+        }
+
+        if (isVideo) {
+            return (
+                <div className="flex h-full w-full items-center justify-center bg-zinc-50 dark:bg-zinc-900 overflow-hidden">
+                    <video
+                        src={url}
+                        autoPlay
+                        loop
+                        muted
+                        playsInline
+                        className={cn(
+                            "h-full w-full object-cover transition-all duration-500",
+                            !canAccess && !hasThumbnail && "blur-md scale-105"
+                        )}
+                        style={focusStyle}
+                    />
+                </div>
+            );
+        }
+
+        return (
+            <div className="flex h-full w-full items-center justify-center bg-zinc-50 dark:bg-zinc-900 overflow-hidden">
+                <ImageWithSpinner
+                    src={url}
+                    srcSet={canAccess && blobId && !isVideo ? buildSrcSet(blobId, token) : undefined}
+                    sizes={canAccess && blobId && !isVideo ? GALLERY_CARD_SIZES : undefined}
+                    alt={post.title ?? ""}
+                    className={cn(
+                        "h-full w-full object-cover transition-all duration-500",
+                        !canAccess && !hasThumbnail && "blur-md scale-105"
+                    )}
+                    style={focusStyle}
+                />
+            </div>
+        );
+    })();
 
     if (variant === "flexible") {
         return (
@@ -91,23 +135,7 @@ export function GalleryGridCard({
                 title={post.title ?? "Untitled"}
             >
                 <div className="h-full w-full bg-zinc-50 dark:bg-zinc-900 relative overflow-hidden">
-                    {url ? (
-                        <div className="flex h-full w-full items-center justify-center bg-zinc-50 dark:bg-zinc-900 overflow-hidden">
-                            <ImageWithSpinner
-                                src={url}
-                                srcSet={canAccess && blobId ? buildSrcSet(blobId, token) : undefined}
-                                sizes={canAccess && blobId ? GALLERY_CARD_SIZES : undefined}
-                                alt={post.title ?? ""}
-                                className={cn(
-                                    "h-full w-full object-cover transition-all duration-500",
-                                    !canAccess && !hasThumbnail && "blur-md scale-105"
-                                )}
-                                style={focusStyle}
-                            />
-                        </div>
-                    ) : (
-                        <div className="flex h-full w-full items-center justify-center text-sm font-bold text-zinc-400 dark:text-zinc-500">No preview</div>
-                    )}
+                    {mediaElement}
                     {!canAccess ? (
                         url ? (
                             <>
@@ -151,23 +179,7 @@ export function GalleryGridCard({
             title={post.title ?? "Untitled"}
         >
             <div className="aspect-square relative overflow-hidden">
-                {url ? (
-                    <div className="flex h-full w-full items-center justify-center bg-zinc-50 dark:bg-zinc-900 overflow-hidden">
-                        <ImageWithSpinner
-                            src={url}
-                            srcSet={canAccess && blobId ? buildSrcSet(blobId, token) : undefined}
-                            sizes={canAccess && blobId ? GALLERY_CARD_SIZES : undefined}
-                            alt={post.title ?? ""}
-                            className={cn(
-                                "h-full w-full object-cover transition-all duration-500",
-                                !canAccess && !hasThumbnail && "blur-md scale-105"
-                            )}
-                            style={focusStyle}
-                        />
-                    </div>
-                ) : (
-                    <div className="flex h-full w-full items-center justify-center text-sm font-bold text-zinc-400 dark:text-zinc-500">No preview</div>
-                )}
+                {mediaElement}
                 {!canAccess ? (
                     url ? (
                         <>

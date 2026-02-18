@@ -54,7 +54,7 @@ type resizeCacheEntry struct {
 // The work function reads from the disk cache; if the entry is missing or
 // stale it returns an error so the caller generates and persists.
 var resizeFlightCache = flight.NewCache(func(key string) (resizeCacheEntry, error) {
-	for _, ext := range []string{".webp", ".gif"} {
+	for _, ext := range []string{".webp", ".gif", ".webm"} {
 		diskPath := filepath.Join(cacheDir, key+ext)
 		info, err := os.Stat(diskPath)
 		if err != nil {
@@ -70,6 +70,8 @@ var resizeFlightCache = flight.NewCache(func(key string) (resizeCacheEntry, erro
 		ct := "image/webp"
 		if ext == ".gif" {
 			ct = "image/gif"
+		} else if ext == ".webm" {
+			ct = "video/webm"
 		}
 		return resizeCacheEntry{Data: data, ContentType: ct}, nil
 	}
@@ -145,18 +147,23 @@ func (s *Server) handleGetResizedImage(c echo.Context) error {
 			blob.Data = thumb
 			blob.ContentType = http.DetectContentType(thumb) // Likely image/jpeg or image/webp
 		} else {
-			// Generate a static preview (reuse video package, maybe get a single frame)
-			// For resize/static purposes, a single frame is better than a GIF if we want to resize to specific dimensions efficiently?
-			// But our resize supports GIFs.
-			// Let's use the 2fps clean preview for authorized, or just a standard preview.
-			// Since this is just 'resize' (often for UI thumbs), let's use the clean preview.
-			preview, err := video.GeneratePreviewGIF(blob.Data, 1, false)
+			// Generate a WebM resize from the video
+			resizedVideo, err := video.ResizeToWebM(blob.Data, targetWidth)
 			if err != nil {
-				log.Error("Failed to generate video preview for resize", "id", id, "error", err)
+				log.Error("Failed to resize video to WebM", "id", id, "error", err)
 				return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Failed to process video"})
 			}
-			blob.Data = preview
-			blob.ContentType = "image/gif"
+			blob.Data = resizedVideo
+			blob.ContentType = "video/webm"
+
+			// We effectively have the result now, but the logic below expects to resize 'blob.Data'
+			// which is now already resized WebM.
+			// To avoid double-processing (and failure since resizeStatic/resizeAnimatedGIF won't handle WebM),
+			// we can just cache and return here, OR we can Structure the code to handle this 'already processed' case.
+			// Let's optimize:
+			// If we are here, we have the final result.
+			// We should probably just return it / cache it immediately.
+			// However, to keep flow consistent, let's flag it.
 		}
 	}
 
@@ -193,15 +200,25 @@ func (s *Server) handleGetResizedImage(c echo.Context) error {
 	ext := ".webp"
 	contentType := "image/webp"
 	if isAnimatedGIF {
-		ext = ".gif"
-		contentType = "image/gif"
+		ext = ".webm"
+		contentType = "video/webm"
 	}
 
 	var result []byte
-	if isAnimatedGIF {
-		result, err = resizeAnimatedGIF(blob.Data, targetWidth)
+	// If the blob is already WebM (from video branch above), use that
+	if blob.ContentType == "video/webm" {
+		ext = ".webm"
+		contentType = "video/webm"
+		result = blob.Data
+		err = nil // Clear error from cache lookup
 	} else {
-		result, err = resizeStatic(blob.Data, targetWidth, quality)
+		if isAnimatedGIF {
+			// User requested: "Adjust the no thumbnail *authorized* images/:id/resize for gifs and video to be the actual fps encoded to webm instead using ffmpeg."
+			// So we MUST use WebM for animated GIFs too.
+			result, err = video.ResizeToWebM(blob.Data, targetWidth)
+		} else {
+			result, err = resizeStatic(blob.Data, targetWidth, quality)
+		}
 	}
 	if err != nil {
 		log.Error("Failed to resize image", "id", id, "width", targetWidth, "error", err)
@@ -222,7 +239,7 @@ func (s *Server) handleGetResizedImage(c echo.Context) error {
 	// Check if we need to inject EXIF for authenticated users
 	// We only support PNG EXIF injection via pkg/exif.
 	// We don't support GIF EXIF injection yet.
-	if user != nil && contentType != "image/gif" {
+	if user != nil && contentType != "image/gif" && contentType != "video/webm" {
 		exifCacheKey := fmt.Sprintf("resize_exif_%s_%s", cacheKey, user.UserID)
 		if cached, err := resizeExifCache.Get(exifCacheKey); err == nil {
 			c.Response().Header().Set("Cache-Control", "private, max-age=86400")
