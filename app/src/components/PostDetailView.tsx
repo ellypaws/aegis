@@ -1,11 +1,12 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, useRef } from "react";
 import { cn } from "../lib/utils";
 import { UI } from "../constants";
 import type { Post } from "../types";
 import { LockedOverlay } from "./LockedOverlay";
 import { ImageWithSpinner } from "./ImageWithSpinner";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { ChevronLeft, ChevronRight, CircleX } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import { createPortal } from "react-dom";
 
 export function PostDetailView({
     selected,
@@ -80,6 +81,32 @@ export function PostDetailView({
         }),
     };
 
+    const [isModalOpen, setIsModalOpen] = useState(false);
+    const [showControls, setShowControls] = useState(true);
+    const controlsTimeoutRef = useRef<ReturnType<typeof setTimeout>>(null);
+
+    const handleDragEnd = (_: any, { offset }: any) => {
+        const swipe = offset.x; // positive = right, negative = left
+
+        if (swipe < -50) {
+            paginate(1);
+        } else if (swipe > 50) {
+            paginate(-1);
+        }
+    };
+
+    // Auto-hide controls logic
+    const handleMouseMove = () => {
+        setShowControls(true);
+        if (controlsTimeoutRef.current) clearTimeout(controlsTimeoutRef.current);
+        controlsTimeoutRef.current = setTimeout(() => setShowControls(false), 3000);
+    };
+
+    // Clean up timeout on unmount or when modal closes
+    const closeTimeout = () => {
+        if (controlsTimeoutRef.current) clearTimeout(controlsTimeoutRef.current);
+    };
+
     return (
         <div className={cn(
             "relative w-full overflow-hidden dark:bg-black/90",
@@ -140,7 +167,12 @@ export function PostDetailView({
                                                 x: { type: "spring", stiffness: 300, damping: 30 },
                                                 opacity: { duration: 0.2 }
                                             }}
-                                            className="flex w-full items-center justify-center"
+                                            drag="x"
+                                            dragConstraints={{ left: 0, right: 0 }}
+                                            dragElastic={1}
+                                            onDragEnd={handleDragEnd}
+                                            className="flex w-full items-center justify-center cursor-pointer"
+                                            onClick={() => setIsModalOpen(true)}
                                         >
                                             {(() => {
                                                 const contentType = currentImage?.blobs?.[0]?.contentType || "";
@@ -153,7 +185,7 @@ export function PostDetailView({
                                                         controls
                                                         autoPlay
                                                         loop
-                                                        className="max-h-[75vh] w-auto max-w-full rounded-lg object-contain shadow-lg"
+                                                        className="max-h-[75vh] w-auto max-w-full rounded-lg object-contain shadow-lg pointer-events-none"
                                                     />
                                                 ) : (
                                                     !canAccess ? (
@@ -207,13 +239,13 @@ export function PostDetailView({
                             {images.length > 1 && (
                                 <>
                                     <button
-                                        onClick={() => paginate(-1)}
+                                        onClick={(e) => { e.stopPropagation(); paginate(-1); }}
                                         className="absolute left-4 top-1/2 -translate-y-1/2 rounded-full bg-black/50 p-3 text-white/80 backdrop-blur-md transition-all hover:bg-black/70 hover:text-white hover:scale-110 active:scale-95 hidden md:block border border-white/10 z-20"
                                     >
                                         <ChevronLeft className="h-8 w-8" />
                                     </button>
                                     <button
-                                        onClick={() => paginate(1)}
+                                        onClick={(e) => { e.stopPropagation(); paginate(1); }}
                                         className="absolute right-4 top-1/2 -translate-y-1/2 rounded-full bg-black/50 p-3 text-white/80 backdrop-blur-md transition-all hover:bg-black/70 hover:text-white hover:scale-110 active:scale-95 hidden md:block border border-white/10 z-20"
                                     >
                                         <ChevronRight className="h-8 w-8" />
@@ -298,6 +330,109 @@ export function PostDetailView({
                     </div>
                 ) : null}
             </div>
+
+            {/* Full Screen Modal */}
+            {createPortal(
+                <AnimatePresence>
+                    {isModalOpen && displayUrl && (
+                        <motion.div
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            exit={{ opacity: 0 }}
+                            className="fixed inset-0 z-50 flex items-center justify-center bg-black/95 backdrop-blur-xl"
+                            onClick={() => { setIsModalOpen(false); closeTimeout(); }}
+                            onMouseMove={handleMouseMove}
+                        >
+                            <div className="absolute top-4 right-4 z-50">
+                                <button
+                                    onClick={() => setIsModalOpen(false)}
+                                    className="p-2 text-white/70 hover:text-white hover:bg-white/10 rounded-full transition-colors"
+                                >
+                                    <CircleX className="h-6 w-6" />
+                                </button>
+                            </div>
+
+                            <div
+                                className="relative w-full h-full flex items-center justify-center p-4"
+                                onClick={(e) => e.stopPropagation()}
+                            >
+                                <AnimatePresence initial={false} custom={direction} mode="popLayout">
+                                    <motion.div
+                                        key={currentIndex}
+                                        custom={direction}
+                                        variants={variants}
+                                        initial="enter"
+                                        animate="center"
+                                        exit="exit"
+                                        transition={{
+                                            x: { type: "spring", stiffness: 300, damping: 30 },
+                                            opacity: { duration: 0.2 }
+                                        }}
+                                        drag="x"
+                                        dragConstraints={{ left: 0, right: 0 }}
+                                        dragElastic={1}
+                                        onDragEnd={handleDragEnd}
+                                        className="absolute inset-0 flex items-center justify-center p-4"
+                                    >
+                                        {(() => {
+                                            const contentType = currentImage?.blobs?.[0]?.contentType || "";
+                                            const filename = currentImage?.blobs?.[0]?.filename || "";
+                                            const isVideo = contentType.startsWith("video/") || /\.(mp4|webm|mov|mkv|avi)$/i.test(filename);
+
+                                            return isVideo && canAccess ? (
+                                                <video
+                                                    src={displayUrl}
+                                                    controls
+                                                    autoPlay
+                                                    loop
+                                                    className="max-h-full max-w-full rounded-md object-contain shadow-2xl"
+                                                    onClick={(e) => e.stopPropagation()} // Prevent closing when clicking video controls
+                                                />
+                                            ) : (
+                                                <img
+                                                    src={displayUrl}
+                                                    alt={activePost?.title ?? ""}
+                                                    className="max-h-full max-w-full rounded-md object-contain shadow-2xl"
+                                                    draggable={false}
+                                                />
+                                            );
+                                        })()}
+                                    </motion.div>
+                                </AnimatePresence>
+
+                                {/* Modal Navigation Controls */}
+                                {images.length > 1 && (
+                                    <AnimatePresence>
+                                        {showControls && (
+                                            <>
+                                                <motion.button
+                                                    initial={{ opacity: 0, x: -20 }}
+                                                    animate={{ opacity: 1, x: 0 }}
+                                                    exit={{ opacity: 0, x: -20 }}
+                                                    onClick={(e) => { e.stopPropagation(); paginate(-1); }}
+                                                    className="absolute left-4 top-1/2 -translate-y-1/2 rounded-full bg-black/50 p-4 text-white/80 backdrop-blur-md transition-all hover:bg-black/70 hover:text-white hover:scale-110 hidden md:block active:scale-95 border border-white/10 z-50"
+                                                >
+                                                    <ChevronLeft className="h-8 w-8" />
+                                                </motion.button>
+                                                <motion.button
+                                                    initial={{ opacity: 0, x: 20 }}
+                                                    animate={{ opacity: 1, x: 0 }}
+                                                    exit={{ opacity: 0, x: 20 }}
+                                                    onClick={(e) => { e.stopPropagation(); paginate(1); }}
+                                                    className="absolute right-4 top-1/2 -translate-y-1/2 rounded-full bg-black/50 p-4 text-white/80 backdrop-blur-md transition-all hover:bg-black/70 hover:text-white hover:scale-110 hidden md:block active:scale-95 border border-white/10 z-50"
+                                                >
+                                                    <ChevronRight className="h-8 w-8" />
+                                                </motion.button>
+                                            </>
+                                        )}
+                                    </AnimatePresence>
+                                )}
+                            </div>
+                        </motion.div>
+                    )}
+                </AnimatePresence>,
+                document.body
+            )}
         </div>
     );
 }
