@@ -89,6 +89,7 @@ func (s *sqliteDB) CreatePost(p *types.Post) error {
 
 		// Allowed roles (optional). Ensure each role row exists; then attach.
 		if len(p.AllowedRoles) > 0 {
+			resolvedRoles := make([]types.Allowed, 0, len(p.AllowedRoles))
 			for i := range p.AllowedRoles {
 				ar := &p.AllowedRoles[i]
 				if ar.RoleID == "" {
@@ -102,7 +103,14 @@ func (s *sqliteDB) CreatePost(p *types.Post) error {
 				).Create(ar).Error; err != nil {
 					return err
 				}
+
+				var resolved types.Allowed
+				if err := tx.Where("role_id = ?", ar.RoleID).First(&resolved).Error; err != nil {
+					return err
+				}
+				resolvedRoles = append(resolvedRoles, resolved)
 			}
+			p.AllowedRoles = resolvedRoles
 			if err := tx.Model(p).Association("AllowedRoles").Replace(p.AllowedRoles); err != nil {
 				return err
 			}
@@ -295,12 +303,14 @@ func (s *sqliteDB) UpdatePost(p *types.Post) error {
 		}
 
 		// Allowed roles (replace association)
+		rolesToApply := append([]types.Allowed(nil), p.AllowedRoles...)
 		if err := tx.Model(p).Association("AllowedRoles").Clear(); err != nil {
 			return err
 		}
-		if len(p.AllowedRoles) > 0 {
-			for i := range p.AllowedRoles {
-				ar := &p.AllowedRoles[i]
+		if len(rolesToApply) > 0 {
+			resolvedRoles := make([]types.Allowed, 0, len(rolesToApply))
+			for i := range rolesToApply {
+				ar := &rolesToApply[i]
 				if ar.RoleID == "" {
 					continue
 				}
@@ -312,10 +322,19 @@ func (s *sqliteDB) UpdatePost(p *types.Post) error {
 				).Create(ar).Error; err != nil {
 					return err
 				}
+
+				var resolved types.Allowed
+				if err := tx.Where("role_id = ?", ar.RoleID).First(&resolved).Error; err != nil {
+					return err
+				}
+				resolvedRoles = append(resolvedRoles, resolved)
 			}
-			if err := tx.Model(p).Association("AllowedRoles").Replace(p.AllowedRoles); err != nil {
+			if err := tx.Model(p).Association("AllowedRoles").Replace(resolvedRoles); err != nil {
 				return err
 			}
+			p.AllowedRoles = resolvedRoles
+		} else {
+			p.AllowedRoles = nil
 		}
 
 		return nil

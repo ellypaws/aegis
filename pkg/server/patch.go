@@ -72,32 +72,7 @@ func (s *Server) handlePatchPost(c echo.Context) error {
 	}
 
 	// Handle Roles
-	var allowedRoles []types.Allowed
-	for _, rid := range strings.Split(rolesStr, ",") {
-		rid = strings.TrimSpace(rid)
-		if rid == "" {
-			continue
-		}
-		role, err := s.bot.Session().State.Role(s.config.GuildID, rid)
-		if err == nil {
-			allowedRoles = append(allowedRoles, types.Allowed{
-				RoleID:       role.ID,
-				Name:         role.Name,
-				Color:        role.Color,
-				Permissions:  role.Permissions,
-				Managed:      role.Managed,
-				Mentionable:  role.Mentionable,
-				Hoist:        role.Hoist,
-				Position:     role.Position,
-				Icon:         role.Icon,
-				UnicodeEmoji: role.UnicodeEmoji,
-				Flags:        int(role.Flags),
-			})
-		} else {
-			allowedRoles = append(allowedRoles, types.Allowed{RoleID: rid})
-		}
-	}
-	post.AllowedRoles = allowedRoles
+	post.AllowedRoles = s.parseAllowedRoles(rolesStr)
 
 	form := c.Request().MultipartForm
 	files := form.File["images"]
