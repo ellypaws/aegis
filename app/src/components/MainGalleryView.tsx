@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from "react";
 import { cn } from "../lib/utils";
+import { Eye, EyeOff } from "lucide-react";
 import { UI } from "../constants";
 import type { Post } from "../types";
 import { GalleryGridCard } from "./GalleryGridCard";
@@ -50,16 +51,32 @@ export function MainGalleryView({
     onSortChange: (mode: "id" | "date") => void;
 }) {
     const cols = useColumns();
+    const [showLocked, setShowLocked] = useState(true);
+
+    const hasLockedPosts = useMemo(() => {
+        return posts.some((p) => !canAccessPost(p));
+    }, [posts, canAccessPost]);
+
+    useEffect(() => {
+        if (!hasLockedPosts && !showLocked) {
+            setShowLocked(true);
+        }
+    }, [hasLockedPosts, showLocked]);
+
+    const filteredPosts = useMemo(() => {
+        if (showLocked) return posts;
+        return posts.filter((p) => canAccessPost(p));
+    }, [posts, showLocked, canAccessPost]);
 
     // Posts are already sorted by the backend; use them directly
 
     const rows = useMemo(() => {
         const r: Post[][] = [];
-        for (let i = 0; i < posts.length; i += cols) {
-            r.push(posts.slice(i, i + cols));
+        for (let i = 0; i < filteredPosts.length; i += cols) {
+            r.push(filteredPosts.slice(i, i + cols));
         }
         return r;
-    }, [posts, cols]);
+    }, [filteredPosts, cols]);
 
     return (
         <div className={cn("relative", UI.card, "backdrop-blur-sm")}>
@@ -114,6 +131,26 @@ export function MainGalleryView({
                                 </button>
                             </div>
                         </div>
+                        {hasLockedPosts && (
+                            <div>
+                                <div className={UI.label}>View</div>
+                                <div className="flex overflow-hidden rounded-xl border-4 border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800">
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowLocked(!showLocked)}
+                                        className={cn(
+                                            "flex h-[28px] w-[36px] items-center justify-center transition-colors duration-200",
+                                            showLocked
+                                                ? "bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900"
+                                                : "bg-white text-zinc-500 hover:bg-zinc-100 dark:bg-zinc-800 dark:text-zinc-400 dark:hover:bg-zinc-700"
+                                        )}
+                                        title={showLocked ? "Hide locked posts" : "Show locked posts"}
+                                    >
+                                        {showLocked ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
+                                    </button>
+                                </div>
+                            </div>
+                        )}
                         <div className="w-full sm:w-64">
                             <div className={UI.label}>Search</div>
                             <input
@@ -168,7 +205,7 @@ export function MainGalleryView({
                         ))}
                 </div>
 
-                {posts.length === 0 && !initialLoading && !loading ? (
+                {filteredPosts.length === 0 && !initialLoading && !loading ? (
                     <div className="mt-6 text-center text-sm font-bold text-zinc-500 dark:text-zinc-400">No results.</div>
                 ) : null}
 
