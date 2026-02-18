@@ -117,7 +117,10 @@ export function MainGalleryView({
                         <Patterns.Polka color="rgba(253, 224, 71, 0.15)" />
                     </div>
                     <div className="absolute top-[-16px] left-[-16px] h-24 w-24 rounded-full border-4 border-white shadow-lg bg-yellow-400 pointer-events-none" />
-                    <div className="relative z-10 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+                    <div className={cn(
+                        "relative z-10 flex gap-3 sm:flex-row sm:items-end sm:justify-between",
+                        isSticky ? "flex-row items-center justify-between" : "flex-col"
+                    )}>
                         <div>
                             <div className={cn(
                                 "inline-block rounded-xl border-4 bg-white px-4 py-2 rotate-[-2deg]",
@@ -130,7 +133,7 @@ export function MainGalleryView({
                             <div className="mt-6 text-sm font-bold text-zinc-600 dark:text-zinc-400" />
                         </div>
                         <div className="flex items-end gap-3">
-                            <div>
+                            <div className={cn("transition-all duration-300", isSticky && "hidden sm:block")}>
                                 <div className={UI.label}>Sort</div>
                                 <div className="flex overflow-hidden rounded-xl border-4 border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800">
                                     <button
@@ -179,7 +182,7 @@ export function MainGalleryView({
                                     </div>
                                 </div>
                             )}
-                            <div className="w-full sm:w-64">
+                            <div className={cn("w-full sm:w-64 transition-all duration-300", isSticky && "hidden sm:block")}>
                                 <div className={UI.label}>Search</div>
                                 <input
                                     value={q}
