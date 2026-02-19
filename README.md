@@ -1,4 +1,35 @@
-# Aegis
+<p align="center">
+	<img src="docs/header.webp" alt="Aegis homepage preview" />
+	<h1 align="center">Aegis</h1>
+</p>
+
+<p align="center">
+	<a href="https://github.com/ellypaws/aegis/releases/latest">
+		<img alt="Latest Release" src="https://img.shields.io/github/v/release/ellypaws/aegis?display_name=tag&label=latest%20release">
+	</a>
+	<a href="https://github.com/ellypaws/aegis/releases">
+		<img alt="Downloads" src="https://img.shields.io/github/downloads/ellypaws/aegis/total?label=downloads">
+	</a>
+	<a href="https://github.com/ellypaws/aegis">
+		<img alt="GitHub Repo Stars" src="https://img.shields.io/github/stars/ellypaws/aegis?style=social">
+	</a>
+	<a href="https://goreportcard.com/report/github.com/ellypaws/aegis">
+		<img alt="Go Report Card" src="https://goreportcard.com/badge/github.com/ellypaws/aegis" />
+	</a>
+	<br>
+	<a href="https://github.com/ellypaws/aegis/graphs/contributors">
+		<img alt="Contributors" src="https://img.shields.io/github/contributors/ellypaws/aegis">
+	</a>
+	<a href="https://github.com/ellypaws/aegis/commits/app">
+		<img alt="Commit Activity" src="https://img.shields.io/github/commit-activity/m/ellypaws/aegis">
+	</a>
+</p>
+
+--------------
+
+<p align="right"><i>Disclaimer: This project is not affiliated with or endorsed by Discord.</i></p>
+
+<img src="https://go.dev/images/gophers/ladder.svg" width="48" alt="Go Gopher climbing a ladder." align="right">
 
 ## Summary
 
@@ -23,6 +54,9 @@ The frontend is a React + Vite app embedded into the Go server for production bu
 - Login with Discord OAuth and continue with JWT-based sessions
 
 ![Homepage preview](docs/homepage.webp)
+
+### Upload panel
+
 ![Upload panel preview](docs/upload_panel.webp)
 
 > [!TIP]
@@ -38,6 +72,25 @@ Recent updates on the app branch focused on the web experience and media flow:
 - Post listing cache invalidation on write operations
 - Enhanced post detail UX (carousel, fullscreen, swipe behavior)
 - Better release/build workflow updates for app + backend
+
+## Download
+
+Get the latest build from GitHub Releases:
+
+- Latest release page: <https://github.com/ellypaws/aegis/releases/latest>
+- All releases: <https://github.com/ellypaws/aegis/releases>
+
+<p>
+	<a href="https://github.com/ellypaws/aegis/releases/latest">
+		<img alt="Latest Release" src="https://img.shields.io/github/v/release/ellypaws/aegis?display_name=tag&label=latest%20release">
+	</a>
+	<a href="https://github.com/ellypaws/aegis/releases">
+		<img alt="Downloads" src="https://img.shields.io/github/downloads/ellypaws/aegis/total?label=downloads">
+	</a>
+</p>
+
+> [!TIP]
+> If your platform assets are attached to a release, use the `releases/latest` page and download the matching file for your OS.
 
 ## Discord bot usage (pkg/drigo)
 
