@@ -17,25 +17,25 @@ jobs:
             goos: windows
             goarch: amd64
             ext: .exe
-            variant: standard
+            variant: release
             tags: ""
           - os: windows-latest
             goos: windows
             goarch: amd64
             ext: .exe
-            variant: static
+            variant: ffmpeg
             tags: "ffstatic"
           - os: ubuntu-latest
             goos: linux
             goarch: amd64
             ext: ""
-            variant: standard
+            variant: release
             tags: ""
           - os: ubuntu-latest
             goos: linux
             goarch: amd64
             ext: ""
-            variant: static
+            variant: ffmpeg
             tags: "ffstatic"
 
     runs-on: ${{ matrix.os }}
