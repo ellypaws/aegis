@@ -2,7 +2,6 @@ import React, { useState, useEffect, useMemo, useCallback } from "react";
 import { cn, safeRevoke } from "../lib/utils";
 import { UI } from "../constants";
 import type { DiscordUser, Post } from "../types";
-import { MOCK_GUILD } from "../data/mock";
 import { Patterns } from "./Patterns";
 import { DropdownAddToList } from "./DropdownAddToList";
 import { RolePill, ChannelPill } from "./Pills";
@@ -413,16 +412,14 @@ export function AuthorPanel({
         .filter((r: any) => r.name !== "@everyone" && !r.managed)
         .map((r: any) => ({ id: r.id, name: r.name, color: r.color }));
     }
-    return MOCK_GUILD.roles
-      .filter((r) => r.id !== "r_author")
-      .map((r) => ({ id: r.id, name: r.name, color: r.color }));
+    return [];
   }, [availableRoles]);
 
   const channelOptions = useMemo(() => {
     if (availableChannels && availableChannels.length > 0) {
       return availableChannels.map((c: any) => ({ id: c.id, name: c.name }));
     }
-    return MOCK_GUILD.channels;
+    return [];
   }, [availableChannels]);
 
   const handleSubmit = () => {
@@ -613,7 +610,8 @@ export function AuthorPanel({
   }, [filePreviews, remotePreviews, mediaOrder]);
 
   const focusPreview = useMemo(() => {
-    const explicitThumbUrl = previewThumb || (!clearThumbnail && existingThumbUrl);
+    const explicitThumbUrl =
+      previewThumb || (!clearThumbnail && existingThumbUrl);
     if (explicitThumbUrl) {
       return {
         url: explicitThumbUrl,
@@ -1248,7 +1246,7 @@ export function AuthorPanel({
                 <div className="mt-2 space-y-2 text-sm font-bold text-zinc-700 dark:text-zinc-300">
                   <div>
                     <span className="text-zinc-400">Guild:</span>{" "}
-                    {guildName || MOCK_GUILD.name}
+                    {guildName || "Unknown"}
                   </div>
                   <div>
                     <span className="text-zinc-400">Media count:</span>{" "}

@@ -8,8 +8,7 @@ import {
 } from "react-router-dom";
 import { intersect, cn } from "./lib/utils";
 import { UI } from "./constants";
-import { MOCK_GUILD } from "./data/mock";
-import type { DiscordUser, Guild, Post, ViewMode } from "./types";
+import type { DiscordUser, Post, ViewMode } from "./types";
 import { DiagonalSlitHeader } from "./components/DiagonalSlitHeader";
 import { LoginModal } from "./components/LoginModal";
 import {
@@ -38,7 +37,7 @@ type NameCache = {
   guildName?: string;
 };
 
-const NAME_CACHE_KEY = "aegis_role_channel_name_cache_v1";
+const NAME_CACHE_KEY = "drigo_role_channel_name_cache_v1";
 
 function readNameCache(): NameCache {
   try {
@@ -57,7 +56,6 @@ function readNameCache(): NameCache {
 
 function App() {
   const [user, setUser] = useState<DiscordUser | null>(null);
-  const [guild] = useState<Guild>(MOCK_GUILD);
   const [nameCache, setNameCache] = useState<NameCache>(() => readNameCache());
   const [loginOpen, setLoginOpen] = useState(false);
   const [posts, setPosts] = useState<Post[]>([]);
@@ -392,7 +390,8 @@ function App() {
   const selected = useMemo(() => {
     if (!selectedId) return null;
     return (
-      hydratedPosts?.find((p) => p.postKey === selectedId) ?? hydratedSelectedPost
+      hydratedPosts?.find((p) => p.postKey === selectedId) ??
+      hydratedSelectedPost
     );
   }, [hydratedPosts, selectedId, hydratedSelectedPost]);
 
@@ -447,6 +446,15 @@ function App() {
   }, [hydratedPosts, tagFilter, q]);
 
   const { settings } = useSettings();
+  const defaultDocumentTitleRef = useRef(document.title);
+
+  useEffect(() => {
+    const heroTitle = settings.hero_title?.trim();
+    document.title =
+      heroTitle && heroTitle.length > 0
+        ? heroTitle
+        : defaultDocumentTitleRef.current;
+  }, [settings.hero_title]);
 
   const canAccessPost = useMemo(() => {
     return (p: Post) => {
@@ -630,7 +638,7 @@ function App() {
 
           {view !== "not-found" && (
             <TopBar
-              guild={guild}
+              guildName={nameCache.guildName}
               view={view === "post" ? "post" : "gallery"} // Fallback to gallery styles if 404
               setView={(v) => {
                 if (v === "gallery") navigate("/");
