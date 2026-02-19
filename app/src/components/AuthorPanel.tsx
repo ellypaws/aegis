@@ -90,6 +90,9 @@ export function AuthorPanel({
   editingPost,
   onUpdate,
   onCancelEdit,
+  availableRoles,
+  availableChannels,
+  guildName,
 }: {
   user: DiscordUser;
   onCreate?: (postInput: AuthorPanelPostInput) => void;
@@ -104,6 +107,14 @@ export function AuthorPanel({
     },
   ) => void;
   onCancelEdit?: () => void;
+  availableRoles?: Array<{
+    id: string;
+    name: string;
+    color?: number;
+    managed?: boolean;
+  }>;
+  availableChannels?: Array<{ id: string; name: string }>;
+  guildName?: string;
 }) {
   const isEditing = !!editingPost;
 
@@ -350,12 +361,6 @@ export function AuthorPanel({
     e.stopPropagation();
   }, []);
 
-  const [config, setConfig] = useState<{
-    roles: any[];
-    channels: any[];
-    guild_name?: string;
-  } | null>(null);
-
   // Persist allowedRoleIds and channelIds to localStorage (only in create mode)
   useEffect(() => {
     if (!isEditing) {
@@ -371,20 +376,6 @@ export function AuthorPanel({
       localStorage.setItem("author_channelIds", JSON.stringify(channelIds));
     }
   }, [channelIds, isEditing]);
-
-  useEffect(() => {
-    const token = localStorage.getItem("jwt");
-    const headers: Record<string, string> = {};
-    if (token) headers["Authorization"] = `Bearer ${token}`;
-
-    fetch("/upload", { headers })
-      .then((res) => {
-        if (res.ok) return res.json();
-        throw new Error("Unauthorized or failed");
-      })
-      .then((data) => setConfig(data))
-      .catch((err) => console.error("Failed to load upload config", err));
-  }, []);
 
   const availableRemoteIds = useMemo(
     () => new Set(remotePreviews.map((p) => p.id)),
@@ -417,22 +408,22 @@ export function AuthorPanel({
     : selectedFiles.length > 0;
 
   const roleOptions = useMemo(() => {
-    if (config?.roles) {
-      return config.roles
+    if (availableRoles && availableRoles.length > 0) {
+      return availableRoles
         .filter((r: any) => r.name !== "@everyone" && !r.managed)
         .map((r: any) => ({ id: r.id, name: r.name, color: r.color }));
     }
     return MOCK_GUILD.roles
       .filter((r) => r.id !== "r_author")
       .map((r) => ({ id: r.id, name: r.name, color: r.color }));
-  }, [config]);
+  }, [availableRoles]);
 
   const channelOptions = useMemo(() => {
-    if (config?.channels) {
-      return config.channels.map((c: any) => ({ id: c.id, name: c.name }));
+    if (availableChannels && availableChannels.length > 0) {
+      return availableChannels.map((c: any) => ({ id: c.id, name: c.name }));
     }
     return MOCK_GUILD.channels;
-  }, [config]);
+  }, [availableChannels]);
 
   const handleSubmit = () => {
     const normalizedRoleIds = normalizeIdList(allowedRoleIds);
@@ -1257,7 +1248,7 @@ export function AuthorPanel({
                 <div className="mt-2 space-y-2 text-sm font-bold text-zinc-700 dark:text-zinc-300">
                   <div>
                     <span className="text-zinc-400">Guild:</span>{" "}
-                    {config?.guild_name || MOCK_GUILD.name}
+                    {guildName || MOCK_GUILD.name}
                   </div>
                   <div>
                     <span className="text-zinc-400">Media count:</span>{" "}

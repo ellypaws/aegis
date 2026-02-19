@@ -26,9 +26,39 @@ import { SettingsModal } from "./pages/Settings";
 import { useSettings } from "./contexts/SettingsContext";
 import { MembershipModal } from "./components/MembershipModal.tsx";
 
+type CachedRoleName = {
+  name: string;
+  color?: number;
+  managed?: boolean;
+};
+
+type NameCache = {
+  roles: Record<string, CachedRoleName>;
+  channels: Record<string, string>;
+  guildName?: string;
+};
+
+const NAME_CACHE_KEY = "aegis_role_channel_name_cache_v1";
+
+function readNameCache(): NameCache {
+  try {
+    const raw = localStorage.getItem(NAME_CACHE_KEY);
+    if (!raw) return { roles: {}, channels: {} };
+    const parsed = JSON.parse(raw) as Partial<NameCache>;
+    return {
+      roles: parsed.roles ?? {},
+      channels: parsed.channels ?? {},
+      guildName: parsed.guildName,
+    };
+  } catch {
+    return { roles: {}, channels: {} };
+  }
+}
+
 function App() {
   const [user, setUser] = useState<DiscordUser | null>(null);
   const [guild] = useState<Guild>(MOCK_GUILD);
+  const [nameCache, setNameCache] = useState<NameCache>(() => readNameCache());
   const [loginOpen, setLoginOpen] = useState(false);
   const [posts, setPosts] = useState<Post[]>([]);
   const [loading, setLoading] = useState(false);
@@ -67,6 +97,25 @@ function App() {
     return "not-found";
   }, [location.pathname, selectedId]);
 
+  const mergeNameCache = useCallback(
+    (incoming: {
+      roles?: Record<string, CachedRoleName>;
+      channels?: Record<string, string>;
+      guildName?: string;
+    }) => {
+      setNameCache((previous) => {
+        const next: NameCache = {
+          roles: { ...previous.roles, ...(incoming.roles ?? {}) },
+          channels: { ...previous.channels, ...(incoming.channels ?? {}) },
+          guildName: incoming.guildName ?? previous.guildName,
+        };
+        localStorage.setItem(NAME_CACHE_KEY, JSON.stringify(next));
+        return next;
+      });
+    },
+    [],
+  );
+
   // Parse JWT for user info on mount
   useEffect(() => {
     const params = new URLSearchParams(location.search);
@@ -94,6 +143,21 @@ function App() {
         );
 
         const claims = JSON.parse(jsonPayload);
+        const rolesFromClaims: Record<string, CachedRoleName> = {};
+        if (Array.isArray(claims.roles)) {
+          claims.roles.forEach((r: any) => {
+            if (!r?.id || !r?.name) return;
+            rolesFromClaims[r.id] = {
+              name: r.name,
+              color: r.color,
+              managed: r.managed,
+            };
+          });
+        }
+        if (Object.keys(rolesFromClaims).length > 0) {
+          mergeNameCache({ roles: rolesFromClaims });
+        }
+
         const u: DiscordUser = {
           userId: claims.uid,
           username: claims.sub,
@@ -131,6 +195,98 @@ function App() {
     }
   }, []);
 
+  useEffect(() => {
+    if (!user?.isAdmin) return;
+
+    const token = localStorage.getItem("jwt");
+    if (!token) return;
+
+    const headers: Record<string, string> = {
+      Authorization: `Bearer ${token}`,
+    };
+
+    fetch("/upload", { headers })
+      .then((res) => {
+        if (!res.ok) return null;
+        return res.json();
+      })
+      .then((data) => {
+        if (!data) return;
+
+        const roles: Record<string, CachedRoleName> = {};
+        const channels: Record<string, string> = {};
+
+        if (Array.isArray(data.roles)) {
+          data.roles.forEach((r: any) => {
+            const id = String(r?.id ?? "").trim();
+            const name = String(r?.name ?? "").trim();
+            if (!id || !name) return;
+            roles[id] = {
+              name,
+              color: r.color,
+              managed: r.managed,
+            };
+          });
+        }
+
+        if (Array.isArray(data.channels)) {
+          data.channels.forEach((c: any) => {
+            const id = String(c?.id ?? "").trim();
+            const name = String(c?.name ?? "").trim();
+            if (!id || !name) return;
+            channels[id] = name;
+          });
+        }
+
+        mergeNameCache({
+          roles,
+          channels,
+          guildName:
+            typeof data.guild_name === "string" ? data.guild_name : undefined,
+        });
+      })
+      .catch((err) => {
+        console.error("Failed to refresh role/channel cache", err);
+      });
+  }, [user?.isAdmin, mergeNameCache]);
+
+  const hydratedPosts = useMemo(() => {
+    return posts.map((post) => ({
+      ...post,
+      allowedRoles: (post.allowedRoles ?? []).map((role) => {
+        const cached = nameCache.roles[role.id];
+        if (!cached) return role;
+        return {
+          ...role,
+          name: cached.name,
+          color: cached.color ?? role.color,
+        };
+      }),
+    }));
+  }, [posts, nameCache.roles]);
+
+  const roleOptions = useMemo(() => {
+    return Object.entries(nameCache.roles)
+      .map(([id, role]) => ({
+        id,
+        name: role.name,
+        color: role.color,
+        managed: role.managed,
+      }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [nameCache.roles]);
+
+  const channelOptions = useMemo(() => {
+    return Object.entries(nameCache.channels)
+      .map(([id, name]) => ({ id, name }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [nameCache.channels]);
+
+  const resolveChannelName = useCallback(
+    (id: string) => nameCache.channels[id] || id,
+    [nameCache.channels],
+  );
+
   // Fetch posts
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
@@ -155,6 +311,20 @@ function App() {
         .then((res) => res.json())
         .then((data) => {
           const items: Post[] = Array.isArray(data) ? data : [];
+          const rolesFromPosts: Record<string, CachedRoleName> = {};
+          items.forEach((post) => {
+            (post.allowedRoles ?? []).forEach((role) => {
+              if (!role?.id || !role?.name) return;
+              rolesFromPosts[role.id] = {
+                name: role.name,
+                color: role.color,
+              };
+            });
+          });
+          if (Object.keys(rolesFromPosts).length > 0) {
+            mergeNameCache({ roles: rolesFromPosts });
+          }
+
           const newPosts = reset ? items : [...posts, ...items];
           setPosts(newPosts);
           // Update cache for this sort mode
@@ -169,7 +339,7 @@ function App() {
           setInitialLoading(false);
         });
     },
-    [sortMode, posts.length],
+    [sortMode, posts, mergeNameCache],
   );
 
   // Initial Fetch
@@ -202,10 +372,29 @@ function App() {
   };
 
   const [selectedPost, setSelectedPost] = useState<Post | null>(null);
+
+  const hydratedSelectedPost = useMemo(() => {
+    if (!selectedPost) return null;
+    return {
+      ...selectedPost,
+      allowedRoles: (selectedPost.allowedRoles ?? []).map((role) => {
+        const cached = nameCache.roles[role.id];
+        if (!cached) return role;
+        return {
+          ...role,
+          name: cached.name,
+          color: cached.color ?? role.color,
+        };
+      }),
+    };
+  }, [selectedPost, nameCache.roles]);
+
   const selected = useMemo(() => {
     if (!selectedId) return null;
-    return posts?.find((p) => p.postKey === selectedId) ?? selectedPost;
-  }, [posts, selectedId, selectedPost]);
+    return (
+      hydratedPosts?.find((p) => p.postKey === selectedId) ?? hydratedSelectedPost
+    );
+  }, [hydratedPosts, selectedId, hydratedSelectedPost]);
 
   useEffect(() => {
     if (!selectedId) {
@@ -246,7 +435,7 @@ function App() {
   );
 
   const filteredPosts = useMemo(() => {
-    const base = posts.slice();
+    const base = hydratedPosts.slice();
     const byTag = base; // Tag filtering logic if tags field exists in future
     const s = q.trim().toLowerCase();
     if (!s) return byTag;
@@ -255,7 +444,7 @@ function App() {
         `${p.title ?? ""} ${(p.description ?? "").slice(0, 120)}`.toLowerCase();
       return hay.includes(s);
     });
-  }, [posts, tagFilter, q]);
+  }, [hydratedPosts, tagFilter, q]);
 
   const { settings } = useSettings();
 
@@ -466,6 +655,9 @@ function App() {
                 editingPost={editingPost}
                 onUpdate={handleUpdate}
                 onCancelEdit={() => setEditingPost(null)}
+                availableRoles={roleOptions}
+                availableChannels={channelOptions}
+                guildName={nameCache.guildName}
               />
             </div>
           ) : null}
@@ -534,6 +726,7 @@ function App() {
                       }}
                       selected={selected}
                       user={user}
+                      resolveChannelName={resolveChannelName}
                       onEditPost={(post) => {
                         setEditingPost({
                           ...post,

@@ -14,6 +14,7 @@ export function RightSidebar({
     onSelect,
     selected,
     user,
+    resolveChannelName,
     onEditPost,
     onDeletePost,
 }: {
@@ -23,6 +24,7 @@ export function RightSidebar({
     onSelect: (id: string) => void;
     selected: Post | null;
     user: DiscordUser | null;
+    resolveChannelName?: (channelId: string) => string;
     onEditPost?: (post: Post) => void;
     onDeletePost?: (postKey: string) => void;
 }) {
@@ -77,7 +79,13 @@ export function RightSidebar({
                                 <div className={UI.label}>Channels</div>
                                 <div className="mt-2 flex flex-wrap gap-2">
                                     {selected.channelId ? (
-                                        <ChannelPill name={selected.channelId} />
+                                        selected.channelId
+                                            .split(",")
+                                            .map((value) => value.trim())
+                                            .filter(Boolean)
+                                            .map((id) => (
+                                                <ChannelPill key={id} name={resolveChannelName ? resolveChannelName(id) : id} />
+                                            ))
                                     ) : (
                                         <span className="text-sm font-bold text-zinc-400 dark:text-zinc-500">—</span>
                                     )}
