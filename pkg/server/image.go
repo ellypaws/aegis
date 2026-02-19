@@ -37,9 +37,6 @@ func (s *Server) handleGetImage(c echo.Context) error {
 	publicAccess := settings != nil && settings.PublicAccess
 
 	user := GetUserFromContext(c)
-	if user == nil && !publicAccess {
-		return c.JSON(http.StatusUnauthorized, map[string]string{"error": "Unauthorized"})
-	}
 
 	// Check permissions using the new helper
 	post, err := s.db.GetPostByBlobID(uint(id))
@@ -49,6 +46,10 @@ func (s *Server) handleGetImage(c echo.Context) error {
 	}
 
 	if !publicAccess && !canAccessPost(user, post) {
+		if user == nil {
+			return c.JSON(http.StatusUnauthorized, map[string]string{"error": "Unauthorized"})
+		}
+
 		log.Warn("Access denied for image", "blobID", id, "postID", post.ID, "user", user)
 		if user != nil {
 			roleIDs := make([]string, 0, len(user.Roles))
