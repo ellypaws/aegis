@@ -4,10 +4,10 @@ import (
 	"net/http"
 	"strconv"
 
+	"drigo/pkg/types"
+	"github.com/bwmarrin/discordgo"
 	"github.com/charmbracelet/log"
 	"github.com/labstack/echo/v4"
-
-	"github.com/bwmarrin/discordgo"
 )
 
 type sortOption struct {
@@ -97,6 +97,7 @@ func (s *Server) handleGetUploadConfig(c echo.Context) error {
 	}
 
 	var channelResps []ChannelResp
+	var cachedChannels []types.CachedChannel
 	for _, ch := range channels {
 		if ch.Type == discordgo.ChannelTypeGuildVoice {
 			continue
@@ -106,7 +107,33 @@ func (s *Server) handleGetUploadConfig(c echo.Context) error {
 			Name: ch.Name,
 			Type: int(ch.Type),
 		})
+		cachedChannels = append(cachedChannels, types.CachedChannel{
+			ID:   ch.ID,
+			Name: ch.Name,
+			Type: int(ch.Type),
+		})
 	}
+
+	var cachedRoles []types.CachedRole
+	for _, role := range roles {
+		cachedRoles = append(cachedRoles, types.CachedRole{
+			ID:      role.ID,
+			Name:    role.Name,
+			Color:   role.Color,
+			Managed: role.Managed,
+		})
+	}
+
+	// Update DB and Memory asynchronously since this is user-facing fast path
+	go func() {
+		_ = s.db.UpdateCachedRoles(cachedRoles)
+		_ = s.db.UpdateCachedChannels(cachedChannels)
+		s.guildCache.Set(struct{}{}, &GuildData{
+			Roles:    cachedRoles,
+			Channels: cachedChannels,
+			Name:     guild.Name,
+		})
+	}()
 
 	return c.JSON(http.StatusOK, map[string]any{
 		"roles":      roles,

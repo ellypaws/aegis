@@ -40,6 +40,11 @@ type DB interface {
 	GetSettings() (*types.Settings, error)
 	UpdateSettings(settings types.Settings) (*types.Settings, error)
 	GetAllUsers() ([]*types.User, error)
+	// Cache operations
+	UpdateCachedRoles(roles []types.CachedRole) error
+	UpdateCachedChannels(channels []types.CachedChannel) error
+	GetCachedRoles() ([]types.CachedRole, error)
+	GetCachedChannels() ([]types.CachedChannel, error)
 }
 
 // sqliteDB is a gorm-backed implementation of DB.
@@ -76,6 +81,8 @@ func Connect(path string, ctx context.Context) (DB, error) {
 		&types.Image{},
 		&types.ImageBlob{},
 		&types.Settings{},
+		&types.CachedRole{},
+		&types.CachedChannel{},
 	)
 	if err != nil {
 		return nil, err

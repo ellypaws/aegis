@@ -169,18 +169,18 @@ function App() {
           publicFlags: 0,
           roles: claims.roles
             ? claims.roles.map((r: any) => ({
-                id: r.id,
-                name: r.name,
-                color: r.color,
-                managed: r.managed,
-                mentionable: r.mentionable,
-                hoist: r.hoist,
-                position: r.position,
-                permissions: r.permissions,
-                icon: r.icon,
-                unicodeEmoji: r.unicodeEmoji,
-                flags: r.flags,
-              }))
+              id: r.id,
+              name: r.name,
+              color: r.color,
+              managed: r.managed,
+              mentionable: r.mentionable,
+              hoist: r.hoist,
+              position: r.position,
+              permissions: r.permissions,
+              icon: r.icon,
+              unicodeEmoji: r.unicodeEmoji,
+              flags: r.flags,
+            }))
             : [],
           isAdmin: claims.adm,
           isAuthor: claims.adm,
@@ -456,6 +456,51 @@ function App() {
         : defaultDocumentTitleRef.current;
   }, [settings.hero_title]);
 
+  useEffect(() => {
+    // @ts-ignore - The types on the frontend don't declare these yet but the backend sends them
+    const backendRoles = settings.roles;
+    // @ts-ignore
+    const backendChannels = settings.channels;
+    // @ts-ignore
+    const backendGuildName = settings.guild_name;
+
+    let hasUpdates = false;
+    const roles: Record<string, CachedRoleName> = {};
+    const channels: Record<string, string> = {};
+
+    if (Array.isArray(backendRoles)) {
+      backendRoles.forEach((r: any) => {
+        const id = String(r?.id ?? "").trim();
+        const name = String(r?.name ?? "").trim();
+        if (!id || !name) return;
+        roles[id] = {
+          name,
+          color: r.color,
+          managed: r.managed,
+        };
+        hasUpdates = true;
+      });
+    }
+
+    if (Array.isArray(backendChannels)) {
+      backendChannels.forEach((c: any) => {
+        const id = String(c?.id ?? "").trim();
+        const name = String(c?.name ?? "").trim();
+        if (!id || !name) return;
+        channels[id] = name;
+        hasUpdates = true;
+      });
+    }
+
+    if (hasUpdates || (backendGuildName && typeof backendGuildName === "string")) {
+      mergeNameCache({
+        roles,
+        channels,
+        guildName: typeof backendGuildName === "string" ? backendGuildName : undefined,
+      });
+    }
+  }, [settings, mergeNameCache]);
+
   const canAccessPost = useMemo(() => {
     return (p: Post) => {
       if (user?.isAdmin) return true; // Admin/Author access
@@ -628,7 +673,7 @@ function App() {
             onClickRandom={() => {
               const pick =
                 filteredPosts[
-                  Math.floor(Math.random() * Math.max(1, filteredPosts.length))
+                Math.floor(Math.random() * Math.max(1, filteredPosts.length))
                 ];
               if (pick) {
                 navigate(`/post/${pick.postKey}`);

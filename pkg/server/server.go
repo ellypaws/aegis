@@ -20,6 +20,12 @@ import (
 	echojwt "github.com/labstack/echo-jwt/v4"
 )
 
+type GuildData struct {
+	Roles    []types.CachedRole    `json:"roles"`
+	Channels []types.CachedChannel `json:"channels"`
+	Name     string                `json:"guild_name"`
+}
+
 type Server struct {
 	router       *echo.Echo
 	db           sqlite.DB
@@ -27,6 +33,7 @@ type Server struct {
 	config       *Config
 	preloadQueue *PreloadQueue
 	getPostCache flight.Cache[sortOption, []*types.Post]
+	guildCache   flight.Cache[struct{}, *GuildData]
 }
 
 type Config struct {
@@ -84,6 +91,21 @@ func New(cfg *Config) *Server {
 		config: cfg,
 		getPostCache: flight.NewCache(func(option sortOption) ([]*types.Post, error) {
 			return cfg.DB.ListPosts(option.limit, option.offset, option.sort)
+		}),
+		guildCache: flight.NewCache(func(_ struct{}) (*GuildData, error) {
+			roles, _ := cfg.DB.GetCachedRoles()
+			channels, _ := cfg.DB.GetCachedChannels()
+			var guildName string
+			settings, err := cfg.DB.GetSettings()
+			if err == nil && settings != nil {
+				// We don't have GuildName in Settings yet, but we could add it.
+				// For now, if there's no name, it will be empty until fetched from Discord.
+			}
+			return &GuildData{
+				Roles:    roles,
+				Channels: channels,
+				Name:     guildName,
+			}, nil
 		}),
 	}
 

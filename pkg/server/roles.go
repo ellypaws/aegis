@@ -37,6 +37,8 @@ func (s *Server) parseAllowedRoles(rolesStr string) []types.Allowed {
 			}
 			roleByID[role.ID] = role
 		}
+		// Also update the cache since we just hit the API
+		go s.UpdateGuildCacheFromState(s.config.GuildID)
 	}
 
 	seen := map[string]struct{}{}

@@ -13,7 +13,23 @@ func (s *Server) handleGetSettings(c echo.Context) error {
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Failed to fetch settings"})
 	}
-	return c.JSON(http.StatusOK, settings)
+
+	guildData, _ := s.guildCache.Get(struct{}{})
+
+	return c.JSON(http.StatusOK, map[string]any{
+		"ID":               settings.ID,
+		"CreatedAt":        settings.CreatedAt,
+		"UpdatedAt":        settings.UpdatedAt,
+		"DeletedAt":        settings.DeletedAt,
+		"hero_title":       settings.HeroTitle,
+		"hero_subtitle":    settings.HeroSubtitle,
+		"hero_description": settings.HeroDescription,
+		"public_access":    settings.PublicAccess,
+		"theme":            settings.Theme,
+		"roles":            guildData.Roles,
+		"channels":         guildData.Channels,
+		"guild_name":       guildData.Name,
+	})
 }
 
 func (s *Server) handleUpdateSettings(c echo.Context) error {
