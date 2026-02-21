@@ -575,6 +575,7 @@ function App() {
     formData.append("description", postInput.description);
     formData.append("roles", postInput.allowedRoleIds.join(","));
     formData.append("channels", postInput.channelIds.join(","));
+    formData.append("postDate", postInput.postDate);
     formData.append("focusX", String(postInput.focusX ?? 50));
     formData.append("focusY", String(postInput.focusY ?? 50));
 

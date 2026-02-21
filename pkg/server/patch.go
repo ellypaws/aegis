@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/charmbracelet/log"
 	"github.com/labstack/echo/v4"
@@ -62,6 +63,15 @@ func (s *Server) handlePatchPost(c echo.Context) error {
 	post.Title = title
 	post.Description = description
 	post.ChannelID = channelsStr
+
+	// Use author-supplied date if provided
+	if dateStr := c.FormValue("postDate"); dateStr != "" {
+		if parsed, err := time.Parse(time.RFC3339, dateStr); err == nil {
+			post.Timestamp = parsed.UTC()
+		} else if parsed, err := time.Parse("2006-01-02", dateStr); err == nil {
+			post.Timestamp = parsed.UTC()
+		}
+	}
 
 	// Focus
 	if v, err := strconv.ParseFloat(c.FormValue("focusX"), 64); err == nil {
