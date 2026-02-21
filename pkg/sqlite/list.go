@@ -8,6 +8,8 @@ import (
 
 // ListPosts returns a list of posts. sort can be "date" (by timestamp) or "id" (by insertion, default).
 func (s *sqliteDB) ListPosts(limit, offset int, sort string) ([]*types.Post, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 	var posts []*types.Post
 
 	orderClause := "id desc" // default: newest by insertion

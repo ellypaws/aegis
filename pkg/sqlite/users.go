@@ -9,6 +9,8 @@ import (
 )
 
 func (s *sqliteDB) UserByID(id string) (*types.User, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 	var user types.User
 	if err := s.db.Where("user_id = ?", id).First(&user).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -31,6 +33,8 @@ func (s *sqliteDB) IsAdmin(id string) (bool, error) {
 }
 
 func (s *sqliteDB) UpsertUser(user *types.User) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	var existing types.User
 	err := s.db.Where("user_id = ?", user.UserID).First(&existing).Error
 	if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
@@ -58,6 +62,8 @@ func (s *sqliteDB) UpsertUser(user *types.User) error {
 }
 
 func (s *sqliteDB) CountUsers() (int64, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 	var count int64
 	if err := s.db.Model(&types.User{}).Count(&count).Error; err != nil {
 		return 0, err
@@ -66,10 +72,14 @@ func (s *sqliteDB) CountUsers() (int64, error) {
 }
 
 func (s *sqliteDB) SetAdmin(id string, isAdmin bool) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	return s.db.Model(&types.User{}).Where("user_id = ?", id).Update("is_admin", isAdmin).Error
 }
 
 func (s *sqliteDB) GetAllUsers() ([]*types.User, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 	var users []*types.User
 	if err := s.db.Find(&users).Error; err != nil {
 		return nil, err

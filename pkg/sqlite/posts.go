@@ -13,6 +13,8 @@ import (
 // CreatePost inserts a new post with its associations (Author, Image, AllowedRoles).
 // It expects p.Author, p.Image, and p.AllowedRoles to be already set as desired.
 func (s *sqliteDB) CreatePost(p *types.Post) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	if p == nil {
 		return errors.New("nil post")
 	}
@@ -122,6 +124,8 @@ func (s *sqliteDB) CreatePost(p *types.Post) error {
 
 // ReadPost fetches a post by numeric PK with all associations preloaded.
 func (s *sqliteDB) ReadPost(id uint) (*types.Post, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 	var p types.Post
 	err := s.db.
 		Preload("Author").
@@ -143,6 +147,8 @@ func (s *sqliteDB) ReadPost(id uint) (*types.Post, error) {
 // ReadPostWithBlobData fetches a post by numeric PK with full image/blob payload.
 // Use this for edit flows that must preserve existing binary data.
 func (s *sqliteDB) ReadPostWithBlobData(id uint) (*types.Post, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 	var p types.Post
 	err := s.db.
 		Preload("Author").
@@ -160,6 +166,8 @@ func (s *sqliteDB) ReadPostWithBlobData(id uint) (*types.Post, error) {
 
 // ReadPostByExternalID fetches by PostKey (external ID).
 func (s *sqliteDB) ReadPostByExternalID(ext string) (*types.Post, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 	var p types.Post
 	err := s.db.
 		Preload("Author").
@@ -182,6 +190,8 @@ func (s *sqliteDB) ReadPostByExternalID(ext string) (*types.Post, error) {
 // ReadPostByExternalIDWithBlobData fetches by PostKey (external ID) with full image/blob payload.
 // Use this for edit flows that must preserve existing binary data.
 func (s *sqliteDB) ReadPostByExternalIDWithBlobData(ext string) (*types.Post, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 	var p types.Post
 	err := s.db.
 		Preload("Author").
@@ -201,6 +211,8 @@ func (s *sqliteDB) ReadPostByExternalIDWithBlobData(ext string) (*types.Post, er
 // UpdatePost replaces the post row and its associations to match p exactly.
 // Use this when you want to overwrite AllowedRoles and Image in one go.
 func (s *sqliteDB) UpdatePost(p *types.Post) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	if p == nil || p.ID == 0 {
 		return errors.New("invalid post (nil or no ID)")
 	}
@@ -359,6 +371,8 @@ type PostPatch struct {
 
 // PatchPost applies partial updates to a post by PK.
 func (s *sqliteDB) PatchPost(id uint, patch PostPatch) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	if id == 0 {
 		return errors.New("invalid id")
 	}
@@ -478,6 +492,8 @@ func (s *sqliteDB) PatchPost(id uint, patch PostPatch) error {
 // DeletePost removes the post and detaches associations.
 // Image is deleted (with blobs) if referenced by this post.
 func (s *sqliteDB) DeletePost(id uint) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	if id == 0 {
 		return errors.New("invalid id")
 	}
@@ -514,6 +530,8 @@ func (s *sqliteDB) DeletePost(id uint) error {
 
 // GetImageBlob fetches a specific image blob by its ID including the data.
 func (s *sqliteDB) GetImageBlob(id uint) (*types.ImageBlob, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 	var blob types.ImageBlob
 	err := s.db.First(&blob, id).Error
 	if err != nil {
@@ -524,6 +542,8 @@ func (s *sqliteDB) GetImageBlob(id uint) (*types.ImageBlob, error) {
 
 // GetImageThumbnailByBlobID fetches the thumbnail for the image associated with the given blob ID.
 func (s *sqliteDB) GetImageThumbnailByBlobID(blobID uint) ([]byte, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 	var result struct {
 		Thumbnail []byte
 	}
@@ -542,6 +562,8 @@ func (s *sqliteDB) GetImageThumbnailByBlobID(blobID uint) ([]byte, error) {
 // GetPostByBlobID finds the post associated with a specific image blob ID.
 // Useful for permission checking before serving a blob.
 func (s *sqliteDB) GetPostByBlobID(blobID uint) (*types.Post, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 	var blob types.ImageBlob
 	if err := s.db.Select("image_id").First(&blob, blobID).Error; err != nil {
 		return nil, err

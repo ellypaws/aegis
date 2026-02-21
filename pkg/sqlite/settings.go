@@ -43,6 +43,8 @@ func DefaultSettings() types.Settings {
 // If no settings exist, it returns the defaults (but does NOT save them automatically unless we want to).
 // For now, let's just return defaults if missing.
 func (s *sqliteDB) GetSettings() (*types.Settings, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 	var settings types.Settings
 	err := s.db.First(&settings).Error
 	if err != nil {
@@ -58,6 +60,8 @@ func (s *sqliteDB) GetSettings() (*types.Settings, error) {
 // UpdateSettings updates the existing settings or creates specific ones.
 // We strictly maintain only one row (ID=1) or just the first row.
 func (s *sqliteDB) UpdateSettings(newSettings types.Settings) (*types.Settings, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	var settings types.Settings
 	err := s.db.First(&settings).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {

@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"sync"
 
 	gormsqlite "gorm.io/driver/sqlite"
 	"gorm.io/gorm"
@@ -51,6 +52,7 @@ type DB interface {
 type sqliteDB struct {
 	db  *gorm.DB
 	ctx context.Context
+	mu  sync.RWMutex
 }
 
 // Connect initializes the database, migrates the schema, and returns an implementation of DB.
@@ -102,6 +104,8 @@ func Connect(path string, ctx context.Context) (DB, error) {
 
 // Stop closes the database connection.
 func (s *sqliteDB) Stop() error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	sqlDB, err := s.db.DB()
 	if err != nil {
 		return err
@@ -111,6 +115,8 @@ func (s *sqliteDB) Stop() error {
 
 // AllowedRoles fetches all allowed roles and returns them as []*discordgo.Role.
 func (s *sqliteDB) AllowedRoles() ([]*discordgo.Role, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 	var allowed []types.Allowed
 	if err := s.db.Find(&allowed).Error; err != nil {
 		return nil, err
@@ -137,6 +143,8 @@ func (s *sqliteDB) AllowedRoles() ([]*discordgo.Role, error) {
 
 // AddRole inserts a role into the allowed roles table if it doesn't already exist.
 func (s *sqliteDB) AddRole(role *discordgo.Role) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	if role == nil {
 		return errors.New("nil role cannot be added")
 	}
@@ -158,6 +166,8 @@ func (s *sqliteDB) AddRole(role *discordgo.Role) error {
 
 // IsAllowed checks if the given role exists in the allowed roles table.
 func (s *sqliteDB) IsAllowed(role *discordgo.Role) bool {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 	if role == nil {
 		return false
 	}

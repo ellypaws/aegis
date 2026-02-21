@@ -7,6 +7,8 @@ import (
 )
 
 func (s *sqliteDB) UpdateCachedRoles(roles []types.CachedRole) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	if len(roles) == 0 {
 		return nil
 	}
@@ -18,6 +20,8 @@ func (s *sqliteDB) UpdateCachedRoles(roles []types.CachedRole) error {
 }
 
 func (s *sqliteDB) UpdateCachedChannels(channels []types.CachedChannel) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	if len(channels) == 0 {
 		return nil
 	}
@@ -28,12 +32,16 @@ func (s *sqliteDB) UpdateCachedChannels(channels []types.CachedChannel) error {
 }
 
 func (s *sqliteDB) GetCachedRoles() ([]types.CachedRole, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 	var roles []types.CachedRole
 	err := s.db.Find(&roles).Error
 	return roles, err
 }
 
 func (s *sqliteDB) GetCachedChannels() ([]types.CachedChannel, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 	var channels []types.CachedChannel
 	err := s.db.Find(&channels).Error
 	return channels, err
