@@ -17,6 +17,13 @@ export function MembershipModal({
     const { settings, updateSettings } = useSettings();
 
     useEffect(() => {
+        document.body.style.overflow = "hidden";
+        return () => {
+            document.body.style.overflow = "unset";
+        };
+    }, []);
+
+    useEffect(() => {
         const fetchUsers = async () => {
             const token = localStorage.getItem("jwt");
             if (!token) {

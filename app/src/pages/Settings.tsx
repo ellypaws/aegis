@@ -1,25 +1,75 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
+import { RotateCcw } from "lucide-react";
 import { UI } from "../constants";
 import { cn } from "../lib/utils";
-import { useSettings } from "../contexts/SettingsContext";
+import { useSettings, applyTheme, defaultSettings } from "../contexts/SettingsContext";
 import type { Theme } from "../types";
 
 import { Patterns } from "../components/Patterns";
+
+function RevertButton({ isModified, onRevert }: { isModified: boolean, onRevert: () => void }) {
+    if (!isModified) return null;
+    return (
+        <button
+            onClick={onRevert}
+            title="Revert to default"
+            className="ml-2 inline-block text-zinc-400 hover:text-red-500 transition-colors align-text-bottom"
+        >
+            <RotateCcw size={14} />
+        </button>
+    );
+}
 
 export function SettingsModal({ open, onClose }: { open: boolean; onClose: () => void }) {
     const { settings, updateSettings, loading } = useSettings();
     const [localTheme, setLocalTheme] = useState<Theme | undefined>(settings.theme);
 
+    const [localHero, setLocalHero] = useState({
+        hero_title: settings.hero_title || "",
+        hero_subtitle: settings.hero_subtitle || "",
+        hero_description: settings.hero_description || "",
+    });
+
+    const debounceRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+
     useEffect(() => {
         setLocalTheme(settings.theme);
-    }, [settings.theme, open]);
+        setLocalHero({
+            hero_title: settings.hero_title || "",
+            hero_subtitle: settings.hero_subtitle || "",
+            hero_description: settings.hero_description || "",
+        });
+    }, [settings, open]);
+
+    useEffect(() => {
+        if (open) {
+            document.body.style.overflow = "hidden";
+        } else {
+            document.body.style.overflow = "unset";
+        }
+        return () => {
+            document.body.style.overflow = "unset";
+        };
+    }, [open]);
 
     if (!open) return null;
     if (loading) return null; // Or a spinner in modal
 
+    const handleHeroChange = (key: keyof typeof localHero, value: string) => {
+        const newHero = { ...localHero, [key]: value };
+        setLocalHero(newHero);
+
+        if (debounceRef.current) clearTimeout(debounceRef.current);
+        debounceRef.current = setTimeout(() => {
+            updateSettings({ ...settings, ...newHero });
+        }, 500);
+    };
+
     const handleThemeChange = (key: keyof Theme, value: string | number) => {
         if (!localTheme) return;
-        setLocalTheme({ ...localTheme, [key]: value });
+        const newTheme = { ...localTheme, [key]: value };
+        setLocalTheme(newTheme);
+        applyTheme(newTheme); // Apply live preview
     };
 
     const saveTheme = () => {
@@ -66,27 +116,36 @@ export function SettingsModal({ open, onClose }: { open: boolean; onClose: () =>
                             </div>
                             <div className="mt-4 grid gap-4">
                                 <div>
-                                    <label className={UI.label}>Hero Title</label>
+                                    <div className="flex items-center justify-between mb-1">
+                                        <label className={UI.label}>Hero Title</label>
+                                        <RevertButton isModified={localHero.hero_title !== defaultSettings.hero_title} onRevert={() => handleHeroChange("hero_title", defaultSettings.hero_title)} />
+                                    </div>
                                     <input
                                         className={UI.input}
-                                        value={settings.hero_title || ""}
-                                        onChange={(e) => updateSettings({ ...settings, hero_title: e.target.value })}
+                                        value={localHero.hero_title}
+                                        onChange={(e) => handleHeroChange("hero_title", e.target.value)}
                                     />
                                 </div>
                                 <div>
-                                    <label className={UI.label}>Hero Subtitle</label>
+                                    <div className="flex items-center justify-between mb-1">
+                                        <label className={UI.label}>Hero Subtitle</label>
+                                        <RevertButton isModified={localHero.hero_subtitle !== defaultSettings.hero_subtitle} onRevert={() => handleHeroChange("hero_subtitle", defaultSettings.hero_subtitle)} />
+                                    </div>
                                     <input
                                         className={UI.input}
-                                        value={settings.hero_subtitle || ""}
-                                        onChange={(e) => updateSettings({ ...settings, hero_subtitle: e.target.value })}
+                                        value={localHero.hero_subtitle}
+                                        onChange={(e) => handleHeroChange("hero_subtitle", e.target.value)}
                                     />
                                 </div>
                                 <div>
-                                    <label className={UI.label}>Hero Description</label>
+                                    <div className="flex items-center justify-between mb-1">
+                                        <label className={UI.label}>Hero Description</label>
+                                        <RevertButton isModified={localHero.hero_description !== defaultSettings.hero_description} onRevert={() => handleHeroChange("hero_description", defaultSettings.hero_description)} />
+                                    </div>
                                     <textarea
                                         className={UI.input}
-                                        value={settings.hero_description || ""}
-                                        onChange={(e) => updateSettings({ ...settings, hero_description: e.target.value })}
+                                        value={localHero.hero_description}
+                                        onChange={(e) => handleHeroChange("hero_description", e.target.value)}
                                     />
                                 </div>
                             </div>
@@ -104,7 +163,10 @@ export function SettingsModal({ open, onClose }: { open: boolean; onClose: () =>
                                     <div className="space-y-4">
                                         <h3 className={UI.sectionTitle}>Universal</h3>
                                         <div>
-                                            <label className={UI.label}>Border Radius: {localTheme.border_radius}</label>
+                                            <div className="flex items-center justify-between mb-1">
+                                                <label className={UI.label}>Border Radius: {localTheme.border_radius}</label>
+                                                <RevertButton isModified={localTheme.border_radius !== defaultSettings.theme?.border_radius} onRevert={() => handleThemeChange("border_radius", defaultSettings.theme!.border_radius)} />
+                                            </div>
                                             <input
                                                 type="range"
                                                 min="0"
@@ -116,7 +178,10 @@ export function SettingsModal({ open, onClose }: { open: boolean; onClose: () =>
                                             />
                                         </div>
                                         <div>
-                                            <label className={UI.label}>Border Size: {localTheme.border_size}</label>
+                                            <div className="flex items-center justify-between mb-1">
+                                                <label className={UI.label}>Border Size: {localTheme.border_size}</label>
+                                                <RevertButton isModified={localTheme.border_size !== defaultSettings.theme?.border_size} onRevert={() => handleThemeChange("border_size", defaultSettings.theme!.border_size)} />
+                                            </div>
                                             <input
                                                 type="range"
                                                 min="0"
@@ -134,21 +199,30 @@ export function SettingsModal({ open, onClose }: { open: boolean; onClose: () =>
                                         <h3 className={UI.sectionTitle}>Light Mode</h3>
                                         <div className="grid grid-cols-2 gap-4">
                                             <div>
-                                                <label className={UI.label}>Page Bg</label>
+                                                <div className="flex items-center justify-between mb-1">
+                                                    <label className={UI.label}>Page Bg</label>
+                                                    <RevertButton isModified={localTheme.page_bg_light !== defaultSettings.theme?.page_bg_light} onRevert={() => handleThemeChange("page_bg_light", defaultSettings.theme!.page_bg_light)} />
+                                                </div>
                                                 <div className="flex gap-2">
                                                     <input type="color" value={localTheme.page_bg_light} onChange={(e) => handleThemeChange("page_bg_light", e.target.value)} className="h-10 w-10 cursor-pointer rounded border-2 border-zinc-300" />
                                                     <input className={UI.input} value={localTheme.page_bg_light} onChange={(e) => handleThemeChange("page_bg_light", e.target.value)} />
                                                 </div>
                                             </div>
                                             <div>
-                                                <label className={UI.label}>Card Bg</label>
+                                                <div className="flex items-center justify-between mb-1">
+                                                    <label className={UI.label}>Card Bg</label>
+                                                    <RevertButton isModified={localTheme.card_bg_light !== defaultSettings.theme?.card_bg_light} onRevert={() => handleThemeChange("card_bg_light", defaultSettings.theme!.card_bg_light)} />
+                                                </div>
                                                 <div className="flex gap-2">
                                                     <input type="color" value={localTheme.card_bg_light} onChange={(e) => handleThemeChange("card_bg_light", e.target.value)} className="h-10 w-10 cursor-pointer rounded border-2 border-zinc-300" />
                                                     <input className={UI.input} value={localTheme.card_bg_light} onChange={(e) => handleThemeChange("card_bg_light", e.target.value)} />
                                                 </div>
                                             </div>
                                             <div>
-                                                <label className={UI.label}>Border Color</label>
+                                                <div className="flex items-center justify-between mb-1">
+                                                    <label className={UI.label}>Border Color</label>
+                                                    <RevertButton isModified={localTheme.border_color_light !== defaultSettings.theme?.border_color_light} onRevert={() => handleThemeChange("border_color_light", defaultSettings.theme!.border_color_light)} />
+                                                </div>
                                                 <div className="flex gap-2">
                                                     <input type="color" value={localTheme.border_color_light} onChange={(e) => handleThemeChange("border_color_light", e.target.value)} className="h-10 w-10 cursor-pointer rounded border-2 border-zinc-300" />
                                                     <input className={UI.input} value={localTheme.border_color_light} onChange={(e) => handleThemeChange("border_color_light", e.target.value)} />
@@ -162,21 +236,30 @@ export function SettingsModal({ open, onClose }: { open: boolean; onClose: () =>
                                         <h3 className={UI.sectionTitle}>Dark Mode</h3>
                                         <div className="grid grid-cols-2 gap-4">
                                             <div>
-                                                <label className={UI.label}>Page Bg</label>
+                                                <div className="flex items-center justify-between mb-1">
+                                                    <label className={UI.label}>Page Bg</label>
+                                                    <RevertButton isModified={localTheme.page_bg_dark !== defaultSettings.theme?.page_bg_dark} onRevert={() => handleThemeChange("page_bg_dark", defaultSettings.theme!.page_bg_dark)} />
+                                                </div>
                                                 <div className="flex gap-2">
                                                     <input type="color" value={localTheme.page_bg_dark} onChange={(e) => handleThemeChange("page_bg_dark", e.target.value)} className="h-10 w-10 cursor-pointer rounded border-2 border-zinc-300" />
                                                     <input className={UI.input} value={localTheme.page_bg_dark} onChange={(e) => handleThemeChange("page_bg_dark", e.target.value)} />
                                                 </div>
                                             </div>
                                             <div>
-                                                <label className={UI.label}>Card Bg</label>
+                                                <div className="flex items-center justify-between mb-1">
+                                                    <label className={UI.label}>Card Bg</label>
+                                                    <RevertButton isModified={localTheme.card_bg_dark !== defaultSettings.theme?.card_bg_dark} onRevert={() => handleThemeChange("card_bg_dark", defaultSettings.theme!.card_bg_dark)} />
+                                                </div>
                                                 <div className="flex gap-2">
                                                     <input type="color" value={localTheme.card_bg_dark} onChange={(e) => handleThemeChange("card_bg_dark", e.target.value)} className="h-10 w-10 cursor-pointer rounded border-2 border-zinc-300" />
                                                     <input className={UI.input} value={localTheme.card_bg_dark} onChange={(e) => handleThemeChange("card_bg_dark", e.target.value)} />
                                                 </div>
                                             </div>
                                             <div>
-                                                <label className={UI.label}>Border Color</label>
+                                                <div className="flex items-center justify-between mb-1">
+                                                    <label className={UI.label}>Border Color</label>
+                                                    <RevertButton isModified={localTheme.border_color_dark !== defaultSettings.theme?.border_color_dark} onRevert={() => handleThemeChange("border_color_dark", defaultSettings.theme!.border_color_dark)} />
+                                                </div>
                                                 <div className="flex gap-2">
                                                     <input type="color" value={localTheme.border_color_dark} onChange={(e) => handleThemeChange("border_color_dark", e.target.value)} className="h-10 w-10 cursor-pointer rounded border-2 border-zinc-300" />
                                                     <input className={UI.input} value={localTheme.border_color_dark} onChange={(e) => handleThemeChange("border_color_dark", e.target.value)} />
