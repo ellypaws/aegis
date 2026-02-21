@@ -69,6 +69,10 @@ func Connect(path string, ctx context.Context) (DB, error) {
 		return nil, err
 	}
 
+	// Enable WAL mode to allow concurrent reads and busy_timeout to queue concurrent writes
+	gdb.Exec("PRAGMA journal_mode=WAL;")
+	gdb.Exec("PRAGMA busy_timeout=3000;")
+
 	// Drop potential unique index on images.post_id to allow multiple images per post
 	_ = gdb.Exec("DROP INDEX IF EXISTS idx_images_post_id").Error
 

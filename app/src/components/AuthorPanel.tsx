@@ -94,7 +94,7 @@ export function AuthorPanel({
   guildName,
 }: {
   user: DiscordUser;
-  onCreate?: (postInput: AuthorPanelPostInput) => void;
+  onCreate?: (postInput: AuthorPanelPostInput) => Promise<boolean | void> | boolean | void;
   editingPost?: Post | null;
   onUpdate?: (
     postKey: string,
@@ -104,7 +104,7 @@ export function AuthorPanel({
       mediaOrder?: string[];
       clearThumbnail?: boolean;
     },
-  ) => void;
+  ) => Promise<boolean | void> | boolean | void;
   onCancelEdit?: () => void;
   availableRoles?: Array<{
     id: string;
@@ -232,9 +232,9 @@ export function AuthorPanel({
       setChannelIds(
         editingPost.channelId
           ? editingPost.channelId
-              .split(",")
-              .map((s) => s.trim())
-              .filter(Boolean)
+            .split(",")
+            .map((s) => s.trim())
+            .filter(Boolean)
           : [],
       );
       setFocusX(editingPost.focusX ?? 50);
@@ -422,7 +422,7 @@ export function AuthorPanel({
     return [];
   }, [availableChannels]);
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     const normalizedRoleIds = normalizeIdList(allowedRoleIds);
 
     const validOrderedTokens = mediaOrder.filter((token) => {
@@ -490,9 +490,10 @@ export function AuthorPanel({
         ...payload,
         images: payload.images.length > 0 ? payload.images : undefined,
       };
-      onUpdate(editingPost.postKey, updatePayload);
+      await onUpdate(editingPost.postKey, updatePayload);
     } else if (onCreate && selectedFiles.length > 0) {
-      onCreate(payload);
+      const success = await onCreate(payload);
+      if (success === false) return;
       // Reset form
       setTitle("");
       setDesc("");

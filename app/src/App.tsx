@@ -545,7 +545,7 @@ function App() {
       if (!res.ok) {
         const err = await res.json().catch(() => ({ error: res.statusText }));
         alert(`Upload failed: ${err.error || res.statusText}`);
-        return;
+        return false;
       }
 
       const created = await res.json();
@@ -553,9 +553,11 @@ function App() {
       // Refresh posts to show the new one
       loadPosts(1, true);
       setPage(1);
+      return true;
     } catch (err) {
       console.error("Upload error:", err);
       alert("Upload failed. Check the console for details.");
+      return false;
     }
   }
 
@@ -609,16 +611,18 @@ function App() {
       if (!res.ok) {
         const err = await res.json().catch(() => ({ error: res.statusText }));
         alert(`Edit failed: ${err.error || res.statusText}`);
-        return;
+        return false;
       }
 
       console.log("Post updated");
       setEditingPost(null);
       loadPosts(1, true);
       setPage(1);
+      return true;
     } catch (err) {
       console.error("Edit error:", err);
       alert("Edit failed. Check the console for details.");
+      return false;
     }
   }
 
