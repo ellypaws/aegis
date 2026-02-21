@@ -72,8 +72,14 @@ export function MembershipModal({
     };
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-md animate-in fade-in duration-200">
-            <div className={cn("relative w-full max-w-3xl overflow-hidden shadow-2xl", UI.card)}>
+        <div
+            onClick={onClose}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-md animate-in fade-in duration-200"
+        >
+            <div
+                onClick={(e) => e.stopPropagation()}
+                className={cn("relative w-full max-w-3xl overflow-hidden shadow-2xl", UI.card)}
+            >
                 <div className="absolute inset-0 z-0 overflow-hidden pointer-events-none">
                     <Patterns.Polka color="rgba(99, 102, 241, 0.08)" />
                     <div className="absolute top-[-20px] left-[-20px] h-32 w-32 rounded-full border-[6px] border-white/20 bg-blue-500/20 shadow-lg blur-xl" />

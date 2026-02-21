@@ -80,8 +80,14 @@ export function SettingsModal({ open, onClose }: { open: boolean; onClose: () =>
     };
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-            <div className={cn(UI.card, "w-full max-w-4xl max-h-[90vh] overflow-y-auto p-6 md:p-8 relative")}>
+        <div
+            onClick={onClose}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-in fade-in duration-200"
+        >
+            <div
+                onClick={(e) => e.stopPropagation()}
+                className={cn(UI.card, "w-full max-w-4xl max-h-[90vh] overflow-y-auto p-6 md:p-8 relative")}
+            >
                 <div className="absolute inset-0 overflow-hidden rounded-[20px] pointer-events-none">
                     <Patterns.Polka color="rgba(253, 224, 71, 0.15)" />
                     <div className="absolute top-[-16px] left-[-16px] h-24 w-24 rounded-full border-4 border-white shadow-lg bg-yellow-400" />
