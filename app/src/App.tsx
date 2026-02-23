@@ -141,6 +141,14 @@ function App() {
         );
 
         const claims = JSON.parse(jsonPayload);
+
+        if (claims.exp && (claims.exp * 1000) < Date.now()) {
+          console.warn("JWT token expired, logging out.");
+          localStorage.removeItem("jwt");
+          setUser(null);
+          return;
+        }
+
         const rolesFromClaims: Record<string, CachedRoleName> = {};
         if (Array.isArray(claims.roles)) {
           claims.roles.forEach((r: any) => {
