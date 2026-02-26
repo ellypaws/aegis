@@ -37,7 +37,7 @@ func (q *Bot) processThumbnail(ctx context.Context, data []byte, blur bool, post
 	}
 
 	if blur {
-		img = imaging.Blur(img, 8.0)
+		img = imaging.Blur(img, 32.0)
 	}
 
 	quality := 100
