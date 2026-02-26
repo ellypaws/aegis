@@ -11,6 +11,7 @@ import {
   FileVideo,
   ChevronLeft,
   ChevronRight,
+  Loader2,
 } from "lucide-react";
 
 const { useRef } = React;
@@ -182,6 +183,8 @@ export function AuthorPanel({
 
   const [dragFull, setDragFull] = useState(false);
   const [dragThumb, setDragThumb] = useState(false);
+
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const [focusX, setFocusX] = useState(50);
   const [focusY, setFocusY] = useState(50);
@@ -423,10 +426,13 @@ export function AuthorPanel({
   }, [availableChannels]);
 
   const handleSubmit = async () => {
-    const normalizedRoleIds = normalizeIdList(allowedRoleIds);
+    if (isSubmitting) return;
+    setIsSubmitting(true);
+    try {
+      const normalizedRoleIds = normalizeIdList(allowedRoleIds);
 
-    const validOrderedTokens = mediaOrder.filter((token) => {
-      if (token.startsWith("e:")) {
+      const validOrderedTokens = mediaOrder.filter((token) => {
+        if (token.startsWith("e:")) {
         const parsed = Number(token.slice(2));
         return (
           Number.isFinite(parsed) && remotePreviews.some((r) => r.id === parsed)
@@ -509,6 +515,9 @@ export function AuthorPanel({
       setRemotePreviews([]);
       if (fullInputRef.current) fullInputRef.current.value = "";
       if (thumbInputRef.current) thumbInputRef.current.value = "";
+    }
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -878,15 +887,17 @@ export function AuthorPanel({
                 </div>
                 <button
                   type="button"
-                  disabled={!canSubmit}
+                  disabled={!canSubmit || isSubmitting}
                   onClick={handleSubmit}
                   className={cn(
                     UI.button,
                     isEditing ? UI.btnBlue : UI.btnRed,
-                    !canSubmit && UI.btnDisabled,
+                    (!canSubmit || isSubmitting) && UI.btnDisabled,
+                    "flex items-center gap-2"
                   )}
                 >
-                  {isEditing ? "Save Changes" : "Create Post"}
+                  {isSubmitting && <Loader2 className="h-4 w-4 animate-spin" />}
+                  {isEditing ? (isSubmitting ? "Saving..." : "Save Changes") : (isSubmitting ? "Creating..." : "Create Post")}
                 </button>
               </div>
             </div>

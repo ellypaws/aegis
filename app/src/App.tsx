@@ -653,6 +653,9 @@ function App() {
       }
 
       console.log("Post deleted");
+      if (editingPost && editingPost.postKey === postKey) {
+        setEditingPost(null);
+      }
       navigate("/");
       loadPosts(1, true);
       setPage(1);
