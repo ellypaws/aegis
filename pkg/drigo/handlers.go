@@ -2,6 +2,7 @@ package drigo
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"image"
 	_ "image/gif"
@@ -11,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/disintegration/imaging"
 	"github.com/gen2brain/webp"
 	"golang.org/x/image/draw"
 	_ "golang.org/x/image/webp"
@@ -24,8 +26,79 @@ import (
 	"drigo/pkg/compositor"
 	"drigo/pkg/discord/handlers"
 	"drigo/pkg/types"
+	"drigo/pkg/units"
 	"drigo/pkg/utils"
 )
+
+func (q *Bot) processThumbnail(ctx context.Context, data []byte, blur bool, postKey string) ([]byte, string, error) {
+	img, _, err := image.Decode(bytes.NewReader(data))
+	if err != nil {
+		return nil, "", fmt.Errorf("decode: %w", err)
+	}
+
+	if blur {
+		img = imaging.Blur(img, 8.0)
+	}
+
+	quality := 100
+	var outBytes []byte
+
+	for quality >= 80 {
+		var buf bytes.Buffer
+		if err := webp.Encode(&buf, img, webp.Options{Quality: quality}); err != nil {
+			return nil, "", fmt.Errorf("encode webp: %w", err)
+		}
+		if buf.Len() <= units.DiscordLimit {
+			outBytes = buf.Bytes()
+			break
+		}
+		quality -= 5
+	}
+
+	if len(outBytes) == 0 {
+		var buf bytes.Buffer
+		if err := webp.Encode(&buf, img, webp.Options{Quality: 80}); err != nil {
+			return nil, "", fmt.Errorf("encode webp: %w", err)
+		}
+		outBytes = buf.Bytes()
+
+		for len(outBytes) > units.DiscordLimit {
+			bounds := img.Bounds()
+			newWidth := bounds.Dx() * 9 / 10
+			if newWidth < 10 {
+				break
+			}
+			ratio := float64(bounds.Dx()) / float64(bounds.Dy())
+			newHeight := int(float64(newWidth) / ratio)
+			if newHeight < 1 {
+				newHeight = 1
+			}
+
+			dst := image.NewRGBA(image.Rect(0, 0, newWidth, newHeight))
+			draw.ApproxBiLinear.Scale(dst, dst.Bounds(), img, bounds, draw.Over, nil)
+			img = dst
+
+			var resizeBuf bytes.Buffer
+			if err := webp.Encode(&resizeBuf, img, webp.Options{Quality: 80}); err != nil {
+				return nil, "", fmt.Errorf("encode webp: %w", err)
+			}
+			outBytes = resizeBuf.Bytes()
+		}
+	}
+
+	if len(outBytes) > units.DiscordLimit && q.bucket != nil {
+		ts := time.Now().UTC().Format("20060102-150405")
+		key := fmt.Sprintf("%s/%s_thumb.webp", postKey, ts)
+		url, err := q.bucket.Upload(ctx, key, outBytes, "image/webp")
+		if err != nil {
+			log.Error("Failed to upload thumbnail to S3", "error", err)
+			return outBytes, "", nil
+		}
+		return outBytes, url, nil
+	}
+
+	return outBytes, "", nil
+}
 
 func (q *Bot) handlers() map[discordgo.InteractionType]map[string]pkg.Handler {
 	return pkg.CommandHandlers{
@@ -308,6 +381,9 @@ func (q *Bot) handlePostImage(s *discordgo.Session, i *discordgo.InteractionCrea
 		return handlers.ErrorEdit(s, i.Interaction, "Full image is missing.")
 	}
 
+	postKey := ksuid.New().String()
+	var finalS3ThumbUrl string
+
 	if option, ok := optionMap[thumbnailImage]; ok {
 		att, ok := attachments[option.Value.(string)]
 		if !ok {
@@ -317,32 +393,31 @@ func (q *Bot) handlePostImage(s *discordgo.Session, i *discordgo.InteractionCrea
 			return handlers.ErrorEdit(s, i.Interaction, "The thumbnail must be an image.")
 		}
 		thumbBytes = append([]byte(nil), att.Image.Bytes()...)
-	} else {
-		img, _, err := image.Decode(bytes.NewReader(fullBytes))
+
+		// process local uploaded thumbnail
+		t, s3Url, err := q.processThumbnail(q.context, thumbBytes, false, postKey)
 		if err != nil {
-			return handlers.ErrorEdit(s, i.Interaction, "Failed to decode full image.", err)
+			log.Error("Failed to process uploaded thumbnail", "error", err)
+		} else {
+			thumbBytes = t
+			finalS3ThumbUrl = s3Url
+		}
+	} else {
+		needsBlur := false
+		if _, ok := optionMap[roleSelect]; ok {
+			needsBlur = true
 		}
 
-		bounds := img.Bounds()
-		width := 400
-		ratio := float64(bounds.Dx()) / float64(bounds.Dy())
-		height := int(float64(width) / ratio)
-		if height < 1 {
-			height = 1
-		}
-		dst := image.NewRGBA(image.Rect(0, 0, width, height))
-		draw.ApproxBiLinear.Scale(dst, dst.Bounds(), img, bounds, draw.Over, nil)
-		var buf bytes.Buffer
-		if err := webp.Encode(&buf, dst, webp.Options{Quality: 75}); err != nil {
+		t, s3Url, err := q.processThumbnail(q.context, fullBytes, needsBlur, postKey)
+		if err != nil {
 			return handlers.ErrorEdit(s, i.Interaction, "Failed to generate thumbnail.", err)
 		}
-
-		thumbBytes = buf.Bytes()
+		thumbBytes = t
+		finalS3ThumbUrl = s3Url
 	}
 
 	needsThumbnail := len(thumbBytes) == 0 || optionMap[thumbnailImage] == nil
 
-	postKey := ksuid.New().String()
 	if _, ok := optionMap[roleSelect]; !ok {
 		log.Debugf("Responding with a modal in %s", time.Since(now))
 		err = s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
@@ -412,6 +487,7 @@ func (q *Bot) handlePostImage(s *discordgo.Session, i *discordgo.InteractionCrea
 			Title:          titleVal,
 			Description:    descVal,
 			NeedsThumbnail: needsThumbnail,
+			S3ThumbUrl:     finalS3ThumbUrl,
 		}
 		q.mu.Unlock()
 

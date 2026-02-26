@@ -69,6 +69,7 @@ type PendingPost struct {
 	Title          string
 	Description    string
 	NeedsThumbnail bool // true when no thumbnail was provided; a FileUpload label is shown in the modal
+	S3ThumbUrl     string
 }
 
 func (q *Bot) Commands() []*discordgo.ApplicationCommand { return q.commands() }

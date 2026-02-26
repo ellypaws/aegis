@@ -12,6 +12,7 @@ import (
 	"github.com/labstack/echo/v4/middleware"
 
 	"drigo/app"
+	"drigo/pkg/bucket"
 	"drigo/pkg/discord"
 	"drigo/pkg/flight"
 	"drigo/pkg/sqlite"
@@ -34,6 +35,7 @@ type Server struct {
 	preloadQueue *PreloadQueue
 	getPostCache flight.Cache[sortOption, []*types.Post]
 	guildCache   flight.Cache[struct{}, *GuildData]
+	bucket       bucket.Uploader
 }
 
 type Config struct {
@@ -42,6 +44,7 @@ type Config struct {
 	GuildID      string
 	DB           sqlite.DB
 	Bot          discord.Bot
+	Bucket       bucket.Uploader
 }
 
 func New(cfg *Config) *Server {
@@ -89,6 +92,7 @@ func New(cfg *Config) *Server {
 		db:     cfg.DB,
 		bot:    cfg.Bot,
 		config: cfg,
+		bucket: cfg.Bucket,
 		getPostCache: flight.NewCache(func(option sortOption) ([]*types.Post, error) {
 			return cfg.DB.ListPosts(option.limit, option.offset, option.sort)
 		}),

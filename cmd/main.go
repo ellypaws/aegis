@@ -118,6 +118,7 @@ func main() {
 		GuildID:      *guildID,
 		DB:           sqliteDB,
 		Bot:          bot,
+		Bucket:       uploader,
 	})
 
 	go func() {
