@@ -2,8 +2,6 @@ package drigo
 
 import (
 	"github.com/bwmarrin/discordgo"
-
-	"drigo/pkg/utils"
 )
 
 const (
@@ -32,6 +30,8 @@ const (
 	roleSelect      = "allowed_roles"
 	channelSelect   = "allowed_channels"
 	thumbnailImage  = "thumbnail"
+	fullImageModal  = "full_image"
+	thumbnailModal  = "thumbnail_image"
 	fullImage       = "full"
 	postTitle       = "title"
 	postDescription = "description"
@@ -61,7 +61,7 @@ var commandOption = map[string]*discordgo.ApplicationCommandOption{
 		Name:        channelSelect,
 		Description: "Select a channel to notify subscribers. Don't select if you want to include multiple channels.",
 		Required:    false,
-		MinValue:    utils.Pointer[float64](0),
+		MinValue:    new(0.),
 	},
 	postTitle: {
 		Type:        discordgo.ApplicationCommandOptionString,

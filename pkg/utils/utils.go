@@ -5,6 +5,7 @@ import (
 	"strings"
 )
 
+// Deprecated: Use new(T) from 1.26 syntax.
 func Pointer[T any](a T) *T {
 	return &a
 }

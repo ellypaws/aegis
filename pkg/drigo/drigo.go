@@ -58,16 +58,17 @@ func (q *Bot) SetBucket(b bucket.Uploader) {
 
 // PendingPost holds data collected from the slash command until the user completes the modal.
 type PendingPost struct {
-	PostKey     string
-	GuildID     string
-	ChannelID   string
-	Author      *discordgo.User
-	Thumbnail   []byte
-	Full        []byte
-	Filename    string
-	ContentType string
-	Title       string
-	Description string
+	PostKey        string
+	GuildID        string
+	ChannelID      string
+	Author         *discordgo.User
+	Thumbnail      []byte
+	Full           []byte
+	Filename       string
+	ContentType    string
+	Title          string
+	Description    string
+	NeedsThumbnail bool // true when no thumbnail was provided; a FileUpload label is shown in the modal
 }
 
 func (q *Bot) Commands() []*discordgo.ApplicationCommand { return q.commands() }

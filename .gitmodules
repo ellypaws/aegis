@@ -1,4 +1,0 @@
-[submodule "src/discordgo"]
-	path = src/discordgo
-	url = https://github.com/ellypaws/discordgo.git
-    branch = required-field-ptr

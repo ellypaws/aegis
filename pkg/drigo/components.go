@@ -39,9 +39,10 @@ var components = map[string]discordgo.MessageComponent{
 		MenuType:    discordgo.RoleSelectMenu,
 		CustomID:    roleSelect,
 		Placeholder: "",
-		MinValues:   utils.Pointer(0),
+		MinValues:   new(0),
 		MaxValues:   25,
 		Disabled:    false,
+		Required:    new(false),
 	},
 	channelSelect: discordgo.SelectMenu{
 		MenuType: discordgo.ChannelSelectMenu,
@@ -53,9 +54,14 @@ var components = map[string]discordgo.MessageComponent{
 			discordgo.ChannelTypeGuildMedia,
 		},
 		Placeholder: "",
-		MinValues:   utils.Pointer(0),
+		MinValues:   new(0),
 		MaxValues:   25,
 		Disabled:    false,
+		Required:    new(false),
+	},
+	thumbnailModal: discordgo.FileUpload{
+		CustomID: thumbnailModal,
+		Required: new(false),
 	},
 }
 
@@ -78,6 +84,17 @@ func BuildShowActionsRow(postKey string) discordgo.ActionsRow {
 				CustomID: sendDM + ":" + postKey,
 			},
 		},
+	}
+}
+
+// buildThumbnailModalLabel returns an optional Label+FileUpload component for modal prompts
+// when no thumbnail was provided with the original command. Callers may conditionally append
+// the returned component to a modal's component list.
+func buildThumbnailModalLabel() discordgo.Label {
+	return discordgo.Label{
+		Label:       "Upload Thumbnail (optional)",
+		Description: "Provide a preview image for the post. One will be auto-generated if skipped.",
+		Component:   components[thumbnailModal],
 	}
 }
 
@@ -234,45 +251,40 @@ func (q *Bot) prepareEmbed(member *discordgo.Member, p *types.Post, webhookEdit 
 }
 
 func (q *Bot) isAllowedToView(s *discordgo.Session, i *discordgo.InteractionCreate, p *types.Post) (*discordgo.Member, bool) {
-	var member *discordgo.Member
-	var allowed bool
-	if len(p.AllowedRoles) > 0 {
-		member = i.Member
-		if member == nil {
-			if i.GuildID == "" {
-				log.Warn("no guild id found in interaction")
-				return nil, false
-			}
+	member := i.Member
+	if member == nil {
+		if i.GuildID != "" {
 			user := utils.GetUser(i.Member, i.User)
-			if user == nil {
-				log.Warn("Member or User is nil on interaction")
-				return nil, false
-			}
-			if m, err := s.State.Member(i.GuildID, user.ID); err == nil {
-				member = m
-			} else if m, err := s.GuildMember(i.GuildID, user.ID); err == nil {
-				member = m
-			}
-		}
-		if member != nil {
-			roleSet := map[string]struct{}{}
-			for _, r := range member.Roles {
-				roleSet[r] = struct{}{}
-			}
-			for _, ar := range p.AllowedRoles {
-				if _, ok := roleSet[ar.RoleID]; ok {
-					allowed = true
-					break
+			if user != nil {
+				if m, err := s.State.Member(i.GuildID, user.ID); err == nil {
+					member = m
+				} else if m, err := s.GuildMember(i.GuildID, user.ID); err == nil {
+					member = m
 				}
 			}
 		}
-		if !allowed {
-			return nil, false
-		}
-	} else {
-		allowed = true
 	}
-	return member, allowed
+
+	if len(p.AllowedRoles) == 0 {
+		return member, true
+	}
+
+	if member == nil {
+		log.Warn("no member info available to check roles")
+		return nil, false
+	}
+
+	roleSet := map[string]struct{}{}
+	for _, r := range member.Roles {
+		roleSet[r] = struct{}{}
+	}
+	for _, ar := range p.AllowedRoles {
+		if _, ok := roleSet[ar.RoleID]; ok {
+			return member, true
+		}
+	}
+
+	return member, false
 }
 
 func (q *Bot) sendDM(s *discordgo.Session, i *discordgo.InteractionCreate) error {
