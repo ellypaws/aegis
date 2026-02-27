@@ -338,12 +338,7 @@ func (q *Bot) sendDM(s *discordgo.Session, i *discordgo.InteractionCreate) error
 		return handlers.ErrorFollowupEphemeral(s, i.Interaction, "No image data available to DM.")
 	}
 
-	// Iterate over all images and send them one by one (or grouped if feasible, but one-by-one is safer for large files)
 	for idx, img := range p.Images {
-		// Re-use prepare logic or custom logic?
-		// We can't reuse prepareEmbed fully because it modifies a single webhookEdit.
-		// Construct a new embed for each image, or just send files.
-
 		dmEmbed := &discordgo.MessageEmbed{
 			Type:        discordgo.EmbedTypeImage,
 			Description: p.Description,
@@ -352,7 +347,7 @@ func (q *Bot) sendDM(s *discordgo.Session, i *discordgo.InteractionCreate) error
 		}
 		if idx > 0 {
 			dmEmbed.Title = fmt.Sprintf("%s (%d/%d)", p.Title, idx+1, len(p.Images))
-			dmEmbed.Description = "" // Only show description on first one? Or all? Let's hide on subsequent to reduce noise
+			dmEmbed.Description = ""
 		}
 		if dmEmbed.Description == "" && idx == 0 {
 			dmEmbed.Description = "New image posted!"
@@ -368,10 +363,9 @@ func (q *Bot) sendDM(s *discordgo.Session, i *discordgo.InteractionCreate) error
 			}
 		}
 
-		// Check size for this image
 		tooLarge := false
 		for _, blob := range img.Blobs {
-			if len(blob.Data) > units.DiscordLimit {
+			if blob.Size > units.DiscordLimit || len(blob.Data) > units.DiscordLimit {
 				tooLarge = true
 				break
 			}
@@ -380,8 +374,6 @@ func (q *Bot) sendDM(s *discordgo.Session, i *discordgo.InteractionCreate) error
 		if tooLarge {
 			url, fbEmbed, ferr := q.fallbackToLink(i, p, idx)
 			if ferr != nil {
-				// If one fails, we continue trying others? Or stop?
-				// Let's warn and continue
 				log.Error("Failed to upload image for fallback", "index", idx, "error", ferr)
 				continue
 			}
@@ -404,33 +396,23 @@ func (q *Bot) sendDM(s *discordgo.Session, i *discordgo.InteractionCreate) error
 			continue
 		}
 
-		// Normal send
-		// Need to construct a temporary pseudo-post or helper to reuse prepareEmbed logic?
-		// Or just duplicate the logic here to keep it simple since we are inside a loop
 		memberExif := types.ToMemberExif(member)
 		encoder := exif.NewEncoder(memberExif)
 		var imageReaders []io.Reader
 
-		// If image has blobs loaded
-		if len(img.Blobs) == 0 {
-			// Reload blobs if missing? (Should be preloaded though)
-			// Assuming they are present as per ReadPost
-		}
-
 		for _, blob := range img.Blobs {
-			// We might need to fetch blob data if it wasn't fully loaded?
-			// ReadPost loads "length(data) as size" but mostly we need actual data here?
-			// Wait, ReadPost `Select`s specific fields.
-			// `Preload("Images.Blobs", ...)` selects `id, ..., length(data)`. It does NOT select `data`!
-			// We need to fetch the actual data here using `q.db.GetImageBlob(blob.ID)` like in `prepareEmbed`.
 			imgBlob, err := q.db.GetImageBlob(blob.ID)
 			if err != nil {
 				log.Error("Failed to get blob data", "id", blob.ID, "error", err)
 				continue
 			}
 
+			if int64(len(imgBlob.Data)) > units.DiscordLimit || imgBlob.Size > units.DiscordLimit {
+				log.Warn("Skipping DM image due to size fetched from DB", "id", blob.ID)
+				continue
+			}
+
 			if img.HasVideo() {
-				// Video pass through
 				imageReaders = append(imageReaders, bytes.NewReader(imgBlob.Data))
 			} else {
 				if imgBlob.ContentType == "image/png" {
@@ -469,7 +451,6 @@ func (q *Bot) sendDM(s *discordgo.Session, i *discordgo.InteractionCreate) error
 		}
 	}
 
-	// Update the interaction response to say "Sent!"
 	_, err = s.InteractionResponseEdit(i.Interaction, &discordgo.WebhookEdit{
 		Content: utils.Pointer("Sent! Check your DMs 📬"),
 		Components: &[]discordgo.MessageComponent{
@@ -640,14 +621,13 @@ func (q *Bot) SendDirectMessage(userID, postKey string) error {
 		// Check size
 		tooLarge := false
 		for _, blob := range img.Blobs {
-			if len(blob.Data) > units.DiscordLimit {
+			if blob.Size > units.DiscordLimit || len(blob.Data) > units.DiscordLimit {
 				tooLarge = true
 				break
 			}
 		}
 
 		if tooLarge {
-			// Skip too large images for direct DM if we can't fallback easily without interaction
 			log.Warn("Skipping DM image due to size", "post", postKey, "index", idx)
 			continue
 		}
@@ -658,11 +638,15 @@ func (q *Bot) SendDirectMessage(userID, postKey string) error {
 			if err != nil {
 				continue
 			}
+
+			if int64(len(imgBlob.Data)) > units.DiscordLimit || imgBlob.Size > units.DiscordLimit {
+				log.Warn("Skipping DM image due to size fetched from DB", "post", postKey, "index", idx)
+				continue
+			}
 			imageReaders = append(imageReaders, bytes.NewReader(imgBlob.Data))
 		}
 
 		var whEdit discordgo.WebhookEdit
-		// Use Passthrough compositor since we don't have member info for EXIF
 		if err := handlers.EmbedImages(&whEdit, dmEmbed, imageReaders, nil, compositor.Passthrough); err != nil {
 			log.Error("Failed to prepare DM embed", "error", err)
 			continue

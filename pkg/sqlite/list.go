@@ -23,7 +23,7 @@ func (s *sqliteDB) ListPosts(limit, offset int, sort string) ([]*types.Post, err
 			return db.Select("id", "created_at", "updated_at", "deleted_at", "post_id", "(CASE WHEN length(thumbnail) > 0 THEN 1 ELSE 0 END) as has_thumbnail")
 		}).
 		Preload("Images.Blobs", func(db *gorm.DB) *gorm.DB {
-			return db.Select("id", "created_at", "updated_at", "deleted_at", "image_id", "index", "content_type", "filename", "length(data) as size")
+			return db.Select("id", "created_at", "updated_at", "deleted_at", "image_id", "index", "content_type", "filename", "size")
 		}).
 		Preload("AllowedRoles").
 		Order(orderClause).

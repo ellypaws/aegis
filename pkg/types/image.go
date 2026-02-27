@@ -33,7 +33,7 @@ type ImageBlob struct {
 	Index       int    `gorm:"index;uniqueIndex:idx_image_blob_order" json:"index"` // stable order
 	Data        []byte `gorm:"type:blob" json:"data"`
 	ContentType string `json:"contentType"`
-	Size        int64  `gorm:"->;column:size" json:"size"`
+	Size        int64  `json:"size"`
 	Filename    string `json:"filename"`
 }
 
@@ -102,6 +102,7 @@ func (im *Image) SetImages(thumb []byte, imgs [][]byte) {
 			Index:       i,
 			Data:        append([]byte(nil), b...),
 			ContentType: http.DetectContentType(b),
+			Size:        int64(len(b)),
 		})
 	}
 }

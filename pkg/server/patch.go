@@ -127,6 +127,7 @@ func (s *Server) handlePatchPost(c echo.Context) error {
 					Data:        imgBytes,
 					ContentType: fileHeader.Header.Get("Content-Type"),
 					Filename:    fileHeader.Filename,
+					Size:        int64(len(imgBytes)),
 				},
 			},
 		})
@@ -144,6 +145,7 @@ func (s *Server) handlePatchPost(c echo.Context) error {
 				Data:        append([]byte(nil), blob.Data...),
 				ContentType: blob.ContentType,
 				Filename:    blob.Filename,
+				Size:        blob.Size,
 			})
 		}
 		return copied

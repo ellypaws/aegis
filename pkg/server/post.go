@@ -315,6 +315,7 @@ func (s *Server) handleCreatePost(c echo.Context) error {
 					Data:        imgBytes,
 					ContentType: fileHeader.Header.Get("Content-Type"),
 					Filename:    fileHeader.Filename,
+					Size:        int64(len(imgBytes)),
 				},
 			},
 		})
