@@ -3,9 +3,6 @@ FROM oven/bun:latest AS frontend
 
 WORKDIR /frontend
 
-# Initialize git submodules (for discordgo or other submodules)
-RUN git submodule update --init --recursive || true
-
 # Copy frontend dependency files
 COPY app/package.json ./
 # Copy lockfile if it exists, otherwise this step is skipped/handled
@@ -30,9 +27,6 @@ RUN apk add --no-cache git build-base
 
 # Copy go mod files
 COPY go.mod go.sum ./
-
-# Copy vendor files
-COPY src ./src
 
 # Download modules
 RUN go mod download
