@@ -330,6 +330,12 @@ func (q *Bot) sendDM(s *discordgo.Session, i *discordgo.InteractionCreate) error
 
 	ch, err := s.UserChannelCreate(userID)
 	if err != nil {
+		if restErr, ok := errors.AsType[*discordgo.RESTError](err); ok {
+			if restErr.Message != nil && (restErr.Message.Code == discordgo.ErrCodeCannotSendMessagesToThisUser || restErr.Message.Code == 50278) {
+				return handlers.ErrorFollowupEphemeral(s, i.Interaction,
+					"I couldn't open your DMs! Please enable the ability to get direct messages from guild members and try again.", err)
+			}
+		}
 		return handlers.ErrorFollowupEphemeral(s, i.Interaction,
 			"I couldn't open your DMs. Please allow DMs from this server and try again.", err)
 	}
@@ -448,6 +454,13 @@ func (q *Bot) sendDM(s *discordgo.Session, i *discordgo.InteractionCreate) error
 		})
 		if err != nil {
 			log.Error("Failed to send DM", "error", err)
+			if restErr, ok := errors.AsType[*discordgo.RESTError](err); ok {
+				if restErr.Message != nil && (restErr.Message.Code == discordgo.ErrCodeCannotSendMessagesToThisUser || restErr.Message.Code == 50278) {
+					return handlers.ErrorFollowupEphemeral(s, i.Interaction,
+						"I couldn't send you a DM! Please enable the ability to get direct messages from guild members and try again.", err)
+				}
+			}
+			return handlers.ErrorFollowupEphemeral(s, i.Interaction, "Failed to send DM.", err)
 		}
 	}
 
@@ -663,6 +676,10 @@ func (q *Bot) SendDirectMessage(userID, postKey string) error {
 			Embeds:  *whEdit.Embeds,
 		})
 		if err != nil {
+			var restErr *discordgo.RESTError
+			if errors.As(err, &restErr) && restErr.Message != nil && restErr.Message.Code == discordgo.ErrCodeCannotSendMessagesToThisUser {
+				return fmt.Errorf("I couldn't send you a DM. Please enable the ability to get direct messages from guild members: %w", err)
+			}
 			return err
 		}
 	}
