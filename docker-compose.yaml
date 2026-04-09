@@ -18,6 +18,7 @@ services:
       # Discord OAuth2.0
       - CLIENT_ID=${CLIENT_ID:-}
       - CLIENT_SECRET=${CLIENT_SECRET:-}
+      - SQLITE_PATH=${SQLITE_PATH:-/app/data/sqlite.db}
       - PORT=${PORT:-3000}
     ports:
       - ${PORT:-3000}:${PORT:-3000}

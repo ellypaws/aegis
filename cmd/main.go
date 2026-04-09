@@ -73,7 +73,7 @@ func main() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	dbPath := filepath.Join("data", "sqlite.db")
+	dbPath := cmp.Or(os.Getenv("SQLITE_PATH"), filepath.Join("data", "sqlite.db"))
 	if err := os.MkdirAll(filepath.Dir(dbPath), 0o755); err != nil {
 		log.Fatalf("Failed to create database directory: %v", err)
 	}
