@@ -119,16 +119,11 @@ function toDiscordUserFromClaims(claims: JwtPayload): DiscordUser | null {
     userId: claims.uid,
     username: claims.sub,
     globalName: claims.sub,
-    discriminator: "0000",
     avatar: claims.avt || "",
     banner: claims.ban || "",
-    accentColor: 0,
     bot: false,
-    system: false,
-    publicFlags: 0,
     roles: mapDiscordRoles(claims.roles),
     isAdmin: !!claims.adm,
-    isAuthor: !!claims.adm,
   };
 }
 
@@ -139,16 +134,11 @@ function toDiscordUserFromSession(session: SessionPayload): DiscordUser | null {
     userId: session.userId,
     username: session.username,
     globalName: session.globalName || session.username,
-    discriminator: session.discriminator || "0000",
     avatar: session.avatar || "",
     banner: session.banner || "",
-    accentColor: session.accentColor || 0,
     bot: !!session.bot,
-    system: !!session.system,
-    publicFlags: session.publicFlags || 0,
     roles: mapDiscordRoles(session.roles),
     isAdmin: !!session.isAdmin,
-    isAuthor: !!session.isAuthor,
   };
 }
 

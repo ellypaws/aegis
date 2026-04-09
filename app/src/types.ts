@@ -59,15 +59,10 @@ export type SessionPayload = {
     userId?: string;
     username?: string;
     globalName?: string;
-    discriminator?: string;
     avatar?: string;
     banner?: string;
-    accentColor?: number;
     bot?: boolean;
-    system?: boolean;
-    publicFlags?: number;
     roles?: RolePayload[];
-    isAuthor?: boolean;
     isAdmin?: boolean;
 };
 
@@ -81,15 +76,10 @@ export type DiscordUser = {
     userId: string;
     username: string;
     globalName: string;
-    discriminator: string;
     avatar: string;
     banner: string;
-    accentColor: number;
     bot: boolean;
-    system: boolean;
-    publicFlags: number;
     roles?: DiscordRole[];
-    isAuthor?: boolean;
     isAdmin?: boolean;
 };
 

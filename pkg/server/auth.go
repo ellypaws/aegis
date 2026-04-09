@@ -57,19 +57,14 @@ func GenerateToken(user *types.User, roles []*discordgo.Role) (string, error) {
 }
 
 type SessionUser struct {
-	UserID        string            `json:"userId"`
-	Username      string            `json:"username"`
-	GlobalName    string            `json:"globalName"`
-	Discriminator string            `json:"discriminator"`
-	Avatar        string            `json:"avatar"`
-	Banner        string            `json:"banner"`
-	AccentColor   int               `json:"accentColor"`
-	Bot           bool              `json:"bot"`
-	System        bool              `json:"system"`
-	PublicFlags   int               `json:"publicFlags"`
-	Roles         []*discordgo.Role `json:"roles"`
-	IsAuthor      bool              `json:"isAuthor"`
-	IsAdmin       bool              `json:"isAdmin"`
+	UserID     string            `json:"userId"`
+	Username   string            `json:"username"`
+	GlobalName string            `json:"globalName"`
+	Avatar     string            `json:"avatar"`
+	Banner     string            `json:"banner"`
+	Bot        bool              `json:"bot"`
+	Roles      []*discordgo.Role `json:"roles"`
+	IsAdmin    bool              `json:"isAdmin"`
 }
 
 func generateAvatarURL(userID, avatarHash string) string {
@@ -201,19 +196,14 @@ func sessionUserFromClaims(claims *JwtCustomClaims) *SessionUser {
 	}
 
 	return &SessionUser{
-		UserID:        claims.UserID,
-		Username:      claims.Username,
-		GlobalName:    claims.Username,
-		Discriminator: "0000",
-		Avatar:        claims.Avatar,
-		Banner:        claims.Banner,
-		AccentColor:   0,
-		Bot:           false,
-		System:        false,
-		PublicFlags:   0,
-		Roles:         claims.Roles,
-		IsAuthor:      claims.IsAdmin,
-		IsAdmin:       claims.IsAdmin,
+		UserID:     claims.UserID,
+		Username:   claims.Username,
+		GlobalName: claims.Username,
+		Avatar:     claims.Avatar,
+		Banner:     claims.Banner,
+		Bot:        false,
+		Roles:      claims.Roles,
+		IsAdmin:    claims.IsAdmin,
 	}
 }
 
