@@ -17,7 +17,15 @@ func (s *Server) handlePostDM(c echo.Context) error {
 		return c.JSON(http.StatusUnauthorized, map[string]string{"error": "Unauthorized"})
 	}
 
-	err := s.bot.SendDM(user.UserID, postID)
+	post, err := s.db.ReadPostByExternalID(postID)
+	if err != nil {
+		return c.JSON(http.StatusNotFound, map[string]string{"error": "Post not found"})
+	}
+	if !canAccessPost(user, post) {
+		return c.JSON(http.StatusForbidden, map[string]string{"error": "Access denied"})
+	}
+
+	err = s.bot.SendDM(user.UserID, postID)
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
 	}
