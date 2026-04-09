@@ -106,6 +106,10 @@ func Connect(path string, ctx context.Context) (DB, error) {
 func (s *sqliteDB) Stop() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	// Fold any pending WAL contents back into the main DB file before closing.
+	if err := s.db.Exec("PRAGMA wal_checkpoint(TRUNCATE);").Error; err != nil {
+		return err
+	}
 	sqlDB, err := s.db.DB()
 	if err != nil {
 		return err
