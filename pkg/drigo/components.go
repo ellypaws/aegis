@@ -121,10 +121,10 @@ func (q *Bot) showImage(s *discordgo.Session, i *discordgo.InteractionCreate) er
 	// Prefer postKey encoded in the component CustomID; fallback to in-memory map for legacy messages.
 	var postKey string
 	cid := i.MessageComponentData().CustomID
-	if strings.HasPrefix(cid, showImage+":") {
-		postKey = strings.TrimPrefix(cid, showImage+":")
-	} else if strings.HasPrefix(cid, sendDM+":") {
-		postKey = strings.TrimPrefix(cid, sendDM+":")
+	if after, ok := strings.CutPrefix(cid, showImage+":"); ok {
+		postKey = after
+	} else if after, ok := strings.CutPrefix(cid, sendDM+":"); ok {
+		postKey = after
 	}
 	if postKey == "" {
 		q.mu.Lock()
@@ -146,7 +146,7 @@ func (q *Bot) showImage(s *discordgo.Session, i *discordgo.InteractionCreate) er
 	}
 
 	webhookEdit := &discordgo.WebhookEdit{
-		Content:    utils.Pointer("Thank you for your support! Here's your image:"),
+		Content:    new("Thank you for your support! Here's your image:"),
 		Components: &[]discordgo.MessageComponent{buildDMOnlyRow(postKey)},
 	}
 
@@ -186,7 +186,7 @@ func (q *Bot) showImage(s *discordgo.Session, i *discordgo.InteractionCreate) er
 			}
 
 			if _, editErr := s.InteractionResponseEdit(i.Interaction, &discordgo.WebhookEdit{
-				Content: utils.Pointer(fmt.Sprintf("📎 This image was too large to send directly. Here's a link: %s", url)),
+				Content: new(fmt.Sprintf("📎 This image was too large to send directly. Here's a link: %s", url)),
 				Embeds:  &[]*discordgo.MessageEmbed{fbEmbed},
 				Components: &[]discordgo.MessageComponent{
 					buildDMOnlyRow(postKey),
@@ -295,10 +295,10 @@ func (q *Bot) sendDM(s *discordgo.Session, i *discordgo.InteractionCreate) error
 	// Locate post by CustomID or fallback to message -> post map (legacy)
 	var postKey string
 	cid := i.MessageComponentData().CustomID
-	if strings.HasPrefix(cid, sendDM+":") {
-		postKey = strings.TrimPrefix(cid, sendDM+":")
-	} else if strings.HasPrefix(cid, showImage+":") { // if coming from show button
-		postKey = strings.TrimPrefix(cid, showImage+":")
+	if after, ok := strings.CutPrefix(cid, sendDM+":"); ok {
+		postKey = after
+	} else if after, ok := strings.CutPrefix(cid, showImage+":"); ok { // if coming from show button
+		postKey = after
 	}
 	if postKey == "" {
 		q.mu.Lock()
@@ -465,7 +465,7 @@ func (q *Bot) sendDM(s *discordgo.Session, i *discordgo.InteractionCreate) error
 	}
 
 	_, err = s.InteractionResponseEdit(i.Interaction, &discordgo.WebhookEdit{
-		Content: utils.Pointer("Sent! Check your DMs 📬"),
+		Content: new("Sent! Check your DMs 📬"),
 		Components: &[]discordgo.MessageComponent{
 			discordgo.ActionsRow{
 				Components: []discordgo.MessageComponent{discordgo.Button{

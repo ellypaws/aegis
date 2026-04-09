@@ -69,10 +69,7 @@ func (q *Bot) processThumbnail(ctx context.Context, data []byte, blur bool, post
 				break
 			}
 			ratio := float64(bounds.Dx()) / float64(bounds.Dy())
-			newHeight := int(float64(newWidth) / ratio)
-			if newHeight < 1 {
-				newHeight = 1
-			}
+			newHeight := max(int(float64(newWidth)/ratio), 1)
 
 			dst := image.NewRGBA(image.Rect(0, 0, newWidth, newHeight))
 			draw.ApproxBiLinear.Scale(dst, dst.Bounds(), img, bounds, draw.Over, nil)
