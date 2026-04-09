@@ -316,7 +316,7 @@ func (b *botImpl) Start() error {
 	if len(queues) == 0 {
 		log.Error("No queues to start, exiting...")
 	} else {
-		log.Info("Bot started, waiting for shutdown signal")
+		log.Info("Bot started, press Ctrl+C to stop")
 	}
 
 	<-ctx.Done()
