@@ -49,12 +49,20 @@ func EmbedImages(webhook *discordgo.WebhookEdit, embed *discordgo.MessageEmbed, 
 		}
 
 		if thumbnailTile != nil {
+			thumbnailContentType := "image/png"
+			thumbnailExtension := "png"
+			if contentTypeInterface, ok := thumbnailTile.(types.ReaderType); ok {
+				thumbnailContentType = contentTypeInterface.ContentType()
+				thumbnailExtension = utils.GetFileExtension(thumbnailContentType)
+			}
+			thumbnailName := fmt.Sprintf("thumbnail.%s", thumbnailExtension)
 			embed.Thumbnail = &discordgo.MessageEmbedThumbnail{
-				URL: "attachment://thumbnail.png",
+				URL: "attachment://" + thumbnailName,
 			}
 			files = append(files, &discordgo.File{
-				Name:   "thumbnail.png",
-				Reader: thumbnailTile,
+				Name:        thumbnailName,
+				ContentType: thumbnailContentType,
+				Reader:      thumbnailTile,
 			})
 		}
 	}

@@ -256,8 +256,8 @@ func (q *Bot) handleModalSubmit(s *discordgo.Session, i *discordgo.InteractionCr
 		}
 	}
 	if len(selectedChannels) == 0 {
-		thumbR := bytes.NewReader(thumbnail)
-		if err := handlers.EmbedImages(webhookEdit, embed, []io.Reader{thumbR}, nil, compositor.Compositor[*types.MemberExif](nil)); err != nil {
+		thumbR := &types.ImageReader{Data: thumbnail, Reader: bytes.NewReader(thumbnail)}
+		if err := handlers.EmbedImages(webhookEdit, embed, nil, []io.Reader{thumbR}, compositor.Compositor[*types.MemberExif](nil)); err != nil {
 			return handlers.ErrorEdit(s, i.Interaction, fmt.Errorf("error creating image embed: %w", err))
 		}
 
@@ -280,7 +280,8 @@ func (q *Bot) handleModalSubmit(s *discordgo.Session, i *discordgo.InteractionCr
 		}
 		perEmbed := *embed
 		var perEdit discordgo.WebhookEdit
-		if err := handlers.EmbedImages(&perEdit, &perEmbed, []io.Reader{bytes.NewReader(thumbnail)}, nil, compositor.Compositor[*types.MemberExif](nil)); err != nil {
+		thumbR := &types.ImageReader{Data: thumbnail, Reader: bytes.NewReader(thumbnail)}
+		if err := handlers.EmbedImages(&perEdit, &perEmbed, nil, []io.Reader{thumbR}, compositor.Compositor[*types.MemberExif](nil)); err != nil {
 			continue
 		}
 		msg, err := s.ChannelMessageSendComplex(chID, &discordgo.MessageSend{
@@ -543,8 +544,8 @@ func (q *Bot) handlePostImage(s *discordgo.Session, i *discordgo.InteractionCrea
 		},
 	}
 
-	thumbR := bytes.NewReader(thumbBytes)
-	if err := handlers.EmbedImages(webhookEdit, embed, []io.Reader{thumbR}, nil, compositor.Compositor[*types.MemberExif](nil)); err != nil {
+	thumbR := &types.ImageReader{Data: thumbBytes, Reader: bytes.NewReader(thumbBytes)}
+	if err := handlers.EmbedImages(webhookEdit, embed, nil, []io.Reader{thumbR}, compositor.Compositor[*types.MemberExif](nil)); err != nil {
 		return handlers.ErrorEdit(s, i.Interaction, fmt.Errorf("error creating image embed: %w", err))
 	}
 
