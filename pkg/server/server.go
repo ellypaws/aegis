@@ -194,8 +194,6 @@ func (s *Server) Run() error {
 		if err := s.Shutdown(shutdownCtx); err != nil && !errors.Is(err, context.Canceled) && !errors.Is(err, http.ErrServerClosed) {
 			log.Debug("HTTP server shutdown returned error", "error", err)
 			runErr = errors.Join(runErr, err)
-		} else {
-			log.Debug("HTTP server shutdown request completed")
 		}
 		shutdownCancel()
 
@@ -206,7 +204,7 @@ func (s *Server) Run() error {
 				log.Debug("HTTP server exited after shutdown with error", "error", err)
 				runErr = errors.Join(runErr, err)
 			} else {
-				log.Debug("HTTP server exited after shutdown")
+				log.Debug("HTTP server successfully stopped")
 			}
 		case <-time.After(10 * time.Second):
 			log.Debug("Timed out waiting for HTTP server to exit after shutdown")
@@ -225,8 +223,6 @@ func (s *Server) Run() error {
 			if err != nil {
 				log.Debug("Discord bot stop returned error", "error", err)
 				runErr = errors.Join(runErr, err)
-			} else {
-				log.Debug("Discord bot stop completed")
 			}
 		case <-time.After(10 * time.Second):
 			log.Debug("Timed out waiting for Discord bot stop to complete")
@@ -239,7 +235,7 @@ func (s *Server) Run() error {
 				log.Debug("Discord bot exited after shutdown with error", "error", err)
 				runErr = errors.Join(runErr, err)
 			} else {
-				log.Debug("Discord bot exited after shutdown")
+				log.Debug("Discord bot successfully stopped")
 			}
 		case <-time.After(10 * time.Second):
 			log.Debug("Timed out waiting for Discord bot goroutine to exit after shutdown")
@@ -251,7 +247,7 @@ func (s *Server) Run() error {
 		log.Debug("SQLite shutdown returned error", "error", err)
 		runErr = errors.Join(runErr, err)
 	} else {
-		log.Debug("SQLite shutdown completed")
+		log.Debug("SQLite shutdown completed successfully")
 	}
 
 	return runErr
