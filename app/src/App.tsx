@@ -8,7 +8,7 @@ import {
 } from "react-router-dom";
 import { intersect, cn } from "./lib/utils";
 import { UI } from "./constants";
-import type { DiscordUser, Post, ViewMode } from "./types";
+import type { DiscordUser, Post, Settings, ViewMode } from "./types";
 import { DiagonalSlitHeader } from "./components/DiagonalSlitHeader";
 import { LoginModal } from "./components/LoginModal";
 import {
@@ -37,7 +37,67 @@ type NameCache = {
   guildName?: string;
 };
 
+type RolePayload = {
+  id?: string;
+  name?: string;
+  color?: number;
+  managed?: boolean;
+  mentionable?: boolean;
+  hoist?: boolean;
+  position?: number;
+  permissions?: number;
+  icon?: string;
+  unicodeEmoji?: string;
+  flags?: number;
+};
+
+type ChannelPayload = {
+  id?: string;
+  name?: string;
+};
+
+type JwtPayload = {
+  uid?: string;
+  sub?: string;
+  avt?: string;
+  ban?: string;
+  adm?: boolean;
+  exp?: number;
+  roles?: RolePayload[];
+};
+
+type SessionPayload = {
+  userId?: string;
+  username?: string;
+  globalName?: string;
+  discriminator?: string;
+  avatar?: string;
+  banner?: string;
+  accentColor?: number;
+  bot?: boolean;
+  system?: boolean;
+  publicFlags?: number;
+  roles?: RolePayload[];
+  isAuthor?: boolean;
+  isAdmin?: boolean;
+};
+
+type UploadConfigPayload = {
+  roles?: RolePayload[];
+  channels?: ChannelPayload[];
+  guild_name?: string;
+};
+
+type SettingsGuildPayload = Settings & {
+  roles?: RolePayload[];
+  channels?: ChannelPayload[];
+  guild_name?: string;
+};
+
+type SortMode = "id" | "date";
+
 const NAME_CACHE_KEY = "drigo_role_channel_name_cache_v1";
+const PAGE_SIZE = 9;
 
 function readNameCache(): NameCache {
   try {
@@ -54,40 +114,100 @@ function readNameCache(): NameCache {
   }
 }
 
-function mapDiscordRoles(rawRoles: any[] | undefined): NonNullable<DiscordUser["roles"]> {
+function mapDiscordRoles(
+  rawRoles: readonly RolePayload[] | undefined,
+): NonNullable<DiscordUser["roles"]> {
   if (!Array.isArray(rawRoles)) return [];
 
   return rawRoles
-    .filter((r) => r?.id)
-    .map((r) => ({
-      id: r.id,
-      name: r.name ?? "",
-      color: r.color ?? 0,
-      managed: !!r.managed,
-      mentionable: !!r.mentionable,
-      hoist: !!r.hoist,
-      position: r.position ?? 0,
-      permissions: r.permissions ?? 0,
-      icon: r.icon ?? "",
-      unicodeEmoji: r.unicodeEmoji ?? "",
-      flags: r.flags ?? 0,
+    .filter((role): role is Required<Pick<RolePayload, "id">> & RolePayload =>
+      typeof role.id === "string" && role.id.trim().length > 0,
+    )
+    .map((role) => ({
+      id: role.id,
+      name: role.name ?? "",
+      color: role.color ?? 0,
+      managed: !!role.managed,
+      mentionable: !!role.mentionable,
+      hoist: !!role.hoist,
+      position: role.position ?? 0,
+      permissions: role.permissions ?? 0,
+      icon: role.icon ?? "",
+      unicodeEmoji: role.unicodeEmoji ?? "",
+      flags: role.flags ?? 0,
     }));
 }
 
-function mapRoleCache(rawRoles: any[] | undefined): Record<string, CachedRoleName> {
+function mapRoleCache(
+  rawRoles: readonly RolePayload[] | undefined,
+): Record<string, CachedRoleName> {
   const roles: Record<string, CachedRoleName> = {};
   if (!Array.isArray(rawRoles)) return roles;
 
-  rawRoles.forEach((r: any) => {
-    if (!r?.id || !r?.name) return;
-    roles[r.id] = {
-      name: r.name,
-      color: r.color,
-      managed: r.managed,
+  rawRoles.forEach((role) => {
+    if (!role.id || !role.name) return;
+    roles[role.id] = {
+      name: role.name,
+      color: role.color,
+      managed: role.managed,
     };
   });
 
   return roles;
+}
+
+function mapChannelCache(
+  rawChannels: readonly ChannelPayload[] | undefined,
+): Record<string, string> {
+  const channels: Record<string, string> = {};
+  if (!Array.isArray(rawChannels)) return channels;
+
+  rawChannels.forEach((channel) => {
+    if (!channel.id || !channel.name) return;
+    channels[channel.id] = channel.name;
+  });
+
+  return channels;
+}
+
+function toDiscordUserFromClaims(claims: JwtPayload): DiscordUser | null {
+  if (!claims.uid || !claims.sub) return null;
+
+  return {
+    userId: claims.uid,
+    username: claims.sub,
+    globalName: claims.sub,
+    discriminator: "0000",
+    avatar: claims.avt || "",
+    banner: claims.ban || "",
+    accentColor: 0,
+    bot: false,
+    system: false,
+    publicFlags: 0,
+    roles: mapDiscordRoles(claims.roles),
+    isAdmin: !!claims.adm,
+    isAuthor: !!claims.adm,
+  };
+}
+
+function toDiscordUserFromSession(session: SessionPayload): DiscordUser | null {
+  if (!session.userId || !session.username) return null;
+
+  return {
+    userId: session.userId,
+    username: session.username,
+    globalName: session.globalName || session.username,
+    discriminator: session.discriminator || "0000",
+    avatar: session.avatar || "",
+    banner: session.banner || "",
+    accentColor: session.accentColor || 0,
+    bot: !!session.bot,
+    system: !!session.system,
+    publicFlags: session.publicFlags || 0,
+    roles: mapDiscordRoles(session.roles),
+    isAdmin: !!session.isAdmin,
+    isAuthor: !!session.isAuthor,
+  };
 }
 
 function App() {
@@ -107,21 +227,19 @@ function App() {
   const [membershipOpen, setMembershipOpen] = useState(false);
   const [editingPost, setEditingPost] = useState<Post | null>(null);
 
-  // Sort mode — lifted up so it controls the backend fetch
-  type SortMode = "id" | "date";
   const [sortMode, setSortMode] = useState<SortMode>(() => {
     const saved = localStorage.getItem("gallery_sort");
     return saved === "date" ? "date" : "id";
   });
+
+  const sortCacheRef = useRef<Record<SortMode, Post[]>>({ id: [], date: [] });
+  const postsRef = useRef<Post[]>([]);
+  const sessionRefreshInFlightRef = useRef<Promise<void> | null>(null);
+
   useEffect(() => {
     localStorage.setItem("gallery_sort", sortMode);
   }, [sortMode]);
 
-  // Cache: store fetched posts per sort mode for instant switching
-  // Map<SortMode, Post[]>
-  const sortCacheRef = useRef<Record<string, Post[]>>({});
-
-  // Derive state from URL
   const postMatch = matchPath("/post/:postId", location.pathname);
   const selectedId = postMatch ? postMatch.params.postId || null : null;
 
@@ -150,123 +268,129 @@ function App() {
     [],
   );
 
-  // Parse JWT for user info on mount
+  const refreshSession = useCallback(
+    async (token: string) => {
+      if (sessionRefreshInFlightRef.current) {
+        await sessionRefreshInFlightRef.current;
+        return;
+      }
+
+      const refreshPromise = (async () => {
+        try {
+          const res = await fetch("/auth/session", {
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+          });
+
+          if (res.status === 401) {
+            localStorage.removeItem("jwt");
+            setUser(null);
+            return;
+          }
+
+          if (!res.ok) return;
+
+          const data = (await res.json()) as SessionPayload;
+          const liveUser = toDiscordUserFromSession(data);
+          if (!liveUser) return;
+
+          const roleCache = mapRoleCache(data.roles);
+          if (Object.keys(roleCache).length > 0) {
+            mergeNameCache({ roles: roleCache });
+          }
+
+          setUser(liveUser);
+        } catch (err) {
+          console.error("Failed to refresh authenticated session", err);
+        }
+      })();
+
+      sessionRefreshInFlightRef.current = refreshPromise;
+      try {
+        await refreshPromise;
+      } finally {
+        sessionRefreshInFlightRef.current = null;
+      }
+    },
+    [mergeNameCache],
+  );
+
   useEffect(() => {
-    let cancelled = false;
     const params = new URLSearchParams(location.search);
     const tokenParam = params.get("token");
 
     if (tokenParam) {
       localStorage.setItem("jwt", tokenParam);
-      // Remove token from URL
       navigate(location.pathname, { replace: true });
     }
 
     const token = localStorage.getItem("jwt");
-    if (token) {
-      try {
-        const base64Url = token.split(".")[1];
-        const base64 = base64Url.replace(/-/g, "+").replace(/_/g, "/");
-        const jsonPayload = decodeURIComponent(
-          window
-            .atob(base64)
-            .split("")
-            .map(function (c) {
-              return "%" + ("00" + c.charCodeAt(0).toString(16)).slice(-2);
-            })
-            .join(""),
-        );
+    if (!token) return;
 
-        const claims = JSON.parse(jsonPayload);
+    try {
+      const base64Url = token.split(".")[1];
+      const base64 = base64Url.replace(/-/g, "+").replace(/_/g, "/");
+      const jsonPayload = decodeURIComponent(
+        window
+          .atob(base64)
+          .split("")
+          .map((char) => "%" + ("00" + char.charCodeAt(0).toString(16)).slice(-2))
+          .join(""),
+      );
 
-        if (claims.exp && (claims.exp * 1000) < Date.now()) {
-          console.warn("JWT token expired, logging out.");
-          localStorage.removeItem("jwt");
-          setUser(null);
-          return;
-        }
-
-        const rolesFromClaims = mapRoleCache(claims.roles);
-        if (Object.keys(rolesFromClaims).length > 0) {
-          mergeNameCache({ roles: rolesFromClaims });
-        }
-
-        const claimRoles = mapDiscordRoles(claims.roles);
-        const u: DiscordUser = {
-          userId: claims.uid,
-          username: claims.sub,
-          globalName: claims.sub,
-          discriminator: "0000",
-          avatar: claims.avt || "",
-          banner: claims.ban || "",
-          accentColor: 0,
-          bot: false,
-          system: false,
-          publicFlags: 0,
-          roles: claimRoles,
-          isAdmin: claims.adm,
-          isAuthor: claims.adm,
-        };
-        setUser(u);
-
-        fetch("/auth/session", {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        })
-          .then((res) => {
-            if (res.status === 401) {
-              localStorage.removeItem("jwt");
-              if (!cancelled) {
-                setUser(null);
-              }
-              return null;
-            }
-            if (!res.ok) {
-              return null;
-            }
-            return res.json();
-          })
-          .then((data) => {
-            if (!data || cancelled) return;
-
-            const liveRoles = mapDiscordRoles(data.roles);
-            const roleCache = mapRoleCache(data.roles);
-            if (Object.keys(roleCache).length > 0) {
-              mergeNameCache({ roles: roleCache });
-            }
-
-            const liveUser: DiscordUser = {
-              userId: data.userId,
-              username: data.username,
-              globalName: data.globalName || data.username,
-              discriminator: data.discriminator || "0000",
-              avatar: data.avatar || "",
-              banner: data.banner || "",
-              accentColor: data.accentColor || 0,
-              bot: !!data.bot,
-              system: !!data.system,
-              publicFlags: data.publicFlags || 0,
-              roles: liveRoles,
-              isAdmin: !!data.isAdmin,
-              isAuthor: !!data.isAuthor,
-            };
-
-            setUser(liveUser);
-          })
-          .catch((err) => {
-            console.error("Failed to refresh authenticated session", err);
-          });
-      } catch (e) {
-        console.error("Failed to parse JWT", e);
+      const claims = JSON.parse(jsonPayload) as JwtPayload;
+      if (claims.exp && claims.exp * 1000 < Date.now()) {
+        console.warn("JWT token expired, logging out.");
         localStorage.removeItem("jwt");
+        return;
       }
-    }
 
-    return () => {
-      cancelled = true;
+      const claimUser = toDiscordUserFromClaims(claims);
+      if (claimUser) {
+        setUser(claimUser);
+      }
+
+      const rolesFromClaims = mapRoleCache(claims.roles);
+      if (Object.keys(rolesFromClaims).length > 0) {
+        mergeNameCache({ roles: rolesFromClaims });
+      }
+
+      void refreshSession(token);
+    } catch (err) {
+      console.error("Failed to parse JWT", err);
+      localStorage.removeItem("jwt");
+    }
+  }, [
+    location.pathname,
+    location.search,
+    mergeNameCache,
+    navigate,
+    refreshSession,
+  ]);
+
+  useEffect(() => {
+    if (!user?.userId) return;
+
+    const handleRefresh = () => {
+      const token = localStorage.getItem("jwt");
+      if (!token) return;
+      void refreshSession(token);
     };
-  }, []);
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        handleRefresh();
+      }
+    };
+
+    window.addEventListener("focus", handleRefresh);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () => {
+      window.removeEventListener("focus", handleRefresh);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
+  }, [refreshSession, user?.userId]);
 
   useEffect(() => {
     if (!user?.isAdmin) return;
@@ -274,46 +398,18 @@ function App() {
     const token = localStorage.getItem("jwt");
     if (!token) return;
 
-    const headers: Record<string, string> = {
-      Authorization: `Bearer ${token}`,
-    };
-
-    fetch("/upload", { headers })
-      .then((res) => {
-        if (!res.ok) return null;
-        return res.json();
-      })
+    fetch("/upload", {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    })
+      .then((res) => (res.ok ? (res.json() as Promise<UploadConfigPayload>) : null))
       .then((data) => {
         if (!data) return;
 
-        const roles: Record<string, CachedRoleName> = {};
-        const channels: Record<string, string> = {};
-
-        if (Array.isArray(data.roles)) {
-          data.roles.forEach((r: any) => {
-            const id = String(r?.id ?? "").trim();
-            const name = String(r?.name ?? "").trim();
-            if (!id || !name) return;
-            roles[id] = {
-              name,
-              color: r.color,
-              managed: r.managed,
-            };
-          });
-        }
-
-        if (Array.isArray(data.channels)) {
-          data.channels.forEach((c: any) => {
-            const id = String(c?.id ?? "").trim();
-            const name = String(c?.name ?? "").trim();
-            if (!id || !name) return;
-            channels[id] = name;
-          });
-        }
-
         mergeNameCache({
-          roles,
-          channels,
+          roles: mapRoleCache(data.roles),
+          channels: mapChannelCache(data.channels),
           guildName:
             typeof data.guild_name === "string" ? data.guild_name : undefined,
         });
@@ -321,13 +417,37 @@ function App() {
       .catch((err) => {
         console.error("Failed to refresh role/channel cache", err);
       });
-  }, [user?.isAdmin, mergeNameCache]);
+  }, [mergeNameCache, user?.isAdmin]);
+
+  const { settings } = useSettings();
+  const settingsGuildData = settings as SettingsGuildPayload;
+
+  const effectiveNameCache = useMemo<NameCache>(() => {
+    const settingsRoles = mapRoleCache(settingsGuildData.roles);
+    const settingsChannels = mapChannelCache(settingsGuildData.channels);
+
+    return {
+      roles: { ...nameCache.roles, ...settingsRoles },
+      channels: { ...nameCache.channels, ...settingsChannels },
+      guildName:
+        typeof settingsGuildData.guild_name === "string"
+          ? settingsGuildData.guild_name
+          : nameCache.guildName,
+    };
+  }, [
+    nameCache.channels,
+    nameCache.guildName,
+    nameCache.roles,
+    settingsGuildData.channels,
+    settingsGuildData.guild_name,
+    settingsGuildData.roles,
+  ]);
 
   const hydratedPosts = useMemo(() => {
     return posts.map((post) => ({
       ...post,
       allowedRoles: (post.allowedRoles ?? []).map((role) => {
-        const cached = nameCache.roles[role.id];
+        const cached = effectiveNameCache.roles[role.id];
         if (!cached) return role;
         return {
           ...role,
@@ -336,10 +456,10 @@ function App() {
         };
       }),
     }));
-  }, [posts, nameCache.roles]);
+  }, [effectiveNameCache.roles, posts]);
 
   const roleOptions = useMemo(() => {
-    return Object.entries(nameCache.roles)
+    return Object.entries(effectiveNameCache.roles)
       .map(([id, role]) => ({
         id,
         name: role.name,
@@ -347,44 +467,45 @@ function App() {
         managed: role.managed,
       }))
       .sort((a, b) => a.name.localeCompare(b.name));
-  }, [nameCache.roles]);
+  }, [effectiveNameCache.roles]);
 
   const channelOptions = useMemo(() => {
-    return Object.entries(nameCache.channels)
+    return Object.entries(effectiveNameCache.channels)
       .map(([id, name]) => ({ id, name }))
       .sort((a, b) => a.name.localeCompare(b.name));
-  }, [nameCache.channels]);
+  }, [effectiveNameCache.channels]);
 
   const resolveChannelName = useCallback(
-    (id: string) => nameCache.channels[id] || id,
-    [nameCache.channels],
+    (id: string) => effectiveNameCache.channels[id] || id,
+    [effectiveNameCache.channels],
   );
 
-  // Fetch posts
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
-  const limit = 9;
 
   const loadPosts = useCallback(
-    (pageNum: number, reset: boolean = false, sort: SortMode = sortMode) => {
+    (pageNum: number, reset = false, sort: SortMode = sortMode) => {
       setLoading(true);
+
       const token = localStorage.getItem("jwt");
       const headers: Record<string, string> = {};
       if (token) {
-        headers["Authorization"] = `Bearer ${token}`;
+        headers.Authorization = `Bearer ${token}`;
       }
 
-      // If reset and we need all currently-visible items, compute the right limit
       const fetchLimit =
-        reset && pageNum === 1 ? Math.max(limit, posts.length) : limit;
+        reset && pageNum === 1
+          ? Math.max(PAGE_SIZE, postsRef.current.length)
+          : PAGE_SIZE;
 
       fetch(`/posts?page=${pageNum}&limit=${fetchLimit}&sort=${sort}`, {
         headers,
       })
-        .then((res) => res.json())
+        .then((res) => res.json() as Promise<unknown>)
         .then((data) => {
-          const items: Post[] = Array.isArray(data) ? data : [];
+          const items: Post[] = Array.isArray(data) ? (data as Post[]) : [];
           const rolesFromPosts: Record<string, CachedRoleName> = {};
+
           items.forEach((post) => {
             (post.allowedRoles ?? []).forEach((role) => {
               if (!role?.id || !role?.name) return;
@@ -394,13 +515,14 @@ function App() {
               };
             });
           });
+
           if (Object.keys(rolesFromPosts).length > 0) {
             mergeNameCache({ roles: rolesFromPosts });
           }
 
-          const newPosts = reset ? items : [...posts, ...items];
+          const newPosts = reset ? items : [...postsRef.current, ...items];
+          postsRef.current = newPosts;
           setPosts(newPosts);
-          // Update cache for this sort mode
           sortCacheRef.current[sort] = newPosts;
           setHasMore(items.length === fetchLimit);
           setLoading(false);
@@ -412,37 +534,41 @@ function App() {
           setInitialLoading(false);
         });
     },
-    [sortMode, posts, mergeNameCache],
+    [mergeNameCache, sortMode],
   );
 
-  // Initial Fetch
-  useEffect(() => {
-    setInitialLoading(true);
-    sortCacheRef.current = {}; // clear cache on user change
-    loadPosts(1, true);
-    setPage(1);
-  }, [user]);
+  const resetAndLoadPosts = useCallback(
+    (sort: SortMode = sortMode) => {
+      postsRef.current = [];
+      sortCacheRef.current = { id: [], date: [] };
+      setPosts([]);
+      setPage(1);
+      setHasMore(true);
+      setInitialLoading(true);
+      loadPosts(1, true, sort);
+    },
+    [loadPosts, sortMode],
+  );
 
-  // When sort mode changes, use cache if available, otherwise fetch
   useEffect(() => {
     const cached = sortCacheRef.current[sortMode];
-    if (cached && cached.length > 0) {
+    if (cached.length > 0) {
+      postsRef.current = cached;
       setPosts(cached);
-      setHasMore(cached.length % limit === 0); // rough heuristic
-    } else {
-      loadPosts(1, true, sortMode);
-      setPage(1);
+      setHasMore(cached.length % PAGE_SIZE === 0);
+      return;
     }
-  }, [sortMode]);
 
-  const handleLoadMore = () => {
+    resetAndLoadPosts(sortMode);
+  }, [resetAndLoadPosts, sortMode, user]);
+
+  const handleLoadMore = useCallback(() => {
     if (!hasMore || loading) return;
-    // Invalidate cache for both sort modes since we're extending the list
-    sortCacheRef.current = {};
+    sortCacheRef.current = { id: [], date: [] };
     const nextPage = page + 1;
     setPage(nextPage);
     loadPosts(nextPage, false, sortMode);
-  };
+  }, [hasMore, loadPosts, loading, page, sortMode]);
 
   const [selectedPost, setSelectedPost] = useState<Post | null>(null);
 
@@ -451,7 +577,7 @@ function App() {
     return {
       ...selectedPost,
       allowedRoles: (selectedPost.allowedRoles ?? []).map((role) => {
-        const cached = nameCache.roles[role.id];
+        const cached = effectiveNameCache.roles[role.id];
         if (!cached) return role;
         return {
           ...role,
@@ -460,67 +586,51 @@ function App() {
         };
       }),
     };
-  }, [selectedPost, nameCache.roles]);
+  }, [effectiveNameCache.roles, selectedPost]);
 
   const selected = useMemo(() => {
     if (!selectedId) return null;
-    return (
-      hydratedPosts?.find((p) => p.postKey === selectedId) ??
-      hydratedSelectedPost
-    );
-  }, [hydratedPosts, selectedId, hydratedSelectedPost]);
+    return hydratedPosts.find((post) => post.postKey === selectedId) ?? hydratedSelectedPost;
+  }, [hydratedPosts, hydratedSelectedPost, selectedId]);
 
-  useEffect(() => {
-    if (!selectedId) {
-      setSelectedPost(null);
-      return;
-    }
-    if (selectedPost && selectedPost.postKey !== selectedId) {
-      setSelectedPost(null);
-    }
-  }, [selectedId, selectedPost]);
-
-  // If we have a selectedId but it's not in the loaded posts list, fetch it individually
   useEffect(() => {
     if (!selectedId || selected) return;
-    // Prevent re-fetching if we already have it in selectedPost
     if (selectedPost && selectedPost.postKey === selectedId) return;
 
     const token = localStorage.getItem("jwt");
     const headers: Record<string, string> = {};
-    if (token) headers["Authorization"] = `Bearer ${token}`;
+    if (token) {
+      headers.Authorization = `Bearer ${token}`;
+    }
 
     fetch(`/posts/${selectedId}`, { headers })
-      .then((res) => {
-        if (!res.ok) return null;
-        return res.json();
-      })
+      .then((res) => (res.ok ? (res.json() as Promise<Post>) : null))
       .then((post) => {
         if (post) {
           setSelectedPost(post);
         }
       })
-      .catch((err) => console.error("Failed to fetch individual post", err));
-  }, [selectedId, selected, selectedPost]);
+      .catch((err) => {
+        console.error("Failed to fetch individual post", err);
+      });
+  }, [selected, selectedId, selectedPost]);
 
   const viewerRoleIds = useMemo(
-    () => (user?.roles ?? []).map((r) => r.id),
+    () => (user?.roles ?? []).map((role) => role.id),
     [user],
   );
 
   const filteredPosts = useMemo(() => {
-    const base = hydratedPosts.slice();
-    const byTag = base; // Tag filtering logic if tags field exists in future
-    const s = q.trim().toLowerCase();
-    if (!s) return byTag;
-    return byTag.filter((p) => {
-      const hay =
-        `${p.title ?? ""} ${(p.description ?? "").slice(0, 120)}`.toLowerCase();
-      return hay.includes(s);
-    });
-  }, [hydratedPosts, tagFilter, q]);
+    const search = q.trim().toLowerCase();
+    if (!search) return hydratedPosts;
 
-  const { settings } = useSettings();
+    return hydratedPosts.filter((post) => {
+      const haystack =
+        `${post.title ?? ""} ${(post.description ?? "").slice(0, 120)}`.toLowerCase();
+      return haystack.includes(search);
+    });
+  }, [hydratedPosts, q]);
+
   const defaultDocumentTitleRef = useRef(document.title);
 
   useEffect(() => {
@@ -531,60 +641,16 @@ function App() {
         : defaultDocumentTitleRef.current;
   }, [settings.hero_title]);
 
-  useEffect(() => {
-    // @ts-ignore - The types on the frontend don't declare these yet but the backend sends them
-    const backendRoles = settings.roles;
-    // @ts-ignore
-    const backendChannels = settings.channels;
-    // @ts-ignore
-    const backendGuildName = settings.guild_name;
-
-    let hasUpdates = false;
-    const roles: Record<string, CachedRoleName> = {};
-    const channels: Record<string, string> = {};
-
-    if (Array.isArray(backendRoles)) {
-      backendRoles.forEach((r: any) => {
-        const id = String(r?.id ?? "").trim();
-        const name = String(r?.name ?? "").trim();
-        if (!id || !name) return;
-        roles[id] = {
-          name,
-          color: r.color,
-          managed: r.managed,
-        };
-        hasUpdates = true;
-      });
-    }
-
-    if (Array.isArray(backendChannels)) {
-      backendChannels.forEach((c: any) => {
-        const id = String(c?.id ?? "").trim();
-        const name = String(c?.name ?? "").trim();
-        if (!id || !name) return;
-        channels[id] = name;
-        hasUpdates = true;
-      });
-    }
-
-    if (hasUpdates || (backendGuildName && typeof backendGuildName === "string")) {
-      mergeNameCache({
-        roles,
-        channels,
-        guildName: typeof backendGuildName === "string" ? backendGuildName : undefined,
-      });
-    }
-  }, [settings, mergeNameCache]);
-
   const canAccessPost = useMemo(() => {
-    return (p: Post) => {
-      if (user?.isAdmin) return true; // Admin/Author access
-      if (settings.public_access) return true; // Global Public Access
-      const postRoleIds = p.allowedRoles.map((r) => r.id);
+    return (post: Post) => {
+      if (user?.isAdmin) return true;
+      if (settings.public_access) return true;
+
+      const postRoleIds = post.allowedRoles.map((role) => role.id);
       if (postRoleIds.length === 0) return true;
       return intersect(postRoleIds, viewerRoleIds);
     };
-  }, [user, viewerRoleIds, settings.public_access]);
+  }, [settings.public_access, user, viewerRoleIds]);
 
   async function handleCreate(postInput: AuthorPanelPostInput) {
     const formData = new FormData();
@@ -608,7 +674,7 @@ function App() {
 
     const token = localStorage.getItem("jwt");
     const headers: Record<string, string> = {};
-    if (token) headers["Authorization"] = `Bearer ${token}`;
+    if (token) headers.Authorization = `Bearer ${token}`;
 
     try {
       const res = await fetch("/posts", {
@@ -623,11 +689,8 @@ function App() {
         return false;
       }
 
-      const created = await res.json();
-      console.log("Post created:", created);
-      // Refresh posts to show the new one
-      loadPosts(1, true);
-      setPage(1);
+      await res.json();
+      resetAndLoadPosts();
       return true;
     } catch (err) {
       console.error("Upload error:", err);
@@ -675,7 +738,7 @@ function App() {
 
     const token = localStorage.getItem("jwt");
     const headers: Record<string, string> = {};
-    if (token) headers["Authorization"] = `Bearer ${token}`;
+    if (token) headers.Authorization = `Bearer ${token}`;
 
     try {
       const res = await fetch(`/posts/${postKey}`, {
@@ -690,10 +753,8 @@ function App() {
         return false;
       }
 
-      console.log("Post updated");
       setEditingPost(null);
-      loadPosts(1, true);
-      setPage(1);
+      resetAndLoadPosts();
       return true;
     } catch (err) {
       console.error("Edit error:", err);
@@ -705,7 +766,7 @@ function App() {
   async function handleDelete(postKey: string) {
     const token = localStorage.getItem("jwt");
     const headers: Record<string, string> = {};
-    if (token) headers["Authorization"] = `Bearer ${token}`;
+    if (token) headers.Authorization = `Bearer ${token}`;
 
     try {
       const res = await fetch(`/posts/${postKey}`, {
@@ -719,13 +780,11 @@ function App() {
         return;
       }
 
-      console.log("Post deleted");
       if (editingPost && editingPost.postKey === postKey) {
         setEditingPost(null);
       }
       navigate("/");
-      loadPosts(1, true);
-      setPage(1);
+      resetAndLoadPosts();
     } catch (err) {
       console.error("Delete error:", err);
       alert("Delete failed. Check the console for details.");
@@ -734,19 +793,15 @@ function App() {
 
   return (
     <>
-      <SettingsModal
-        open={settingsOpen}
-        onClose={() => setSettingsOpen(false)}
-      />
-      {membershipOpen && (
-        <MembershipModal onClose={() => setMembershipOpen(false)} />
-      )}
+      <SettingsModal open={settingsOpen} onClose={() => setSettingsOpen(false)} />
+      {membershipOpen && <MembershipModal onClose={() => setMembershipOpen(false)} />}
+
       <div className={UI.page}>
         <LoginModal
           open={loginOpen}
           onClose={() => setLoginOpen(false)}
-          onLogin={(u) => {
-            setUser(u);
+          onLogin={(nextUser) => {
+            setUser(nextUser);
           }}
         />
 
@@ -756,7 +811,7 @@ function App() {
             onClickRandom={() => {
               const pick =
                 filteredPosts[
-                Math.floor(Math.random() * Math.max(1, filteredPosts.length))
+                  Math.floor(Math.random() * Math.max(1, filteredPosts.length))
                 ];
               if (pick) {
                 navigate(`/post/${pick.postKey}`);
@@ -766,10 +821,10 @@ function App() {
 
           {view !== "not-found" && (
             <TopBar
-              guildName={nameCache.guildName}
-              view={view === "post" ? "post" : "gallery"} // Fallback to gallery styles if 404
-              setView={(v) => {
-                if (v === "gallery") navigate("/");
+              guildName={effectiveNameCache.guildName}
+              view={view === "post" ? "post" : "gallery"}
+              setView={(nextView) => {
+                if (nextView === "gallery") navigate("/");
               }}
               tagFilter={tagFilter}
               setTagFilter={setTagFilter}
@@ -793,13 +848,12 @@ function App() {
                 onCancelEdit={() => setEditingPost(null)}
                 availableRoles={roleOptions}
                 availableChannels={channelOptions}
-                guildName={nameCache.guildName}
+                guildName={effectiveNameCache.guildName}
               />
             </div>
           ) : null}
 
           <div className="mt-6 flex flex-col gap-4 lg:flex-row relative items-start">
-            {/* Left: MAIN */}
             <div
               className={cn(
                 "transition-all duration-500 w-full lg:w-[calc(100%-22rem)]",
@@ -843,15 +897,11 @@ function App() {
               </Routes>
             </div>
 
-            {/* Right: SIDEBAR - Do not show on 404? or default? */}
             {view !== "not-found" && (
               <div className={cn("w-full lg:w-80")}>
                 <div className="sticky top-4">
                   {view === "gallery" ? (
-                    <ProfileSidebar
-                      user={user}
-                      onLogin={() => setLoginOpen(true)}
-                    />
+                    <ProfileSidebar user={user} onLogin={() => setLoginOpen(true)} />
                   ) : (
                     <RightSidebar
                       posts={filteredPosts}
