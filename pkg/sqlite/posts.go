@@ -129,7 +129,6 @@ func (s *sqliteDB) ReadPost(id uint) (*types.Post, error) {
 	var p types.Post
 	err := s.db.
 		Preload("Author").
-		Preload("Author").
 		Preload("Images", func(db *gorm.DB) *gorm.DB {
 			return db.Select("id", "created_at", "updated_at", "deleted_at", "post_id", "(CASE WHEN length(thumbnail) > 0 THEN 1 ELSE 0 END) as has_thumbnail")
 		}).
@@ -170,7 +169,6 @@ func (s *sqliteDB) ReadPostByExternalID(ext string) (*types.Post, error) {
 	defer s.mu.RUnlock()
 	var p types.Post
 	err := s.db.
-		Preload("Author").
 		Preload("Author").
 		Preload("Images", func(db *gorm.DB) *gorm.DB {
 			return db.Select("id", "created_at", "updated_at", "deleted_at", "post_id", "(CASE WHEN length(thumbnail) > 0 THEN 1 ELSE 0 END) as has_thumbnail")
