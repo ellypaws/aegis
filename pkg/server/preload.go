@@ -29,7 +29,7 @@ func NewPreloadQueue(server *Server) *PreloadQueue {
 func (q *PreloadQueue) StartWorkers() {
 	workerCount := runtime.NumCPU() * 4
 	log.Info("Starting preload workers", "count", workerCount)
-	for i := 0; i < workerCount; i++ {
+	for range workerCount {
 		go q.worker()
 	}
 }

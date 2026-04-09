@@ -7,7 +7,7 @@ import (
 )
 
 func (s *Server) handleGetUsers(c echo.Context) error {
-	user := GetUserFromContext(c)
+	user := s.getEffectiveUser(c)
 	if user == nil || !user.IsAdmin {
 		return c.JSON(http.StatusForbidden, map[string]string{"error": "Unauthorized"})
 	}
@@ -20,7 +20,7 @@ func (s *Server) handleGetUsers(c echo.Context) error {
 }
 
 func (s *Server) handleToggleAdmin(c echo.Context) error {
-	user := GetUserFromContext(c)
+	user := s.getEffectiveUser(c)
 	if user == nil || !user.IsAdmin {
 		return c.JSON(http.StatusForbidden, map[string]string{"error": "Unauthorized"})
 	}
@@ -41,5 +41,5 @@ func (s *Server) handleToggleAdmin(c echo.Context) error {
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Failed to update admin status"})
 	}
 
-	return c.JSON(http.StatusOK, map[string]interface{}{"success": true, "isAdmin": req.IsAdmin})
+	return c.JSON(http.StatusOK, map[string]any{"success": true, "isAdmin": req.IsAdmin})
 }

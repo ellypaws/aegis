@@ -54,6 +54,42 @@ function readNameCache(): NameCache {
   }
 }
 
+function mapDiscordRoles(rawRoles: any[] | undefined): NonNullable<DiscordUser["roles"]> {
+  if (!Array.isArray(rawRoles)) return [];
+
+  return rawRoles
+    .filter((r) => r?.id)
+    .map((r) => ({
+      id: r.id,
+      name: r.name ?? "",
+      color: r.color ?? 0,
+      managed: !!r.managed,
+      mentionable: !!r.mentionable,
+      hoist: !!r.hoist,
+      position: r.position ?? 0,
+      permissions: r.permissions ?? 0,
+      icon: r.icon ?? "",
+      unicodeEmoji: r.unicodeEmoji ?? "",
+      flags: r.flags ?? 0,
+    }));
+}
+
+function mapRoleCache(rawRoles: any[] | undefined): Record<string, CachedRoleName> {
+  const roles: Record<string, CachedRoleName> = {};
+  if (!Array.isArray(rawRoles)) return roles;
+
+  rawRoles.forEach((r: any) => {
+    if (!r?.id || !r?.name) return;
+    roles[r.id] = {
+      name: r.name,
+      color: r.color,
+      managed: r.managed,
+    };
+  });
+
+  return roles;
+}
+
 function App() {
   const [user, setUser] = useState<DiscordUser | null>(null);
   const [nameCache, setNameCache] = useState<NameCache>(() => readNameCache());
@@ -116,6 +152,7 @@ function App() {
 
   // Parse JWT for user info on mount
   useEffect(() => {
+    let cancelled = false;
     const params = new URLSearchParams(location.search);
     const tokenParam = params.get("token");
 
@@ -149,21 +186,12 @@ function App() {
           return;
         }
 
-        const rolesFromClaims: Record<string, CachedRoleName> = {};
-        if (Array.isArray(claims.roles)) {
-          claims.roles.forEach((r: any) => {
-            if (!r?.id || !r?.name) return;
-            rolesFromClaims[r.id] = {
-              name: r.name,
-              color: r.color,
-              managed: r.managed,
-            };
-          });
-        }
+        const rolesFromClaims = mapRoleCache(claims.roles);
         if (Object.keys(rolesFromClaims).length > 0) {
           mergeNameCache({ roles: rolesFromClaims });
         }
 
+        const claimRoles = mapDiscordRoles(claims.roles);
         const u: DiscordUser = {
           userId: claims.uid,
           username: claims.sub,
@@ -175,30 +203,69 @@ function App() {
           bot: false,
           system: false,
           publicFlags: 0,
-          roles: claims.roles
-            ? claims.roles.map((r: any) => ({
-              id: r.id,
-              name: r.name,
-              color: r.color,
-              managed: r.managed,
-              mentionable: r.mentionable,
-              hoist: r.hoist,
-              position: r.position,
-              permissions: r.permissions,
-              icon: r.icon,
-              unicodeEmoji: r.unicodeEmoji,
-              flags: r.flags,
-            }))
-            : [],
+          roles: claimRoles,
           isAdmin: claims.adm,
           isAuthor: claims.adm,
         };
         setUser(u);
+
+        fetch("/auth/session", {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        })
+          .then((res) => {
+            if (res.status === 401) {
+              localStorage.removeItem("jwt");
+              if (!cancelled) {
+                setUser(null);
+              }
+              return null;
+            }
+            if (!res.ok) {
+              return null;
+            }
+            return res.json();
+          })
+          .then((data) => {
+            if (!data || cancelled) return;
+
+            const liveRoles = mapDiscordRoles(data.roles);
+            const roleCache = mapRoleCache(data.roles);
+            if (Object.keys(roleCache).length > 0) {
+              mergeNameCache({ roles: roleCache });
+            }
+
+            const liveUser: DiscordUser = {
+              userId: data.userId,
+              username: data.username,
+              globalName: data.globalName || data.username,
+              discriminator: data.discriminator || "0000",
+              avatar: data.avatar || "",
+              banner: data.banner || "",
+              accentColor: data.accentColor || 0,
+              bot: !!data.bot,
+              system: !!data.system,
+              publicFlags: data.publicFlags || 0,
+              roles: liveRoles,
+              isAdmin: !!data.isAdmin,
+              isAuthor: !!data.isAuthor,
+            };
+
+            setUser(liveUser);
+          })
+          .catch((err) => {
+            console.error("Failed to refresh authenticated session", err);
+          });
       } catch (e) {
         console.error("Failed to parse JWT", e);
         localStorage.removeItem("jwt");
       }
     }
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   useEffect(() => {

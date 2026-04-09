@@ -36,7 +36,7 @@ func (s *Server) handleGetImage(c echo.Context) error {
 	settings, _ := s.db.GetSettings()
 	publicAccess := settings != nil && settings.PublicAccess
 
-	user := GetUserFromContext(c)
+	user := s.getEffectiveUser(c)
 
 	// Check permissions using the new helper
 	post, err := s.db.GetPostByBlobID(uint(id))
@@ -375,7 +375,7 @@ func (s *Server) handleGetThumb(c echo.Context) error {
 }
 
 func (s *Server) serveVideoPreview(c echo.Context, id uint, blob *types.ImageBlob) error {
-	user := GetUserFromContext(c)
+	user := s.getEffectiveUser(c)
 	settings, _ := s.db.GetSettings()
 	publicAccess := settings != nil && settings.PublicAccess
 

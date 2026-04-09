@@ -14,7 +14,7 @@ import (
 )
 
 func (s *Server) handlePatchPost(c echo.Context) error {
-	user := GetUserFromContext(c)
+	user := s.getEffectiveUser(c)
 	if user == nil || !user.IsAdmin {
 		return c.JSON(http.StatusUnauthorized, map[string]string{"error": "Unauthorized"})
 	}

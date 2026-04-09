@@ -122,7 +122,7 @@ func (s *Server) handleGetResizedImage(c echo.Context) error {
 		quality = q
 	}
 
-	user := GetUserFromContext(c)
+	user := s.getEffectiveUser(c)
 	settings, _ := s.db.GetSettings()
 	publicAccess := settings != nil && settings.PublicAccess
 
@@ -173,10 +173,7 @@ func (s *Server) handleGetResizedImage(c echo.Context) error {
 			log.Error("Failed to decode image config for percentage resize", "id", id, "error", err)
 			return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Failed to read image dimensions"})
 		}
-		targetWidth = cfg.Width * targetWidth / 100
-		if targetWidth < 1 {
-			targetWidth = 1
-		}
+		targetWidth = max(cfg.Width*targetWidth/100, 1)
 	}
 
 	cacheKey := fmt.Sprintf("%d_%d_q%d", id, targetWidth, quality)
@@ -350,10 +347,7 @@ func resizeAnimatedGIF(data []byte, width int) ([]byte, error) {
 	}
 
 	ratio := float64(canvasH) / float64(canvasW)
-	newH := int(float64(width) * ratio)
-	if newH < 1 {
-		newH = 1
-	}
+	newH := max(int(float64(width)*ratio), 1)
 
 	canvas := image.NewRGBA(image.Rect(0, 0, canvasW, canvasH))
 	outFrames := make([]*image.Paletted, len(g.Image))

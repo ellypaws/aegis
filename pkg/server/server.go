@@ -132,6 +132,7 @@ func (s *Server) routes() {
 
 	s.router.GET("/login", s.handleLogin)
 	s.router.GET("/auth/callback", s.handleCallback)
+	s.router.GET("/auth/session", s.handleSession)
 
 	s.router.POST("/posts", s.handleCreatePost)
 	s.router.POST("/posts/:id/dm", s.handlePostDM)

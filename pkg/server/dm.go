@@ -12,7 +12,7 @@ func (s *Server) handlePostDM(c echo.Context) error {
 		return c.JSON(http.StatusBadRequest, map[string]string{"error": "post id required"})
 	}
 
-	user := GetUserFromContext(c)
+	user := s.getEffectiveUser(c)
 	if user == nil || user.UserID == "" {
 		return c.JSON(http.StatusUnauthorized, map[string]string{"error": "Unauthorized"})
 	}

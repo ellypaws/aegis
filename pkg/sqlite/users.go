@@ -55,7 +55,7 @@ func (s *sqliteDB) UpsertUser(user *types.User) error {
 	// But `user` passed in might have partial data.
 
 	// Actually, let's just update identity fields.
-	return s.db.Model(&existing).Updates(map[string]interface{}{
+	return s.db.Model(&existing).Updates(map[string]any{
 		"username": user.Username,
 		"avatar":   user.Avatar,
 	}).Error

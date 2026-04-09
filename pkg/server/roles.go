@@ -43,7 +43,7 @@ func (s *Server) parseAllowedRoles(rolesStr string) []types.Allowed {
 
 	seen := map[string]struct{}{}
 	allowedRoles := make([]types.Allowed, 0)
-	for _, rid := range strings.Split(rolesStr, ",") {
+	for rid := range strings.SplitSeq(rolesStr, ",") {
 		rid = strings.TrimSpace(rid)
 		if rid == "" {
 			continue

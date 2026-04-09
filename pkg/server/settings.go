@@ -33,7 +33,7 @@ func (s *Server) handleGetSettings(c echo.Context) error {
 }
 
 func (s *Server) handleUpdateSettings(c echo.Context) error {
-	user := GetUserFromContext(c)
+	user := s.getEffectiveUser(c)
 	if user == nil || !user.IsAdmin {
 		return c.JSON(http.StatusForbidden, map[string]string{"error": "Unauthorized"})
 	}
