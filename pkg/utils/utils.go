@@ -6,8 +6,10 @@ import (
 )
 
 // Deprecated: Use new(T) from 1.26 syntax.
+//
+//go:fix inline
 func Pointer[T any](a T) *T {
-	return &a
+	return new(a)
 }
 
 func ContentType(data []byte) string {

@@ -131,8 +131,8 @@ func DetectInvalidChars(name string) error {
 	ansiReset := "\033[0m"
 
 	highlighted := []rune(name)
-	coloredOutput := ""
-	for i := 0; i < len(highlighted); i++ {
+	var coloredOutput strings.Builder
+	for i := range highlighted {
 		isInvalid := false
 		for _, loc := range locs {
 			if i >= loc[0] && i < loc[1] {
@@ -141,9 +141,9 @@ func DetectInvalidChars(name string) error {
 			}
 		}
 		if isInvalid {
-			coloredOutput += ansiStart + string(highlighted[i]) + ansiReset
+			coloredOutput.WriteString(ansiStart + string(highlighted[i]) + ansiReset)
 		} else {
-			coloredOutput += string(highlighted[i])
+			coloredOutput.WriteString(string(highlighted[i]))
 		}
 	}
 
@@ -157,7 +157,7 @@ func DetectInvalidChars(name string) error {
 		}
 	}
 
-	msg := fmt.Sprintf("%s\n%s", coloredOutput, string(marker))
+	msg := fmt.Sprintf("%s\n%s", coloredOutput.String(), string(marker))
 	return fmt.Errorf("invalid characters detected:\n%s", msg)
 }
 

@@ -34,7 +34,6 @@ func TestStripInvalidName(t *testing.T) {
 	}
 
 	for _, tc := range tests {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			got := StripInvalidName(tc.in)
@@ -55,7 +54,6 @@ func TestDetectInvalidChars_None(t *testing.T) {
 	}
 
 	for _, v := range valids {
-		v := v
 		t.Run(v, func(t *testing.T) {
 			t.Parallel()
 			if err := DetectInvalidChars(v); err != nil {
@@ -113,7 +111,6 @@ func TestDetectInvalidChars_WithMarkers(t *testing.T) {
 	}
 
 	for _, tc := range tests {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
