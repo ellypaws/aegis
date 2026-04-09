@@ -4,6 +4,8 @@ cache
 # Database files
 sqlite.db
 *.db
+*.db-wal
+*.db-shm
 
 # Environment files
 *.env
