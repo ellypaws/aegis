@@ -92,7 +92,7 @@ func (s *Server) handlePatchPost(c echo.Context) error {
 	thumbFiles := form.File["thumbnail"]
 
 	removedImageIDs := make(map[uint]struct{})
-	for _, idToken := range strings.Split(removeImageIDsStr, ",") {
+	for idToken := range strings.SplitSeq(removeImageIDsStr, ",") {
 		idToken = strings.TrimSpace(idToken)
 		if idToken == "" {
 			continue
@@ -127,7 +127,6 @@ func (s *Server) handlePatchPost(c echo.Context) error {
 					Data:        imgBytes,
 					ContentType: fileHeader.Header.Get("Content-Type"),
 					Filename:    fileHeader.Filename,
-					Size:        int64(len(imgBytes)),
 				},
 			},
 		})
@@ -145,7 +144,6 @@ func (s *Server) handlePatchPost(c echo.Context) error {
 				Data:        append([]byte(nil), blob.Data...),
 				ContentType: blob.ContentType,
 				Filename:    blob.Filename,
-				Size:        blob.Size,
 			})
 		}
 		return copied
@@ -168,8 +166,8 @@ func (s *Server) handlePatchPost(c echo.Context) error {
 				continue
 			}
 
-			if strings.HasPrefix(token, "e:") {
-				raw := strings.TrimSpace(strings.TrimPrefix(token, "e:"))
+			if after, ok := strings.CutPrefix(token, "e:"); ok {
+				raw := strings.TrimSpace(after)
 				parsed, parseErr := strconv.ParseUint(raw, 10, 32)
 				if parseErr != nil {
 					continue
@@ -190,8 +188,8 @@ func (s *Server) handlePatchPost(c echo.Context) error {
 				continue
 			}
 
-			if strings.HasPrefix(token, "n:") {
-				raw := strings.TrimSpace(strings.TrimPrefix(token, "n:"))
+			if after, ok := strings.CutPrefix(token, "n:"); ok {
+				raw := strings.TrimSpace(after)
 				idx, parseErr := strconv.Atoi(raw)
 				if parseErr != nil || idx < 0 || idx >= len(newImages) {
 					continue
