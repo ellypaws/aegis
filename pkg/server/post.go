@@ -79,12 +79,9 @@ func (s *Server) handleCallback(c echo.Context) error {
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Failed to decode user"})
 	}
 
-	member, err := s.bot.Session().State.Member(s.config.GuildID, discordUser.ID)
+	member, err := s.currentGuildMember(discordUser.ID)
 	if err != nil {
-		member, err = s.bot.Session().GuildMember(s.config.GuildID, discordUser.ID)
-		if err != nil {
-			log.Error("Failed to get guild member", "user", discordUser.ID, "guild", s.config.GuildID, "error", err)
-		}
+		log.Error("Failed to get guild member", "user", discordUser.ID, "guild", s.config.GuildID, "error", err)
 	}
 
 	var roles []*discordgo.Role

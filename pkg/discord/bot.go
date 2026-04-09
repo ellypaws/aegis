@@ -71,6 +71,7 @@ func New(cfg *Config) (Bot, error) {
 	if err != nil {
 		return nil, err
 	}
+	botSession.Identify.Intents |= discordgo.IntentsGuildMembers
 
 	cfg.DrigoBot = drigo.New(botSession, cfg.Context, cfg.Database, log.Default(), cfg.Bucket)
 	queues := []pkg.HandlerStartStopper{
@@ -121,6 +122,19 @@ func (b *botImpl) registerHandlers() {
 
 		maps.Copy(b.components, q.Components())
 	}
+
+	b.session.AddHandler(func(session *discordgo.Session, update *discordgo.GuildMemberUpdate) {
+		if update == nil || update.Member == nil {
+			return
+		}
+		userID := ""
+		if user := utils.GetUser(update.Member, update.User); user != nil {
+			userID = user.ID
+		}
+		if err := session.State.MemberAdd(update.Member); err != nil {
+			log.Warn("Failed to refresh member in state", "guildID", update.GuildID, "userID", userID, "error", err)
+		}
+	})
 
 	b.session.AddHandler(func(session *discordgo.Session, i *discordgo.InteractionCreate) {
 		var handler pkg.Handler

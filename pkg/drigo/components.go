@@ -256,9 +256,7 @@ func (q *Bot) isAllowedToView(s *discordgo.Session, i *discordgo.InteractionCrea
 		if i.GuildID != "" {
 			user := utils.GetUser(i.Member, i.User)
 			if user != nil {
-				if m, err := s.State.Member(i.GuildID, user.ID); err == nil {
-					member = m
-				} else if m, err := s.GuildMember(i.GuildID, user.ID); err == nil {
+				if m, err := utils.GetMember(s, i.GuildID, user.ID); err == nil {
 					member = m
 				}
 			}

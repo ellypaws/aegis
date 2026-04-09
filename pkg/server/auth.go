@@ -14,6 +14,7 @@ import (
 	"github.com/labstack/echo/v4"
 
 	"drigo/pkg/types"
+	"drigo/pkg/utils"
 )
 
 // JwtCustomClaims are custom claims for JWT
@@ -143,16 +144,7 @@ func (s *Server) currentGuildMember(userID string) (*discordgo.Member, error) {
 		return nil, fmt.Errorf("discord session not ready")
 	}
 
-	member, err := session.State.Member(s.config.GuildID, userID)
-	if err == nil && member != nil {
-		return member, nil
-	}
-
-	member, err = session.GuildMember(s.config.GuildID, userID)
-	if err != nil {
-		return nil, err
-	}
-	return member, nil
+	return utils.GetMember(session, s.config.GuildID, userID)
 }
 
 func (s *Server) memberRoles(member *discordgo.Member, fallback []*discordgo.Role) []*discordgo.Role {

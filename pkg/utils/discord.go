@@ -110,6 +110,34 @@ func GetReference(s *discordgo.Session, r *discordgo.MessageReference) (*discord
 	return retrieve, nil
 }
 
+func GetMember(s *discordgo.Session, guildID, userID string) (*discordgo.Member, error) {
+	if s == nil {
+		return nil, errors.New("*discordgo.Session is nil")
+	}
+	if guildID == "" {
+		return nil, errors.New("guild id is empty")
+	}
+	if userID == "" {
+		return nil, errors.New("user id is empty")
+	}
+
+	member, err := s.State.Member(guildID, userID)
+	if err == nil && member != nil {
+		return member, nil
+	}
+
+	member, err = s.GuildMember(guildID, userID)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := s.State.MemberAdd(member); err != nil {
+		log.Warn("Failed to cache guild member in state", "guildID", guildID, "userID", userID, "error", err)
+	}
+
+	return member, nil
+}
+
 var invalidChars = regexp.MustCompile(`[^-_'\p{L}\p{N}]`)
 
 // DetectInvalidChars returns an error showing positions of invalid characters.
