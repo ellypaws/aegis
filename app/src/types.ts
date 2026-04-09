@@ -14,6 +14,69 @@ export type DiscordRole = {
 
 export type DiscordChannel = { id: string; name: string };
 
+export type CachedRoleName = {
+    name: string;
+    color?: number;
+    managed?: boolean;
+};
+
+export type NameCache = {
+    roles: Record<string, CachedRoleName>;
+    channels: Record<string, string>;
+    guildName?: string;
+};
+
+export type RolePayload = {
+    id?: string;
+    name?: string;
+    color?: number;
+    managed?: boolean;
+    mentionable?: boolean;
+    hoist?: boolean;
+    position?: number;
+    permissions?: number;
+    icon?: string;
+    unicodeEmoji?: string;
+    flags?: number;
+};
+
+export type ChannelPayload = {
+    id?: string;
+    name?: string;
+};
+
+export type JwtPayload = {
+    uid?: string;
+    sub?: string;
+    avt?: string;
+    ban?: string;
+    adm?: boolean;
+    exp?: number;
+    roles?: RolePayload[];
+};
+
+export type SessionPayload = {
+    userId?: string;
+    username?: string;
+    globalName?: string;
+    discriminator?: string;
+    avatar?: string;
+    banner?: string;
+    accentColor?: number;
+    bot?: boolean;
+    system?: boolean;
+    publicFlags?: number;
+    roles?: RolePayload[];
+    isAuthor?: boolean;
+    isAdmin?: boolean;
+};
+
+export type UploadConfigPayload = {
+    roles?: RolePayload[];
+    channels?: ChannelPayload[];
+    guild_name?: string;
+};
+
 export type DiscordUser = {
     userId: string;
     username: string;
@@ -103,7 +166,14 @@ export interface Settings {
     theme?: Theme;
 }
 
+export type SettingsGuildPayload = Settings & {
+    roles?: RolePayload[];
+    channels?: ChannelPayload[];
+    guild_name?: string;
+};
+
 export type ViewMode = "gallery" | "post" | "not-found";
+export type SortMode = "id" | "date";
 export type FileRef = {
     name: string;
     mime: string;

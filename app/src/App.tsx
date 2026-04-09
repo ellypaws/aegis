@@ -8,7 +8,20 @@ import {
 } from "react-router-dom";
 import { intersect, cn } from "./lib/utils";
 import { UI } from "./constants";
-import type { DiscordUser, Post, Settings, ViewMode } from "./types";
+import type {
+  CachedRoleName,
+  ChannelPayload,
+  DiscordUser,
+  JwtPayload,
+  NameCache,
+  Post,
+  RolePayload,
+  SessionPayload,
+  SettingsGuildPayload,
+  SortMode,
+  UploadConfigPayload,
+  ViewMode,
+} from "./types";
 import { DiagonalSlitHeader } from "./components/DiagonalSlitHeader";
 import { LoginModal } from "./components/LoginModal";
 import {
@@ -24,77 +37,6 @@ import { NotFound } from "./pages/NotFound";
 import { SettingsModal } from "./pages/Settings";
 import { useSettings } from "./contexts/SettingsContext";
 import { MembershipModal } from "./components/MembershipModal.tsx";
-
-type CachedRoleName = {
-  name: string;
-  color?: number;
-  managed?: boolean;
-};
-
-type NameCache = {
-  roles: Record<string, CachedRoleName>;
-  channels: Record<string, string>;
-  guildName?: string;
-};
-
-type RolePayload = {
-  id?: string;
-  name?: string;
-  color?: number;
-  managed?: boolean;
-  mentionable?: boolean;
-  hoist?: boolean;
-  position?: number;
-  permissions?: number;
-  icon?: string;
-  unicodeEmoji?: string;
-  flags?: number;
-};
-
-type ChannelPayload = {
-  id?: string;
-  name?: string;
-};
-
-type JwtPayload = {
-  uid?: string;
-  sub?: string;
-  avt?: string;
-  ban?: string;
-  adm?: boolean;
-  exp?: number;
-  roles?: RolePayload[];
-};
-
-type SessionPayload = {
-  userId?: string;
-  username?: string;
-  globalName?: string;
-  discriminator?: string;
-  avatar?: string;
-  banner?: string;
-  accentColor?: number;
-  bot?: boolean;
-  system?: boolean;
-  publicFlags?: number;
-  roles?: RolePayload[];
-  isAuthor?: boolean;
-  isAdmin?: boolean;
-};
-
-type UploadConfigPayload = {
-  roles?: RolePayload[];
-  channels?: ChannelPayload[];
-  guild_name?: string;
-};
-
-type SettingsGuildPayload = Settings & {
-  roles?: RolePayload[];
-  channels?: ChannelPayload[];
-  guild_name?: string;
-};
-
-type SortMode = "id" | "date";
 
 const NAME_CACHE_KEY = "drigo_role_channel_name_cache_v1";
 const PAGE_SIZE = 9;
