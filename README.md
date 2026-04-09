@@ -223,6 +223,16 @@ Set required values in your root `.env` (at minimum `BOT_TOKEN`, `CLIENT_ID`, `C
 docker compose up --build -d
 ```
 
+If you have an older installation with `./sqlite.db` in the repo root, migrate it first:
+
+```powershell
+./scripts/migrate-docker-sqlite.ps1
+```
+
+```bash
+./scripts/migrate-docker-sqlite.sh
+```
+
 ### 3) View logs / stop
 
 ```bash
@@ -233,7 +243,11 @@ docker compose down
 The compose setup maps:
 
 - App port: `${PORT:-3000}`
-- Database file: `./sqlite.db` -> `/app/sqlite.db`
+- Database directory: `./data` -> `/app/data`
+
+The app now opens SQLite at `data/sqlite.db`, so the database, WAL, and SHM files stay together under the mounted `./data` directory in both Docker and local runs.
+
+If you are migrating an older installation, move `sqlite.db`, `sqlite.db-wal`, and `sqlite.db-shm` into `./data/` before starting the new compose stack. The helper scripts above do that safely and skip files that are not present.
 
 > [!NOTE]
 > The Docker build compiles the frontend first, embeds `app/dist`, then builds the Go binary.

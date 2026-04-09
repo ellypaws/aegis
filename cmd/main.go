@@ -5,6 +5,7 @@ import (
 	"context"
 	"flag"
 	"os"
+	"path/filepath"
 
 	"github.com/charmbracelet/log"
 	"github.com/joho/godotenv"
@@ -72,7 +73,12 @@ func main() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	sqliteDB, err := sqlite.Connect("sqlite.db", ctx)
+	dbPath := filepath.Join("data", "sqlite.db")
+	if err := os.MkdirAll(filepath.Dir(dbPath), 0o755); err != nil {
+		log.Fatalf("Failed to create database directory: %v", err)
+	}
+
+	sqliteDB, err := sqlite.Connect(dbPath, ctx)
 	if err != nil {
 		log.Fatalf("Failed to create sqlite database: %v", err)
 	}
