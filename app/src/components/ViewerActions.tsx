@@ -36,7 +36,7 @@ export function ViewerActions({ post, canAccess }: { post: Post; canAccess: bool
     const fullUrl = blob ? `/images/${blob.ID}${token ? `?token=${token}` : ""}` : "";
 
     const handleShare = () => {
-        const url = `${window.location.origin}/posts/${post.postKey}`;
+        const url = `${window.location.origin}/post/${post.postKey}`;
         navigator.clipboard.writeText(url).then(() => {
             setToast("Link copied to clipboard!");
         }).catch(() => {
