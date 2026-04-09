@@ -2,9 +2,14 @@ package server
 
 import (
 	"context"
+	"errors"
 	"io/fs"
 	"net/http"
+	"os"
+	"os/signal"
 	"strings"
+	"syscall"
+	"time"
 
 	"github.com/charmbracelet/log"
 	"github.com/golang-jwt/jwt/v5"
@@ -32,6 +37,8 @@ type Server struct {
 	db           sqlite.DB
 	bot          discord.Bot
 	config       *Config
+	ctx          context.Context
+	cancel       context.CancelFunc
 	preloadQueue *PreloadQueue
 	getPostCache flight.Cache[sortOption, []*types.Post]
 	guildCache   flight.Cache[struct{}, *GuildData]
@@ -39,6 +46,8 @@ type Server struct {
 }
 
 type Config struct {
+	Context      context.Context
+	Cancel       context.CancelFunc
 	Port         string
 	DiscordToken string
 	GuildID      string
@@ -92,6 +101,8 @@ func New(cfg *Config) *Server {
 		db:     cfg.DB,
 		bot:    cfg.Bot,
 		config: cfg,
+		ctx:    cfg.Context,
+		cancel: cfg.Cancel,
 		bucket: cfg.Bucket,
 		getPostCache: flight.NewCache(func(option sortOption) ([]*types.Post, error) {
 			return cfg.DB.ListPosts(option.limit, option.offset, option.sort)
@@ -118,6 +129,113 @@ func New(cfg *Config) *Server {
 	s.routes()
 
 	return s
+}
+
+func (s *Server) Run() error {
+	ctx := s.ctx
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
+	cancel := s.cancel
+	if cancel == nil {
+		cancel = func() {}
+	}
+
+	signalCtx, stopSignals := signal.NotifyContext(ctx, os.Interrupt, syscall.SIGTERM)
+	defer stopSignals()
+
+	serverErrCh := make(chan error, 1)
+	go func() {
+		err := s.Start()
+		if err != nil && !errors.Is(err, http.ErrServerClosed) {
+			serverErrCh <- err
+			return
+		}
+		serverErrCh <- nil
+	}()
+
+	botErrCh := make(chan error, 1)
+	go func() {
+		botErrCh <- s.bot.Start()
+	}()
+
+	var runErr error
+	serverDone := false
+	botDone := false
+
+	select {
+	case err := <-serverErrCh:
+		serverDone = true
+		if err != nil {
+			log.Debug("HTTP server exited with error", "error", err)
+			runErr = err
+		} else {
+			log.Debug("HTTP server exited cleanly")
+		}
+	case err := <-botErrCh:
+		botDone = true
+		if err != nil {
+			log.Debug("Discord bot exited with error", "error", err)
+			runErr = err
+		} else {
+			log.Debug("Discord bot exited cleanly")
+		}
+	case <-signalCtx.Done():
+		log.Debug("Shutdown signal received", "error", signalCtx.Err())
+	}
+
+	log.Info("Gracefully shutting down.")
+
+	cancel()
+
+	if !serverDone {
+		shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 10*time.Second)
+		if err := s.Shutdown(shutdownCtx); err != nil && !errors.Is(err, context.Canceled) && !errors.Is(err, http.ErrServerClosed) {
+			log.Debug("HTTP server shutdown returned error", "error", err)
+			runErr = errors.Join(runErr, err)
+		} else {
+			log.Debug("HTTP server shutdown request completed")
+		}
+		shutdownCancel()
+
+		select {
+		case err := <-serverErrCh:
+			serverDone = true
+			if err != nil {
+				log.Debug("HTTP server exited after shutdown with error", "error", err)
+				runErr = errors.Join(runErr, err)
+			} else {
+				log.Debug("HTTP server exited after shutdown")
+			}
+		case <-time.After(10 * time.Second):
+			log.Debug("Timed out waiting for HTTP server to exit after shutdown")
+		}
+	}
+
+	if !botDone {
+		select {
+		case err := <-botErrCh:
+			botDone = true
+			if err != nil {
+				log.Debug("Discord bot exited after shutdown with error", "error", err)
+				runErr = errors.Join(runErr, err)
+			} else {
+				log.Debug("Discord bot exited after shutdown")
+			}
+		case <-time.After(10 * time.Second):
+			log.Debug("Timed out waiting for Discord bot to exit after shutdown")
+		}
+	}
+
+	if err := s.db.Stop(); err != nil {
+		log.Debug("SQLite shutdown returned error", "error", err)
+		runErr = errors.Join(runErr, err)
+	} else {
+		log.Debug("SQLite shutdown completed")
+	}
+
+	return runErr
 }
 
 func (s *Server) routes() {

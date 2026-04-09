@@ -5,7 +5,6 @@ import (
 	"context"
 	"flag"
 	"os"
-	"os/signal"
 
 	"github.com/charmbracelet/log"
 	"github.com/joho/godotenv"
@@ -70,7 +69,7 @@ func main() {
 		removeCommands = *removeCommandsFlag
 	}
 
-	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
+	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
 	sqliteDB, err := sqlite.Connect("sqlite.db", ctx)
@@ -113,6 +112,8 @@ func main() {
 	}
 
 	srv := server.New(&server.Config{
+		Context:      ctx,
+		Cancel:       cancel,
 		Port:         cmp.Or(os.Getenv("PORT"), "3000"),
 		DiscordToken: *botToken,
 		GuildID:      *guildID,
@@ -121,15 +122,7 @@ func main() {
 		Bucket:       uploader,
 	})
 
-	go func() {
-		if err := srv.Start(); err != nil {
-			log.Fatalf("Server failed: %v", err)
-		}
-	}()
-
-	if err := bot.Start(); err != nil {
-		panic(err)
+	if err := srv.Run(); err != nil {
+		log.Fatalf("Shutdown failed: %v", err)
 	}
-
-	log.Info("Gracefully shutting down.")
 }

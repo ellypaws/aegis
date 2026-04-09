@@ -5,8 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"maps"
-	"os"
-	"os/signal"
 	"slices"
 	"strings"
 	"sync"
@@ -269,8 +267,10 @@ func (b *botImpl) Start() error {
 
 	b.registerHandlers()
 
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
-	defer stop()
+	ctx := b.config.Context
+	if ctx == nil {
+		ctx = context.Background()
+	}
 
 	queues := []pkg.StartStop{
 		b.config.DrigoBot,
@@ -283,7 +283,6 @@ func (b *botImpl) Start() error {
 
 	if len(queues) == 0 {
 		log.Error("No queues to start, exiting...")
-		stop()
 	} else {
 		log.Info("Press Ctrl+C to exit")
 	}

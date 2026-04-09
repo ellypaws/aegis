@@ -23,4 +23,6 @@ services:
       - ${PORT:-3000}:${PORT:-3000}
     volumes:
       - ./sqlite.db:/app/sqlite.db
+      - ./sqlite.db-wal:/app/sqlite.db-wal
+      - ./sqlite.db-shm:/app/sqlite.db-shm
       - ./.env:/app/.env
