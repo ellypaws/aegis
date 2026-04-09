@@ -214,6 +214,24 @@ func (s *Server) Run() error {
 	}
 
 	if !botDone {
+		log.Debug("Starting Discord bot shutdown")
+		stopBotErrCh := make(chan error, 1)
+		go func() {
+			stopBotErrCh <- s.bot.Stop()
+		}()
+
+		select {
+		case err := <-stopBotErrCh:
+			if err != nil {
+				log.Debug("Discord bot stop returned error", "error", err)
+				runErr = errors.Join(runErr, err)
+			} else {
+				log.Debug("Discord bot stop completed")
+			}
+		case <-time.After(10 * time.Second):
+			log.Debug("Timed out waiting for Discord bot stop to complete")
+		}
+
 		select {
 		case err := <-botErrCh:
 			botDone = true
@@ -224,10 +242,11 @@ func (s *Server) Run() error {
 				log.Debug("Discord bot exited after shutdown")
 			}
 		case <-time.After(10 * time.Second):
-			log.Debug("Timed out waiting for Discord bot to exit after shutdown")
+			log.Debug("Timed out waiting for Discord bot goroutine to exit after shutdown")
 		}
 	}
 
+	log.Debug("Starting SQLite shutdown")
 	if err := s.db.Stop(); err != nil {
 		log.Debug("SQLite shutdown returned error", "error", err)
 		runErr = errors.Join(runErr, err)

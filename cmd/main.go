@@ -101,6 +101,7 @@ func main() {
 
 	bot, err := discord.New(&discord.Config{
 		Context:        ctx,
+		Cancel:         cancel,
 		BotToken:       *botToken,
 		GuildID:        *guildID,
 		Database:       sqliteDB,

@@ -27,6 +27,8 @@ type botImpl struct {
 
 	registeredCommands map[string]*discordgo.ApplicationCommand
 	config             *Config
+	stopOnce           sync.Once
+	stopErr            error
 
 	queues []pkg.HandlerStartStopper
 
@@ -38,6 +40,7 @@ type botImpl struct {
 
 type Config struct {
 	Context        context.Context
+	Cancel         context.CancelFunc
 	BotToken       string
 	GuildID        string
 	DrigoBot       pkg.Queue
@@ -48,6 +51,7 @@ type Config struct {
 
 type Bot interface {
 	Start() error
+	Stop() error
 	Session() *discordgo.Session
 	Ready() <-chan struct{}
 	SendDM(userID, postID string) error
@@ -105,6 +109,34 @@ func (b *botImpl) Ready() <-chan struct{} {
 
 func (b *botImpl) SendDM(userID, postID string) error {
 	return b.config.DrigoBot.SendDirectMessage(userID, postID)
+}
+
+func (b *botImpl) Stop() error {
+	b.stopOnce.Do(func() {
+		if b.config.Cancel != nil {
+			b.config.Cancel()
+		}
+
+		queues := []pkg.StartStop{
+			b.config.DrigoBot,
+		}
+		queues = slices.DeleteFunc(queues, isNil)
+
+		var stopErr error
+		for _, q := range queues {
+			if err := stopQueue(q); err != nil {
+				stopErr = errors.Join(stopErr, err)
+			}
+		}
+
+		if err := b.teardown(); err != nil {
+			stopErr = errors.Join(stopErr, err)
+		}
+
+		b.stopErr = stopErr
+	})
+
+	return b.stopErr
 }
 
 func (b *botImpl) registerHandlers() {
@@ -284,18 +316,11 @@ func (b *botImpl) Start() error {
 	if len(queues) == 0 {
 		log.Error("No queues to start, exiting...")
 	} else {
-		log.Info("Press Ctrl+C to exit")
+		log.Info("Bot started, waiting for shutdown signal")
 	}
 
 	<-ctx.Done()
-	var wg sync.WaitGroup
-	for _, q := range queues {
-		wg.Go(stopQueue(q))
-	}
-	wg.Wait()
-
-	err = b.teardown()
-	if err != nil {
+	if err := b.Stop(); err != nil {
 		return fmt.Errorf("error tearing down bot: %w", err)
 	}
 
@@ -306,19 +331,18 @@ func isNil(q pkg.StartStop) bool {
 	return q == nil
 }
 
-func stopQueue(q pkg.StartStop) func() {
-	return func() {
-		stopped := make(chan struct{})
-		go func() {
-			q.Stop()
-			close(stopped)
-		}()
-		select {
-		case <-stopped:
-			return
-		case <-time.After(10 * time.Second):
-			panic("queue did not stop in time")
-		}
+func stopQueue(q pkg.StartStop) error {
+	stopped := make(chan struct{})
+	go func() {
+		q.Stop()
+		close(stopped)
+	}()
+
+	select {
+	case <-stopped:
+		return nil
+	case <-time.After(10 * time.Second):
+		return errors.New("queue did not stop in time")
 	}
 }
 
@@ -332,7 +356,7 @@ func (b *botImpl) teardown() error {
 			err := b.session.ApplicationCommandDelete(b.session.State.User.ID, b.config.GuildID, v.ID)
 			if err != nil {
 				log.Errorf("Cannot delete '%v' command: %v", v.Name, err)
-				panic(err)
+				return err
 			}
 		}
 	}
